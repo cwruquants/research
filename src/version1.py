@@ -49,16 +49,21 @@ def extract_text(file_path: str) -> str:
     
     return cleaned_text
 
+def csv_to_list(filepath):
+    """
+        This takes in a csv file consisting of political bigrams and returns a list of political bigrams with the underscore removed
+"""
+    political_list = []
+    with open (filepath,'r') as file:
+        f = csv.reader(file)
+    for row in f:
+      political_list.append(row[0])
+    del political_list[0]
+    for i in range(len(political_list)):
+        political_list[i] = political_list[i].split("_")[0] + " " + political_list[i].split("_")[1]
+    return political_list
 
-
-
-
-    
-
-
-
-
-def extract_exposure(exposure_words, txt_string, buffer) -> dict:
+def extract_exposure(text, keywords, buffer=10) -> dict :
     """
         This takes in the str returned from extract_text, and extracts regions (+- buffer) where the exposure
         words exist. 
@@ -73,10 +78,21 @@ def extract_exposure(exposure_words, txt_string, buffer) -> dict:
         - buffer: int
 
         Output:
-        dict containing strings of words containing exposure words. These will later be analyzed with sentiment analysis processes
+        dictionary
+        
     """
+    words = re.findall(r'\w+', text)
+    contexts = {}
 
-    return {}
+    for index, word in enumerate(words):
+        if word.lower() in keywords:
+            start = max(0, index - window)
+            end = min(len(words), index + window + 1)
+            context = " ".join(words[start:end])
+            contexts[word] = context
+
+    return contexts
+
 
 def sentiment_score():
     """
