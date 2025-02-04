@@ -6,6 +6,7 @@
 import xml.etree.ElementTree as ET
 import re
 import os
+import csv
 
 # Functions
 def extract_text(file_path: str) -> str:
@@ -63,7 +64,7 @@ def csv_to_list(filepath):
         political_list[i] = political_list[i].split("_")[0] + " " + political_list[i].split("_")[1]
     return political_list
 
-def extract_exposure(text, keywords, buffer=10) -> dict :
+def extract_exposure(text, keywords, window=10) -> dict :
     """
         This takes in the str returned from extract_text, and extracts regions (+- buffer) where the exposure
         words exist. 
