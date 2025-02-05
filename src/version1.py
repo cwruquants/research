@@ -95,9 +95,15 @@ def extract_exposure(text, keywords, window=10) -> dict :
     return contexts
 
 
-def sentiment_score():
+def sentiment_score(dicionary:):
     """
         Returns sentiment score using roBERTa method for positive/negative/neutral sentiment surrounding our exposure words.
+
+        Input:
+        - dictionary: dict
+
+        Output:
+        - score: double?
     """
 
     return 0
