@@ -50,19 +50,37 @@ def extract_text(file_path: str) -> str:
     
     return cleaned_text
 
+
 def csv_to_list(filepath):
     """
-        This takes in a csv file consisting of political bigrams and returns a list of political bigrams with the underscore removed
-"""
+    This takes in a CSV file consisting of political bigrams and returns
+    a list of bigrams with the underscore removed (e.g., "democratic_party" -> "democratic party").
+    """
     political_list = []
-    with open (filepath,'r') as file:
-        f = csv.reader(file)
-    for row in f:
-      political_list.append(row[0])
-    del political_list[0]
-    for i in range(len(political_list)):
-        political_list[i] = political_list[i].split("_")[0] + " " + political_list[i].split("_")[1]
+    
+    with open(filepath, 'r', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        
+        # Convert the CSV rows to a list so we can manipulate them outside the 'with' block
+        rows = list(reader)
+    
+    # Remove the first row if it's a header
+    if rows:
+        rows.pop(0)
+    
+    # Process each row, replacing underscores with spaces
+    for row in rows:
+        # Ensure row is not empty
+        if row and len(row) > 0:
+            bigram = row[0]
+            # Replace the first underscore with a space if you only expect two parts
+            parts = bigram.split("_")
+            if len(parts) == 2:
+                bigram = parts[0] + " " + parts[1]
+            political_list.append(bigram)
+    
     return political_list
+
 
 def extract_exposure(text, keywords, window=10) -> dict :
     """
@@ -95,17 +113,40 @@ def extract_exposure(text, keywords, window=10) -> dict :
     return contexts
 
 
-def sentiment_score(dicionary):
+def sentiment_score(text_dict):
     """
-        Returns sentiment score using roBERTa method for positive/negative/neutral sentiment surrounding our exposure words.
-
-        Input:
-        - dictionary: dict
-
-        Output:
-        - score: double?
+    Returns sentiment scores for each string in text_dict using RoBERTa-based
+    sentiment analysis for positive/negative/neutral sentiment.
     """
+    from transformers import pipeline
+    
+    sentiment_analyzer = pipeline(
+        "sentiment-analysis",
+        model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+    )
 
-    return 0
+    results = {}
+
+    for key, text in text_dict.items():
+        prediction = sentiment_analyzer(text)[0]
+        
+        label = prediction["label"].lower() 
+        score = prediction["score"]     
+
+        if label == "positive":
+            numeric_score = score
+        elif label == "negative":
+            numeric_score = -score
+        else:
+            numeric_score = 0
+
+        results[key] = {
+            "text": text,
+            "label": label,
+            "score": score,
+            "numeric_score": numeric_score
+        }
+
+    return results
 
 
