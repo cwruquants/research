@@ -77,7 +77,7 @@ def csv_to_list(filepath):
             parts = bigram.split("_")
             if len(parts) == 2:
                 bigram = parts[0] + " " + parts[1]
-            political_list.append(bigram)
+            political_list.append(bigram.lower())
     
     return political_list
 
@@ -117,6 +117,9 @@ def sentiment_score(text_dict):
     """
     Returns sentiment scores for each string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
+
+    TODO:
+    - reference to how the sentiment reference works
     """
     from transformers import pipeline
     
