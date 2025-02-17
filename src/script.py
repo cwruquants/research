@@ -1,4 +1,4 @@
-from version1 import extract_text, extract_exposure, csv_to_list, sentiment_score
+from functions import extract_text, extract_exposure, csv_to_list, sentiment_score
 import json
 import os
 from pathlib import Path
@@ -56,6 +56,8 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
     Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
+    count = 0
+
     for file_name in os.listdir(folder_path):
         if file_name.endswith(".xml"):
             file_path = os.path.join(folder_path, file_name)
@@ -91,6 +93,9 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
             except Exception as e:
                 logging.error(f"Error processing {file_name}: {e}")
+        count += 1
+        if count > 10:
+            break
 
     with open(output_file, "w") as f:
         json.dump(results, f, indent=4)
@@ -100,7 +105,7 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
 
 if __name__ == "__main__":
-    from version1 import csv_to_list
+    from functions import csv_to_list
     # j = model5("/Users/efang/Desktop/coding/research/src/data/example.xml", "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv", 20)
     exposure_folder = "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv"
     folder_path = "/Users/efang/Downloads/Transcript/2016"
