@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 import re
 import os
 import csv
-from sklearn.feature_extraction.text import TfidfVectorizer 
+from sklearn.feature_extraction.text import TfidfVectorizer
 from bs4 import BeautifulSoup
 
 # Functions
@@ -156,8 +156,8 @@ def sentiment_score(text_dict):
 
 def tf_idf(*args):
     '''
-        Input: 
-        Output:
+        Input: a sequence of strings 
+        Output: a sparse matrix of tf-idf values for each word in the input strings
     '''
     documents = list(args)
     if not all(isinstance(doc, str) for doc in documents):
