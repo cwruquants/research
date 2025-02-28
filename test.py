@@ -39,7 +39,7 @@ def extract_text(file_path: str) -> str:
     
     return cleaned_text
 
-def extract_exposure(seed_words, text_string):
+def extract_exposure(seed_words, text_string, buffer):
     """
     Extracts regions around seed words and their similar words using KeyBERT.
     
@@ -54,7 +54,6 @@ def extract_exposure(seed_words, text_string):
     import re
     from keybert import KeyBERT
 
-    buffer = 5  # Number of words before and after the seed word
     all_words = re.findall(r'\b\w+\b', text_string.lower())
 
     kw_model = KeyBERT()
@@ -88,6 +87,6 @@ def extract_exposure(seed_words, text_string):
 
 seed_words = ["revenue", "profit", "growth"]
 text_string = extract_text(r"C:\Users\kstry\OneDrive\Documents\GitHub\research\src\earnings_call.xml")
-extracted_info = extract_exposure(seed_words, text_string)
+extracted_info = extract_exposure(seed_words, text_string,5)
 
 print(extracted_info)
