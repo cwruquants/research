@@ -46,6 +46,7 @@ def extract_exposure(seed_words, text_string, buffer):
     Args:
         seed_words (list): List of seed words to search for in the text.
         text_string (str): The text to analyze.
+        buffer (int): gives the number of words to extract left and right of the considered word
         
     Returns:
         dict: Dictionary with seed words and similar words as keys, 
@@ -59,7 +60,7 @@ def extract_exposure(seed_words, text_string, buffer):
     kw_model = KeyBERT()
 
     # Use KeyBERT to extract related words based on the full text
-    keywords = kw_model.extract_keywords(text_string, keyphrase_ngram_range=(1, 1), 
+    keywords = kw_model.extract_keywords(text_string, keyphrase_ngram_range=(1, 2), 
                                          stop_words='english', top_n=10)
     
     # Extract just the words from the KeyBERT results
