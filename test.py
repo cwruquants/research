@@ -90,4 +90,4 @@ seed_words = ["revenue", "profit", "growth"]
 text_string = extract_text(r"C:\Users\kstry\OneDrive\Documents\GitHub\research\src\earnings_call.xml")
 extracted_info = extract_exposure(seed_words, text_string,5)
 
-print(extracted_info)
+print(extracted_info["revenue"])
