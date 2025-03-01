@@ -1,6 +1,9 @@
 import xml.etree.ElementTree as ET
 import re
 import os
+import re
+from keybert import KeyBERT
+
 
 def extract_text(file_path: str) -> str:
     """
@@ -38,23 +41,54 @@ def extract_text(file_path: str) -> str:
     
     return cleaned_text
 
-
-
-if __name__ == "__main__":
-    file_path = input("Enter the path to the XML file: ")
+def extract_exposure(seed_words, text_string, buffer):
+    """
+    Extracts regions around seed words and their similar words using KeyBERT.
     
-    try:
-        text = extract_text(file_path)
-        if text:
-            print("\nExtracted text (first 500 characters):")
-            print(text[:500], "...\n")
-            print(f"Total characters extracted: {len(text)}")
-        else:
-            print("\nNo text was extracted from the XML file")
-    except FileNotFoundError:
-        print(f"Error: Could not find file at {file_path}")
-    except ET.ParseError:
-        print("Error: Invalid XML file")
+    Args:
+        seed_words (list): List of seed words to search for in the text.
+        text_string (str): The text to analyze.
+        buffer (int): gives the number of words to extract left and right of the considered word
+        
+    Returns:
+        dict: Dictionary with seed words and similar words as keys, 
+              and the surrounding words as values.
+    """
 
-print(type(text))
-print(text)
+
+    all_words = re.findall(r'\b\w+\b', text_string.lower())
+
+    kw_model = KeyBERT()
+
+    # Use KeyBERT to extract related words based on the full text
+    keywords = kw_model.extract_keywords(text_string, keyphrase_ngram_range=(1, 2), 
+                                         stop_words='english', top_n=10)
+    
+    # Extract just the words from the KeyBERT results
+    similar_words = set(word.lower() for word, _ in keywords)
+    
+    # Include both seed words and their similar words
+    search_words = set(seed_words) | similar_words
+
+    results = {}
+
+    for i, word in enumerate(all_words):
+        normalized_word = word.strip()
+        if normalized_word in search_words:
+            start_idx, end_idx = max(0, i - buffer), min(len(all_words), i + buffer + 1)
+            surrounding_words = ' '.join(all_words[start_idx:end_idx])
+
+            if normalized_word not in results:
+                results[normalized_word] = []
+
+            results[normalized_word].append(surrounding_words)
+
+    return results
+
+
+
+seed_words = ["revenue", "profit", "growth"]
+text_string = extract_text(r"C:\Users\kstry\OneDrive\Documents\GitHub\research\src\earnings_call.xml")
+extracted_info = extract_exposure(seed_words, text_string,5)
+
+print(extracted_info["revenue"])
