@@ -1,14 +1,22 @@
+'''
+    CWRU Quants Research Vertical Exposure Project
+'''
+
+# Import statements
 import xml.etree.ElementTree as ET
 import re
 import os
-import re
-from keybert import KeyBERT
 
-
+# Functions
 def extract_text(file_path: str) -> str:
     """
-    Extracts text content from an earnings transcript XML file.
+
+    This function takes in an earnings transcript as an input, and extracts the words from the transcript.
+
+    Input: .xml file
+    Output: str
     """
+    
     # Parse the XML file
     tree = ET.parse(file_path)
     root = tree.getroot()
@@ -41,7 +49,8 @@ def extract_text(file_path: str) -> str:
     
     return cleaned_text
 
-def extract_exposure(seed_words, text_string, buffer):
+
+def extract_exposure2(seed_words, text_string, buffer):
     """
     Extracts regions around seed words and their similar words using KeyBERT.
     
@@ -85,10 +94,11 @@ def extract_exposure(seed_words, text_string, buffer):
 
     return results
 
+def sentiment_score():
+    """
+        Returns sentiment score using roBERTa method for positive/negative/neutral sentiment surrounding our exposure words.
+    """
+
+    return 0
 
 
-seed_words = ["revenue", "profit", "growth"]
-text_string = extract_text(r"C:\Users\kstry\OneDrive\Documents\GitHub\research\src\earnings_call.xml")
-extracted_info = extract_exposure(seed_words, text_string,5)
-
-print(extracted_info["revenue"])
