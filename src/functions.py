@@ -9,8 +9,9 @@ import os
 import csv
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
+from keybert import KeyBERT
 
-# Functions
+###### TEXT EXTRACTION FUNCTIONS ######
 def extract_text(file_path: str) -> str:
     """
 
@@ -113,6 +114,50 @@ def extract_exposure(text, keywords, window=10) -> dict :
             contexts[word] = context
 
     return contexts
+
+def extract_exposure2(seed_words, text_string, buffer):
+    """
+    Extracts regions around seed words and their similar words using KeyBERT.
+    
+    Args:
+        seed_words (list): List of seed words to search for in the text.
+        text_string (str): The text to analyze.
+        buffer (int): gives the number of words to extract left and right of the considered word
+        
+    Returns:
+        dict: Dictionary with seed words and similar words as keys, 
+              and the surrounding words as values.
+    """
+
+
+    all_words = re.findall(r'\b\w+\b', text_string.lower())
+
+    kw_model = KeyBERT()
+
+    # Use KeyBERT to extract related words based on the full text
+    keywords = kw_model.extract_keywords(text_string, keyphrase_ngram_range=(1, 2), 
+                                         stop_words='english', top_n=10)
+    
+    # Extract just the words from the KeyBERT results
+    similar_words = set(word.lower() for word, _ in keywords)
+    
+    # Include both seed words and their similar words
+    search_words = set(seed_words) | similar_words
+
+    results = {}
+
+    for i, word in enumerate(all_words):
+        normalized_word = word.strip()
+        if normalized_word in search_words:
+            start_idx, end_idx = max(0, i - buffer), min(len(all_words), i + buffer + 1)
+            surrounding_words = ' '.join(all_words[start_idx:end_idx])
+
+            if normalized_word not in results:
+                results[normalized_word] = []
+
+            results[normalized_word].append(surrounding_words)
+
+    return results
 
 
 def sentiment_score(text_dict):
