@@ -8,7 +8,6 @@ Models
 5. Sentiment +- 10 word parameter
 
 
-
 Current:
 - sentiment, risk, hedging
 
@@ -22,6 +21,7 @@ What's next?
 - model 3, but look inside the strings in the dict for risk words. If it doesn't contain a risk word, then we will get rid of it.
 - Every topic has a different associated list of risk words
 - does individual tfidf weighting vs. overall tfidf weighting make a difference? 
+
 
 Firm name, Firm Headquarter Address, Date of Earnings call, Summary numbers
 

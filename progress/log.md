@@ -1,4 +1,11 @@
---February 14 2024 GB Meeting--
+--February 28 2025 GB Meeting--
+Karel: Finished KeyBERT function
+Charan: Finished tfidf function
+Diliya: Assigned to finish risk discovery function
+Binayek: Assigned to extraction for company name, earnings call date, information
+Atharva: Assigned to new task of web scraping
+
+--February 14 2025 GB Meeting--
 Progress:
 - Karel: Short report on KeyBERT for more efficient text extraction
 - Charan: Finished basic tf*idf function
