@@ -9,7 +9,7 @@ import os
 import csv
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
-from keybert import KeyBERT
+
 
 ###### TEXT EXTRACTION FUNCTIONS ######
 def extract_text(file_path: str) -> str:
@@ -52,6 +52,34 @@ def extract_text(file_path: str) -> str:
     cleaned_text = cleaned_text.strip()
     
     return cleaned_text
+
+def extract_company_info(file_path: str) -> list:
+    '''
+        This function takes in an earnings transcript as an input, and extracts the company infomation from the transcript
+
+        Input: file_path for earnings call
+
+        Output: List[company name, ticker, earnings call date, city]
+    '''
+    from datetime import datetime
+    from dateutil import parser
+
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    company_name = root.find('companyName').text
+    ticker = root.find('companyTicker').text
+    date = root.find('startDate')
+    city = root.find('city').text
+
+    date_str = date.text.strip()
+
+    dt = parser.parse(date_str)
+    
+    date = dt.strftime("%m-%d-%Y")
+
+
+    return [company_name, ticker, date, city]
 
 
 def csv_to_list(filepath):
@@ -128,7 +156,7 @@ def extract_exposure2(seed_words, text_string, buffer):
         dict: Dictionary with seed words and similar words as keys, 
               and the surrounding words as values.
     """
-
+    from keybert import KeyBERT
 
     all_words = re.findall(r'\b\w+\b', text_string.lower())
 
