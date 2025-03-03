@@ -1,4 +1,4 @@
-from functions import extract_text, extract_exposure, csv_to_list, sentiment_score
+from functions import extract_text, extract_exposure, csv_to_list, sentiment_score, tf_idf 
 import json
 import os
 from pathlib import Path
@@ -102,14 +102,37 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
     logging.info(f"Results saved to {output_file}")
 
+def tf_idf_on_xml_files(folder_path):
+
+    """
+    Processes a folder of xml files and returns a dictionary consisiting of tf_idf_values for each 
+
+    Input: Folder path
+    Output: A dictionary containing tf_idf values for the corresponding xml file.
+    """
+    tf_idf_dict = {}
+    l = []
+    for file_name in os.listdir(folder_path):
+        if file_name.endswith(".xml"):
+            file_path = os.path.join(folder_path, file_name)
+            logging.info(f"Processing {file_name}...")
+            text = extract_text(file_path)
+            l.append(text)
+
+    return tf_idf(l)
 
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
     from functions import csv_to_list
     # j = model5("/Users/efang/Desktop/coding/research/src/data/example.xml", "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv", 20)
     exposure_folder = "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv"
     folder_path = "/Users/efang/Downloads/Transcript/2016"
     
-    model5_f(folder_path, exposure_folder, 20, "trial1.json")
+    model5_f(folder_path, exposure_folder, 20, "trial1.json")"""
+
+f = "/Users/charan/Documents/Research/research"
+tf_idf_on_xml_files(f)
+
+
     
 

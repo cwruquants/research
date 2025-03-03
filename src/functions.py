@@ -7,7 +7,8 @@ import xml.etree.ElementTree as ET
 import re
 import os
 import csv
-from sklearn.feature_extraction.text import TfidfVectorizer 
+import json
+from sklearn.feature_extraction.text import TfidfVectorizer
 from bs4 import BeautifulSoup
 from keybert import KeyBERT
 
@@ -199,22 +200,24 @@ def sentiment_score(text_dict):
 
     return results
 
-def tf_idf(*args):
+def tf_idf(documents, log_file="tfidf_log.json"):
     '''
-        Input: 
-        Output:
+        Input: a list of strings of strings 
+        Output: a sparse matrix of tf-idf values for each word in the input strings
     '''
-    documents = list(args)
+    
     if not all(isinstance(doc, str) for doc in documents):
         raise ValueError("All inputs must be strings.")
 
     tfidf = TfidfVectorizer()
     result = tfidf.fit_transform(documents)
 
-    print('\nIDF values:')
-    for word, idf in zip(tfidf.get_feature_names_out(), tfidf.idf_):
-        print(word, ':', idf)
-
+    idf_values = {word: idf for word, idf in zip(tfidf.get_feature_names_out(), tfidf.idf_)}
+    
+    # Save to JSON file
+    with open(log_file, "w") as f:
+        json.dump(idf_values, f, indent=4)
+    
+    print(f"IDF values logged to {log_file}")
     return result
-
 
