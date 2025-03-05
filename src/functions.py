@@ -143,7 +143,7 @@ def extract_exposure(text, keywords, window=10) -> dict :
 
     return contexts
 
-def extract_exposure2(seed_words, text_string, buffer):
+def extract_exposure2(text_string, seed_words, buffer):
     """
     Extracts regions around seed words and their similar words using KeyBERT.
     
