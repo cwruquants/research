@@ -1,10 +1,10 @@
-from functions import extract_text, extract_exposure, csv_to_list, sentiment_score
+from functions import extract_text, extract_exposure, extract_exposure2, csv_to_list, sentiment_score, extract_company_info
 import json
 import os
 from pathlib import Path
 import logging
 
-def model5(analyze_path, exposure_csv, n):
+def model5v1(analyze_path, exposure_csv, n):
     """
         Model 5 Pipeline:
         - text extraction from earnings call
@@ -26,6 +26,35 @@ def model5(analyze_path, exposure_csv, n):
 
     logging.info("Calculating Exposure...")
     exposure = extract_exposure(text, exposure_word_list, window=n)
+    print(len(exposure))
+
+    logging.info("Finding Sentiment...")
+    final = sentiment_score(exposure)
+
+    return final
+
+def model5v2(analyze_path, exposure_csv, n):
+    """
+        Model 5 Pipeline:
+        - text extraction from earnings call
+        - exposure csv to exposure word list
+        - exposure search with KEYBERT and +- parameter
+        - sentiment analysis on found exposure
+
+        Returns:
+            dict with exposure strings, sentiment score, pos/neg
+    """
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    logging.info("Extracting Text...")
+    text = extract_text(analyze_path)
+
+    logging.info("Loading Exposure Word List...")
+    exposure_word_list = csv_to_list(exposure_csv)
+    print(exposure_word_list)
+
+    logging.info("Calculating Exposure...")
+    exposure = extract_exposure2(text, exposure_word_list, buffer=n)
     print(len(exposure))
 
     logging.info("Finding Sentiment...")
@@ -67,8 +96,11 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
             try:
                 # run Model 5 pipeline
-                exposure_dict = model5(file_path, exposure_csv, buffer)
+                exposure_dict = model5v2(file_path, exposure_csv, buffer)
 
+                # get company info
+                company_info = extract_company_info(file_path) # List[company name, ticker, earnings call date, city]
+                
                 # occurence count
                 total_count = len(exposure_dict)
                 positive_count = sum(1 for v in exposure_dict.values() if v["label"] == "positive")
@@ -82,6 +114,10 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
                 # save
                 results[file_name] = {
+                    "Company": company_info[0],
+                    "Ticker": company_info[1],
+                    "Earnings Call Date": company_info[2],
+                    "City": company_info[3],
                     "total_count": total_count,
                     "positive_count": positive_count,
                     "positive_percentage": positive_percentage,
@@ -95,9 +131,12 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 
             except Exception as e:
                 logging.error(f"Error processing {file_name}: {e}")
+
+        # TRIAL STUFF
         count += 1
         if count > 10:
             break
+        # REMOVE THIS LATER
 
     with open(output_file, "w") as f:
         json.dump(results, f, indent=4)
@@ -109,9 +148,12 @@ def model5_f(folder_path, exposure_csv, buffer, output_file):
 if __name__ == "__main__":
     from functions import csv_to_list
     # j = model5("/Users/efang/Desktop/coding/research/src/data/example.xml", "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv", 20)
-    exposure_folder = "/Users/efang/Desktop/coding/research/src/data/climate_regulatory.csv"
-    folder_path = "/Users/efang/Downloads/Transcript/2016"
-    
-    model5_f(folder_path, exposure_folder, 20, "trial1.json")
+    # exposure_folder = "/Users/efang/Desktop/coding/research/src/data/climate_regulatory.csv"
+    all_folder_path = "/Users/efang/Downloads/Transcript/2016"
+    exposure_folder = "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv"
+
+    # x = model5v2("/Users/efang/Desktop/coding/research/src/data/earnings_calls/ex1.xml", exposure_csv=exposure_folder, n=10)
+    # print(x)
+    model5_f(all_folder_path, exposure_folder, 20, "trial2_v2.json")
     
 

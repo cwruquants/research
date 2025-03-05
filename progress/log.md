@@ -1,3 +1,6 @@
+--March 5 2025--
+Ethan: Ran KeyBERT function with same parameters as trial1, received some different results. Finished company extraction function. 
+
 --February 28 2025 GB Meeting--
 Karel: Finished KeyBERT function
 Charan: Finished tfidf function
