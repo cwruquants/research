@@ -1,3 +1,12 @@
+--March 19 2025--
+Ethan | Prof Bae. 
+# TODO:
+1. risk count, risk percentage
+3. run the bigrams specifically from the paper (/research/citations/input/political_bigrams/political_bigrams.csv) (comparison between bigram and non-bigram trial)
+
+* current goal: quarterly rebalancing portfolio 
+* stressed importance of keeping track of progress for the future
+
 --March 5 2025--
 Ethan: Ran KeyBERT function with same parameters as trial1, received some different results. Finished company extraction function. 
 
