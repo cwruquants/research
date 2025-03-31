@@ -17,10 +17,7 @@ def LM_Positive(text) -> int:
     # Get the sentiment scores
     score = lm.get_score(tokens)
 
-    # Extract the positive score
-    positive_score = score['Positive']
-
-    return positive_score
+    return score['Positive']
 
 def LM_Negative(text) -> int:
     """
@@ -40,9 +37,7 @@ def LM_Negative(text) -> int:
     # Get the sentiment scores
     score = lm.get_score(tokens)
 
-    # Extract the negative score
-    negative_score = score['Negative']  
-    return negative_score  
+    return score['Negative']   
 
 def LM_net_sentiment(text) -> int:
     """
@@ -75,7 +70,7 @@ def LM_Polarity(text) -> int:
     - text (str): Input string to analyze.
 
     Returns:
-    - int: Negative sentiment score.
+    - int: Polarity score.
     """
 
     import pysentiment2 as ps
@@ -87,9 +82,7 @@ def LM_Polarity(text) -> int:
     # Get the sentiment scores
     score = lm.get_score(tokens)
 
-    # Extract the polarity score
-    polarity_score = score['Polarity']  
-    return polarity_score
+    return score['Polarity'] 
 
 def LM_Subjectivity(text) -> int:
     """
@@ -109,7 +102,81 @@ def LM_Subjectivity(text) -> int:
 
     # Get the sentiment scores
     score = lm.get_score(tokens)
+  
+    return score['Subjectivity']  
 
-    # Extract the polarity score
-    subjectivity_score = score['Subjectivity']  
-    return subjectivity_score
+def HIV4_Positive(text) -> int:
+    """
+    Parameters:
+    - text (str): Input string to analyze.
+
+    Returns:
+    - int: Positive sentiment score.
+    """   
+    import pysentiment2 as ps
+    hiv4 = ps.HIV4()
+    tokens = hiv4.tokenize(text)
+    scores = hiv4.get_score(tokens)
+    
+    return scores['Positive']
+
+def HIV4_Negative(text) -> int:
+    """
+    Parameters:
+    - text (str): Input string to analyze.
+
+    Returns:
+    - int: Negative sentiment score.
+    """   
+    import pysentiment2 as ps
+    hiv4 = ps.HIV4()
+    tokens = hiv4.tokenize(text)
+    scores = hiv4.get_score(tokens)
+    
+    return scores['Positive']
+
+def HIV4_net_sentiment(text) -> int:
+    """
+    Parameters:
+    - text (str): Input string to analyze.
+
+    Returns:
+    - int: Net sentiment score.
+    """   
+    import pysentiment2 as ps
+    hiv4 = ps.HIV4()
+    tokens = hiv4.tokenize(text)
+    scores = hiv4.get_score(tokens)
+
+    #net sentiment = positive score - negative score
+    net_sentiment = scores['Positive'] - scores['Negative']
+    
+    return net_sentiment
+
+def HIV4_Polarity(text) -> int:
+    """
+    Parameters:
+    - text (str): Input string to analyze.
+
+    Returns:
+    - int: Polarity score.
+    """   
+    hiv4 = ps.HIV4()
+    tokens = hiv4.tokenize(text)
+    scores = hiv4.get_score(tokens)
+    
+    return scores['Polarity']
+
+def HIV4_Subjectivity(text) -> int:
+    """
+    Parameters:
+    - text (str): Input string to analyze.
+
+    Returns:
+    - int: Subjectivity score.
+    """       
+    hiv4 = ps.HIV4()
+    tokens = hiv4.tokenize(text)
+    scores = hiv4.get_score(tokens)
+    
+    return scores['Subjectivity']  
