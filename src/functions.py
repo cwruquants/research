@@ -213,6 +213,22 @@ def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     return percentage
 
 
+def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
+    """
+    Calculate what percentage of key-value pairs in `data_dict` contain
+    at least one risk word from the CSV file at `risk_words_csv_path`.
+
+    TODO:
+        - ADD USAGE OF KEYBERT WITH THIS FUNCTION
+
+    :param data_dict: Dictionary where values are strings to be checked.
+    :param risk_words_csv_path: Path to CSV file containing a single column of risk words.
+    :return: Floating-point percentage of dictionary entries containing risk words.
+    """
+    
+    return 0.0
+
+
 
 
 def sentiment_score(text_dict):
