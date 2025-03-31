@@ -195,7 +195,9 @@ def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
 
     :param data_dict: Dictionary where values are strings to be checked.
     :param risk_words_csv_path: Path to CSV file containing a single column of risk words.
-    :return: Floating-point percentage of dictionary entries containing risk words.
+    :return: List containing:
+             [0]: Count of risk word appearances.
+             [1]: Floating-point percentage of dictionary entries containing risk words.
     """
     risk_words = csv_to_list(risk_words_csv_path)
     count_with_risk = 0
@@ -207,10 +209,10 @@ def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
 
     total_entries = len(data_dict)
     if total_entries == 0:
-        return 0.0
+        return [0, 0.0]  # Always return a list with two elements.
 
     percentage = (count_with_risk / total_entries) * 100
-    return percentage
+    return [count_with_risk, percentage]
 
 
 def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
