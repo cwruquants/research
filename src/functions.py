@@ -188,13 +188,37 @@ def extract_exposure2(text_string, seed_words, buffer):
     return results
 
 
+def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
+    """
+    Calculate what percentage of key-value pairs in `data_dict` contain
+    at least one risk word from the CSV file at `risk_words_csv_path`.
+
+    :param data_dict: Dictionary where values are strings to be checked.
+    :param risk_words_csv_path: Path to CSV file containing a single column of risk words.
+    :return: Floating-point percentage of dictionary entries containing risk words.
+    """
+    risk_words = csv_to_list(risk_words_csv_path)
+    count_with_risk = 0
+
+    for key, text_value in data_dict.items():
+        lower_text = text_value.lower()
+        if any(risk_word in lower_text for risk_word in risk_words):
+            count_with_risk += 1
+
+    total_entries = len(data_dict)
+    if total_entries == 0:
+        return 0.0
+
+    percentage = (count_with_risk / total_entries) * 100
+    return percentage
+
+
+
+
 def sentiment_score(text_dict):
     """
     Returns sentiment scores for each string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
-
-    TODO:
-    - reference to how the sentiment reference works
     """
     from transformers import pipeline
     
