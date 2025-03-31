@@ -1,3 +1,30 @@
+--March 29 2025--
+* Karel finished LM sentiment functions
+* Charan finished readability functions
+* Assigned Karel, Charan, Binayek to write paper
+* Assigned Anthony to work on risk KeyBERT function, requirements document
+
+Notes for meeting with Prof. Bae:
+- using political bigrams from the paper did not have any significant difference
+- added risk word function, currently working on debugging issues with KeyBERT dependencies
+
+Ethan | Prof Bae. 
+# TODO:
+1. 3 way decomposition: Presentation, Q&A Executive, Q&A Analyst
+- expand the existing readability and sentiment features on these "subsections"
+2. Create a "Transcript Sample" folder in the Google Drive
+- include the first 100 transcript SAMPLES in the folder
+- in the code folder:
+    - put code for the first 100 transcripts^
+    - output of the code should be CSV with ID + all the features that we have calculated
+    - include both CSV files for political
+3. SET SCHEDULE FOR THE END OF SEMESTER PROJECT SHOWCASE
+- 
+
+FUTURE:
+- replace political words and political bigrams with some sort of political BERT model
+
+
 --March 19 2025--
 Ethan | Prof Bae. 
 # TODO:

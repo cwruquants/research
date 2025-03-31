@@ -22,15 +22,15 @@ def model5v1(analyze_path, exposure_csv, n):
 
     logging.info("Loading Exposure Word List...")
     exposure_word_list = csv_to_list(exposure_csv)
-    print(exposure_word_list)
+    # print(exposure_word_list)
 
     logging.info("Calculating Exposure...")
     exposure = extract_exposure(text, exposure_word_list, window=n)
-    print(exposure)
+    # print(exposure)
 
     logging.info("Calculating Risk-Word Percentage...")
-    risk = calculate_risk_word_percentage(exposure, "src/data/risk.csv")
-    print("Risk Percentage: ", risk)
+    risk_list = calculate_risk_word_percentage(exposure, "src/data/risk.csv")
+    print("Risk Percentage: ", risk_list[1])
 
     logging.info("Finding Sentiment...")
     final = sentiment_score(exposure)
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     # j = model5("/Users/efang/Desktop/coding/research/src/data/example.xml", "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv", 20)
     # exposure_folder = "/Users/efang/Desktop/coding/research/src/data/climate_regulatory.csv"
     all_folder_path = "/Users/efang/Downloads/Transcript/2016"
-    exposure_folder = "/Users/efang/Desktop/coding/research/src/data/political_words_extended.csv"
+    exposure_folder = "/Users/efang/Desktop/coding/research/src/data/political_bigrams.csv"
 
     x = model5v1("/Users/efang/Desktop/coding/research/src/data/earnings_calls/ex1.xml", exposure_csv=exposure_folder, n=10)
     # print(x)
