@@ -15,9 +15,6 @@
 - src: where all of our code is stored
 - vault: where our massive data file will be stored as we build out our features
 
-# TODO:
-1. risk count, risk percentage
-2. send KeyBERT reference to Prof.
-3. run the bigrams specifically from the paper (/research/citations/input/political_bigrams/political_bigrams.csv) (comparison between bigram and non-bigram trial)
-4. reschedule the calendar
+# Setup
+
 
