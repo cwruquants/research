@@ -1,6 +1,8 @@
 # Sentiment features from Chin et. al.
 def LM_Positive(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the number of positive words as per the Loughran-McDonald Dictionary.
 
     Parameters:
     - text (str): Input string to analyze.
@@ -21,6 +23,8 @@ def LM_Positive(text) -> int:
 
 def LM_Negative(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the number of negative words as per the Loughran-McDonald Dictionary.
 
     Parameters:
     - text (str): Input string to analyze.
@@ -41,6 +45,9 @@ def LM_Negative(text) -> int:
 
 def LM_net_sentiment(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the net sentiment score as per the Loughran-McDonald Dictionary,
+    which is calculated as the number of positive words minus the number of negative words.
 
     Parameters:
     - text (str): Input string to analyze.
@@ -65,6 +72,10 @@ def LM_net_sentiment(text) -> int:
 
 def LM_Polarity(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the polarity score as per the Loughran-McDonald Dictionary,
+    which is calculated as the number of positive words minus the number of negative words,
+    divided by the difference of positive words minus negative words.
 
     Parameters:
     - text (str): Input string to analyze.
@@ -86,6 +97,11 @@ def LM_Polarity(text) -> int:
 
 def LM_Subjectivity(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the subjectivity score as per the Loughran-McDonald Dictionary,
+    which is calculated as the number of positive words plus the number of negative words,
+    divided by the sum of positive words, negative words, and neutral words. (score closer to
+    1 is more subjective than a score close to 0)
 
     Parameters:
     - text (str): Input string to analyze.
@@ -107,6 +123,9 @@ def LM_Subjectivity(text) -> int:
 
 def HIV4_Positive(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the number of positive words as per the Harvard IV4 Dictionary.
+
     Parameters:
     - text (str): Input string to analyze.
 
@@ -122,6 +141,9 @@ def HIV4_Positive(text) -> int:
 
 def HIV4_Negative(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the number of negative words as per the Harvard IV4 Dictionary.
+
     Parameters:
     - text (str): Input string to analyze.
 
@@ -137,6 +159,10 @@ def HIV4_Negative(text) -> int:
 
 def HIV4_net_sentiment(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the net sentiment score as per the Harvard IV4,
+    which is calculated as the number of positive words minus the number of negative words.
+
     Parameters:
     - text (str): Input string to analyze.
 
@@ -155,6 +181,11 @@ def HIV4_net_sentiment(text) -> int:
 
 def HIV4_Polarity(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the polarity score as per the Harvard IV4 Dictionary,
+    which is calculated as the number of positive words minus the number of negative words,
+    divided by the difference of positive words minus negative words.
+
     Parameters:
     - text (str): Input string to analyze.
 
@@ -169,6 +200,12 @@ def HIV4_Polarity(text) -> int:
 
 def HIV4_Subjectivity(text) -> int:
     """
+    Imports library with LM and HIV4 methods, tokenizes the string,
+    and returns the subjectivity score as per the Loughran-McDonald Dictionary,
+    which is calculated as the number of positive words plus the number of negative words,
+    divided by the sum of positive words, negative words, and neutral words. (score closer to
+    1 is more subjective than a score close to 0)
+
     Parameters:
     - text (str): Input string to analyze.
 
