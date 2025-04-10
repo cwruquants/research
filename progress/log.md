@@ -1,3 +1,8 @@
+--April 1 2025--
+* Karel finished HIV4 functions
+* Anthony finished Risk function
+* 
+
 --March 29 2025--
 * Karel finished LM sentiment functions
 * Charan finished readability functions
