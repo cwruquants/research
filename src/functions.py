@@ -233,17 +233,21 @@ def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
 
 
 
-def sentiment_score(text_dict):
+def sentiment_score(text_dict, sentiment_analyzer=None):
     """
     Returns sentiment scores for each string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
-    """
-    from transformers import pipeline
     
-    sentiment_analyzer = pipeline(
-        "sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest"
-    )
+    Args:
+        text_dict (dict): Dictionary of text strings to analyze
+        sentiment_analyzer: Optional pre-initialized sentiment analyzer pipeline
+    """
+    if sentiment_analyzer is None:
+        from transformers import pipeline
+        sentiment_analyzer = pipeline(
+            "sentiment-analysis",
+            model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+        )
 
     results = {}
 
