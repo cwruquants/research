@@ -89,15 +89,51 @@ def smog_index(test_data):
     return textstat.smog_index(test_data)
 
 def overall(test_data):
-    """Caculates overall readability
+    """Calculates overall readability and returns a numerical grade level
     
     Args:
         test_data (str): The input text to evaluate.
     
     Returns:
-        str: The estimated grade level required to understand the text.
+        float: The estimated grade level required to understand the text.
+              Returns 0 if the grade level cannot be determined.
     """
-    return textstat.text_standard(test_data)
+    grade_str = textstat.text_standard(test_data)
+    
+    # Extract numerical grade level from the string
+    # Common patterns in textstat.text_standard() output:
+    # "1st and 2nd grade" -> 1.5
+    # "3rd and 4th grade" -> 3.5
+    # "5th and 6th grade" -> 5.5
+    # "7th and 8th grade" -> 7.5
+    # "9th and 10th grade" -> 9.5
+    # "11th and 12th grade" -> 11.5
+    # "College Graduate" -> 16
+    # "College" -> 13
+    
+    if "College Graduate" in grade_str:
+        return 16.0
+    elif "College" in grade_str:
+        return 13.0
+    elif "1st and 2nd" in grade_str:
+        return 1.5
+    elif "3rd and 4th" in grade_str:
+        return 3.5
+    elif "5th and 6th" in grade_str:
+        return 5.5
+    elif "7th and 8th" in grade_str:
+        return 7.5
+    elif "9th and 10th" in grade_str:
+        return 9.5
+    elif "11th and 12th" in grade_str:
+        return 11.5
+    else:
+        # Try to extract any number from the string
+        import re
+        numbers = re.findall(r'\d+', grade_str)
+        if numbers:
+            return float(numbers[0])
+        return 0.0
     
     
 

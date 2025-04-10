@@ -1,0 +1,21 @@
+name: research
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip>=23.0
+  - beautifulsoup4>=4.13.3
+  - numpy>=1.20.0
+  - scikit-learn>=1.0.0
+  - scipy>=1.15.2
+  - pandas>=2.2.3
+  - tqdm>=4.67.1
+  - pytorch>=2.6.0
+  - pip:
+    - textstat>=0.7.0
+    - pysentiment2>=0.1.1
+    - keybert>=0.9.0
+    - transformers>=4.50.3
+    - python-dateutil>=2.9.0 
