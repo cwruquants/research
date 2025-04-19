@@ -192,6 +192,7 @@ def HIV4_Polarity(text) -> int:
     Returns:
     - int: Polarity score.
     """   
+    import pysentiment2 as ps
     hiv4 = ps.HIV4()
     tokens = hiv4.tokenize(text)
     scores = hiv4.get_score(tokens)
@@ -212,6 +213,7 @@ def HIV4_Subjectivity(text) -> int:
     Returns:
     - int: Subjectivity score.
     """       
+    import pysentiment2 as ps
     hiv4 = ps.HIV4()
     tokens = hiv4.tokenize(text)
     scores = hiv4.get_score(tokens)
