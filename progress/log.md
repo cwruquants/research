@@ -1,3 +1,10 @@
+--May 5 2025--
+* basic document level features: # of sentences, paragraphs, words, repeated words, etc. time to speak
+* ideas behind the difference between direct matching and indirect matching (KeyBERT), a little demo to show Prof. Bae
+    * # of direct matchings (direct match) and indirect matchings (KeyBERT or cosine similarity)
+* give Professor Bae the pdf of the paper that we presented
+* explore FinBERT (by next week)
+
 --April Something, 2025--
 Ethan/Professor Bae
 * get rid fo KeyBERT, replace with cosine similarity function
