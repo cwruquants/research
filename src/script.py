@@ -8,6 +8,7 @@ import logging
 import xml.etree.ElementTree as ET
 from transformers import pipeline
 import numpy as np
+import csv
 
 def model3v1(analyze_path, exposure_csv, risk_path, n):
 
@@ -585,187 +586,199 @@ def process_earnings_call(xml_path, exposure_csv, n):
         }
     }
 
-def build_dataset(folder_path, exposure_csv, n, output_csv, max_files=None):
+def get_ordered_headers(analyze_twitter_sentiment, analyze_lm_sentiment, analyze_readability, analyze_exposure):
     """
-    Process earnings calls in a folder and build a comprehensive dataset.
+    Get ordered list of headers based on which analyses are enabled.
+    
+    Args:
+        analyze_twitter_sentiment (bool): Whether Twitter sentiment analysis is enabled
+        analyze_lm_sentiment (bool): Whether LM sentiment analysis is enabled
+        analyze_readability (bool): Whether readability analysis is enabled
+        analyze_exposure (bool): Whether exposure analysis is enabled
+        
+    Returns:
+        list: Ordered list of header names
+    """
+    # Basic info headers (always included)
+    headers = [
+        'file_name',
+        'company_name',
+        'ticker',
+        'date',
+        'city'
+    ]
+    
+    # Define section names
+    sections = ['full_doc', 'presentation', 'analyst_qa', 'executive_qa']
+    
+    # Define metrics for each analysis type
+    twitter_metrics = [
+        'positive_count', 'positive_percentage',
+        'neutral_count', 'neutral_percentage',
+        'negative_count', 'negative_percentage'
+    ]
+    
+    lm_metrics = [
+        'lm_positive', 'lm_negative', 'lm_net_sentiment',
+        'lm_polarity', 'lm_subjectivity'
+    ]
+    
+    readability_metrics = [
+        'coleman_liau', 'dale_chall', 'automated_readability',
+        'flesch_ease', 'flesch_kincaid', 'gunning_fog',
+        'smog_index', 'overall'
+    ]
+    
+    exposure_metrics = [
+        'exposure_count', 'risk_percentage'
+    ]
+    
+    # Add headers for each section and analysis type
+    for section in sections:
+        if analyze_exposure:
+            headers.extend([f'{section}_{metric}' for metric in exposure_metrics])
+        else:
+            headers.extend([f'{section}_{metric}' for metric in exposure_metrics])
+            
+        if analyze_twitter_sentiment:
+            headers.extend([f'{section}_{metric}' for metric in twitter_metrics])
+        else:
+            headers.extend([f'{section}_{metric}' for metric in twitter_metrics])
+            
+        if analyze_lm_sentiment:
+            headers.extend([f'{section}_{metric}' for metric in lm_metrics])
+        else:
+            headers.extend([f'{section}_{metric}' for metric in lm_metrics])
+            
+        if analyze_readability:
+            headers.extend([f'{section}_{metric}' for metric in readability_metrics])
+        else:
+            headers.extend([f'{section}_{metric}' for metric in readability_metrics])
+    
+    return headers
+
+def build_dataset_modular(folder_path, exposure_csv, n, output_csv, max_files=None, 
+                         analyze_twitter_sentiment=True, analyze_lm_sentiment=True, 
+                         analyze_readability=True, analyze_exposure=True):
+    """
+    Process earnings calls in a folder and build a comprehensive dataset using modular components.
     
     Args:
         folder_path (str): Path to folder containing earnings call XML files
         exposure_csv (str): Path to the exposure words CSV file
         n (int): Window size for exposure calculation
         output_csv (str): Path to save the output CSV file
-        max_files (int, optional): Maximum number of files to process. If None, processes all files.
+        max_files (int, optional): Maximum number of files to process
+        analyze_twitter_sentiment (bool): Whether to perform Twitter sentiment analysis
+        analyze_lm_sentiment (bool): Whether to perform LM sentiment analysis
+        analyze_readability (bool): Whether to perform readability analysis
+        analyze_exposure (bool): Whether to perform exposure analysis
     """
-    import os
-    import csv
-    from pathlib import Path
-    
     # Get all XML files in the folder
     xml_files = [f for f in os.listdir(folder_path) if f.endswith('.xml')]
-    
-    # Sort files for consistent processing order
     xml_files.sort()
     
-    # Limit number of files if max_files is specified
     if max_files is not None:
         xml_files = xml_files[:max_files]
         logging.info(f"Processing {len(xml_files)} files (limited by max_files={max_files})")
     else:
         logging.info(f"Processing all {len(xml_files)} files")
     
-    # Define CSV headers
-    headers = [
-        'file_name',
-        'company_name',
-        'ticker',
-        'date',
-        'city',
-        # Full document metrics
-        'full_doc_exposure_count',
-        'full_doc_risk_percentage',
-        'full_doc_positive_count',
-        'full_doc_positive_percentage',
-        'full_doc_neutral_count',
-        'full_doc_neutral_percentage',
-        'full_doc_negative_count',
-        'full_doc_negative_percentage',
-        'full_doc_coleman_liau',
-        'full_doc_dale_chall',
-        'full_doc_automated_readability',
-        'full_doc_flesch_ease',
-        'full_doc_flesch_kincaid',
-        'full_doc_gunning_fog',
-        'full_doc_smog_index',
-        'full_doc_overall',
-        'full_doc_lm_positive',
-        'full_doc_lm_negative',
-        'full_doc_lm_net_sentiment',
-        'full_doc_lm_polarity',
-        'full_doc_lm_subjectivity',
-        # Presentation metrics
-        'presentation_exposure_count',
-        'presentation_risk_percentage',
-        'presentation_positive_count',
-        'presentation_positive_percentage',
-        'presentation_neutral_count',
-        'presentation_neutral_percentage',
-        'presentation_negative_count',
-        'presentation_negative_percentage',
-        'presentation_coleman_liau',
-        'presentation_dale_chall',
-        'presentation_automated_readability',
-        'presentation_flesch_ease',
-        'presentation_flesch_kincaid',
-        'presentation_gunning_fog',
-        'presentation_smog_index',
-        'presentation_overall',
-        'presentation_lm_positive',
-        'presentation_lm_negative',
-        'presentation_lm_net_sentiment',
-        'presentation_lm_polarity',
-        'presentation_lm_subjectivity',
-        # Analyst Q&A metrics
-        'analyst_qa_exposure_count',
-        'analyst_qa_risk_percentage',
-        'analyst_qa_positive_count',
-        'analyst_qa_positive_percentage',
-        'analyst_qa_neutral_count',
-        'analyst_qa_neutral_percentage',
-        'analyst_qa_negative_count',
-        'analyst_qa_negative_percentage',
-        'analyst_qa_coleman_liau',
-        'analyst_qa_dale_chall',
-        'analyst_qa_automated_readability',
-        'analyst_qa_flesch_ease',
-        'analyst_qa_flesch_kincaid',
-        'analyst_qa_gunning_fog',
-        'analyst_qa_smog_index',
-        'analyst_qa_overall',
-        'analyst_qa_lm_positive',
-        'analyst_qa_lm_negative',
-        'analyst_qa_lm_net_sentiment',
-        'analyst_qa_lm_polarity',
-        'analyst_qa_lm_subjectivity',
-        # Executive Q&A metrics
-        'executive_qa_exposure_count',
-        'executive_qa_risk_percentage',
-        'executive_qa_positive_count',
-        'executive_qa_positive_percentage',
-        'executive_qa_neutral_count',
-        'executive_qa_neutral_percentage',
-        'executive_qa_negative_count',
-        'executive_qa_negative_percentage',
-        'executive_qa_coleman_liau',
-        'executive_qa_dale_chall',
-        'executive_qa_automated_readability',
-        'executive_qa_flesch_ease',
-        'executive_qa_flesch_kincaid',
-        'executive_qa_gunning_fog',
-        'executive_qa_smog_index',
-        'executive_qa_overall',
-        'executive_qa_lm_positive',
-        'executive_qa_lm_negative',
-        'executive_qa_lm_net_sentiment',
-        'executive_qa_lm_polarity',
-        'executive_qa_lm_subjectivity'
-    ]
+    # Load exposure words if needed
+    exposure_word_list = None
+    if analyze_exposure:
+        exposure_word_list = csv_to_list(exposure_csv)
+        logging.info(f"Loaded {len(exposure_word_list)} exposure words")
     
-    # Process each file and collect results
+    # Initialize sentiment analyzer if needed
+    sentiment_analyzer = None
+    if analyze_twitter_sentiment:
+        sentiment_analyzer = pipeline(
+            "sentiment-analysis",
+            model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+        )
+    
+    # Get ordered headers
+    headers = get_ordered_headers(
+        analyze_twitter_sentiment,
+        analyze_lm_sentiment,
+        analyze_readability,
+        analyze_exposure
+    )
+    
+    # Process each file
     all_results = []
     for xml_file in xml_files:
         try:
+            xml_path = os.path.join(folder_path, xml_file)
             logging.info(f"Processing {xml_file}...")
-            result = process_earnings_call(os.path.join(folder_path, xml_file), exposure_csv, n)
             
-            # Convert to flat structure
-            row = {
-                'file_name': xml_file,
-                'company_name': result['company_info']['name'],
-                'ticker': result['company_info']['ticker'],
-                'date': result['company_info']['date'],
-                'city': result['company_info']['city']
-            }
+            # Get basic info
+            basic_info = extract_basic_info(xml_path)
+            if basic_info is None:
+                continue
             
-            # Helper function to process each section
-            def process_section(section_name, section_data):
-                # Exposure and risk
-                row[f'{section_name}_exposure_count'] = section_data['exposure_count']
-                row[f'{section_name}_risk_percentage'] = section_data['risk_percentage']
-                
-                # Sentiment counts and percentages
-                sentiment_counts = {'positive': 0, 'neutral': 0, 'negative': 0}
-                for sentiment in section_data['sentiment'].values():
-                    sentiment_counts[sentiment['label']] += 1
-                
-                total = sum(sentiment_counts.values()) if sum(sentiment_counts.values()) > 0 else 1
-                row[f'{section_name}_positive_count'] = sentiment_counts['positive']
-                row[f'{section_name}_positive_percentage'] = (sentiment_counts['positive'] / total) * 100
-                row[f'{section_name}_neutral_count'] = sentiment_counts['neutral']
-                row[f'{section_name}_neutral_percentage'] = (sentiment_counts['neutral'] / total) * 100
-                row[f'{section_name}_negative_count'] = sentiment_counts['negative']
-                row[f'{section_name}_negative_percentage'] = (sentiment_counts['negative'] / total) * 100
-                
-                # Readability metrics
-                for metric, value in section_data['readability'].items():
-                    row[f'{section_name}_{metric}'] = value
-                
-                # Sentiment metrics
-                for metric, value in section_data['sentiment_metrics'].items():
-                    row[f'{section_name}_{metric.lower()}'] = value
+            # Decompose the earnings call
+            decomposed = decompose_earnings_call(xml_path)
+            
+            # Initialize results with basic info
+            results = basic_info.copy()
             
             # Process each section
-            process_section('full_doc', result['full_document'])
-            process_section('presentation', result['presentation'])
-            process_section('analyst_qa', result['analyst_qa'])
-            process_section('executive_qa', result['executive_qa'])
+            sections = {
+                'full_doc': decomposed["presentation"] + "\n" + 
+                           "\n".join([q["text"] for q in decomposed["qa_analyst"]]) + "\n" + 
+                           "\n".join([q["text"] for q in decomposed["qa_executive"]]),
+                'presentation': decomposed["presentation"],
+                'analyst_qa': "\n".join([q["text"] for q in decomposed["qa_analyst"]]),
+                'executive_qa': "\n".join([q["text"] for q in decomposed["qa_executive"]])
+            }
             
-            all_results.append(row)
+            for section_name, text in sections.items():
+                # Initialize all metrics with None
+                if analyze_exposure:
+                    exposure_results = analyze_section_exposure(text, exposure_word_list, n)
+                    for key, value in exposure_results.items():
+                        results[f'{section_name}_{key}'] = value
+                else:
+                    results[f'{section_name}_exposure_count'] = None
+                    results[f'{section_name}_risk_percentage'] = None
+                
+                if analyze_twitter_sentiment:
+                    twitter_sentiment = analyze_section_twitter_sentiment(text, sentiment_analyzer)
+                    for key, value in twitter_sentiment.items():
+                        results[f'{section_name}_{key}'] = value
+                else:
+                    for key in ['positive_count', 'positive_percentage', 'neutral_count', 
+                              'neutral_percentage', 'negative_count', 'negative_percentage']:
+                        results[f'{section_name}_{key}'] = None
+                
+                if analyze_lm_sentiment:
+                    lm_sentiment = analyze_section_lm_sentiment(text)
+                    for key, value in lm_sentiment.items():
+                        results[f'{section_name}_{key}'] = value
+                else:
+                    for key in ['lm_positive', 'lm_negative', 'lm_net_sentiment', 
+                              'lm_polarity', 'lm_subjectivity']:
+                        results[f'{section_name}_{key}'] = None
+                
+                if analyze_readability:
+                    readability = analyze_section_readability(text)
+                    for key, value in readability.items():
+                        results[f'{section_name}_{key}'] = value
+                else:
+                    for key in ['coleman_liau', 'dale_chall', 'automated_readability',
+                              'flesch_ease', 'flesch_kincaid', 'gunning_fog',
+                              'smog_index', 'overall']:
+                        results[f'{section_name}_{key}'] = None
+            
+            all_results.append(results)
             logging.info(f"Completed processing {xml_file}")
             
         except Exception as e:
             logging.error(f"Error processing {xml_file}: {str(e)}")
     
-    # Write results to CSV
+    # Write results to CSV with ordered headers
     with open(output_csv, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=headers)
         writer.writeheader()
@@ -773,6 +786,29 @@ def build_dataset(folder_path, exposure_csv, n, output_csv, max_files=None):
     
     logging.info(f"Dataset built and saved to {output_csv}")
     logging.info(f"Processed {len(all_results)} files successfully")
+
+def extract_basic_info(xml_path):
+    """
+    Extract basic information from an earnings call XML file.
+    
+    Args:
+        xml_path (str): Path to the earnings call XML file
+        
+    Returns:
+        dict: Dictionary containing basic information about the earnings call
+    """
+    try:
+        company_info = extract_company_info(xml_path)
+        return {
+            'file_name': os.path.basename(xml_path),
+            'company_name': company_info[0],
+            'ticker': company_info[1],
+            'date': company_info[2],
+            'city': company_info[3]
+        }
+    except Exception as e:
+        logging.error(f"Error extracting basic info from {xml_path}: {str(e)}")
+        return None
 
 def convert_numpy_types(obj):
     """
@@ -787,6 +823,144 @@ def convert_numpy_types(obj):
     elif isinstance(obj, list):
         return [convert_numpy_types(item) for item in obj]
     return obj
+
+def analyze_section_twitter_sentiment(text, sentiment_analyzer=None):
+    """
+    Analyze text using TwitterBERT sentiment analysis.
+    
+    Args:
+        text (str): Text to analyze
+        sentiment_analyzer: Optional pre-initialized sentiment analyzer
+        
+    Returns:
+        dict: Dictionary containing sentiment analysis results
+    """
+    if sentiment_analyzer is None:
+        sentiment_analyzer = pipeline(
+            "sentiment-analysis",
+            model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+        )
+    
+    # Split text into chunks if it's too long
+    chunks = [text[i:i+512] for i in range(0, len(text), 512)]
+    results = []
+    
+    for chunk in chunks:
+        result = sentiment_analyzer(chunk)[0]
+        results.append(result)
+    
+    # Aggregate results
+    sentiment_counts = {'positive': 0, 'neutral': 0, 'negative': 0}
+    for result in results:
+        sentiment_counts[result['label']] += 1
+    
+    total = sum(sentiment_counts.values()) if sum(sentiment_counts.values()) > 0 else 1
+    
+    return {
+        'positive_count': sentiment_counts['positive'],
+        'positive_percentage': (sentiment_counts['positive'] / total) * 100,
+        'neutral_count': sentiment_counts['neutral'],
+        'neutral_percentage': (sentiment_counts['neutral'] / total) * 100,
+        'negative_count': sentiment_counts['negative'],
+        'negative_percentage': (sentiment_counts['negative'] / total) * 100
+    }
+
+def analyze_section_lm_sentiment(text):
+    """
+    Analyze text using Loughran-McDonald sentiment metrics.
+    
+    Args:
+        text (str): Text to analyze
+        
+    Returns:
+        dict: Dictionary containing LM sentiment metrics
+    """
+    return {
+        'lm_positive': LM_Positive(text),
+        'lm_negative': LM_Negative(text),
+        'lm_net_sentiment': LM_net_sentiment(text),
+        'lm_polarity': LM_Polarity(text),
+        'lm_subjectivity': LM_Subjectivity(text)
+    }
+
+def analyze_section_readability(text):
+    """
+    Analyze text using various readability metrics.
+    
+    Args:
+        text (str): Text to analyze
+        
+    Returns:
+        dict: Dictionary containing readability metrics
+    """
+    return {
+        'coleman_liau': coleman_liau(text),
+        'dale_chall': dale_chall(text),
+        'automated_readability': automated_readability(text),
+        'flesch_ease': flesch_ease(text),
+        'flesch_kincaid': flesch_kincaid(text),
+        'gunning_fog': gunning_fog(text),
+        'smog_index': smog_index(text),
+        'overall': overall(text)
+    }
+
+def analyze_section_exposure(text, exposure_word_list, n):
+    """
+    Analyze text for exposure words and calculate risk percentage.
+    
+    Args:
+        text (str): Text to analyze
+        exposure_word_list (list): List of exposure words
+        n (int): Window size for exposure calculation
+        
+    Returns:
+        dict: Dictionary containing exposure analysis results
+    """
+    exposure = extract_exposure(text, exposure_word_list, window=n)
+    risk = calculate_risk_word_percentage(exposure, "src/data/paper_word_sets/risk.csv")
+    
+    return {
+        'exposure_count': len(exposure),
+        'risk_percentage': risk[1]
+    }
+
+def analyze_section(text, section_name, exposure_word_list, n, sentiment_analyzer=None):
+    """
+    Perform complete analysis on a section of text.
+    
+    Args:
+        text (str): Text to analyze
+        section_name (str): Name of the section (e.g., 'full_doc', 'presentation')
+        exposure_word_list (list): List of exposure words
+        n (int): Window size for exposure calculation
+        sentiment_analyzer: Optional pre-initialized sentiment analyzer
+        
+    Returns:
+        dict: Dictionary containing all analysis results for the section
+    """
+    results = {}
+    
+    # Add exposure analysis
+    exposure_results = analyze_section_exposure(text, exposure_word_list, n)
+    for key, value in exposure_results.items():
+        results[f'{section_name}_{key}'] = value
+    
+    # Add Twitter sentiment analysis
+    twitter_sentiment = analyze_section_twitter_sentiment(text, sentiment_analyzer)
+    for key, value in twitter_sentiment.items():
+        results[f'{section_name}_{key}'] = value
+    
+    # Add LM sentiment analysis
+    lm_sentiment = analyze_section_lm_sentiment(text)
+    for key, value in lm_sentiment.items():
+        results[f'{section_name}_{key}'] = value
+    
+    # Add readability analysis
+    readability = analyze_section_readability(text)
+    for key, value in readability.items():
+        results[f'{section_name}_{key}'] = value
+    
+    return results
 
 if __name__ == "__main__":
     # Example usage
@@ -806,5 +980,5 @@ if __name__ == "__main__":
     # Build dataset for all earnings calls
     folder_path = "/Users/efang/Documents/Transcript/2016"
     output_csv = "earnings_calls_dataset.csv"
-    build_dataset(folder_path, exposure_csv, n=10, output_csv=output_csv, max_files=25)
+    build_dataset_modular(folder_path, exposure_csv, n=10, output_csv=output_csv, max_files=5)
 
