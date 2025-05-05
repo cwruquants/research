@@ -1,7 +1,13 @@
+--April Something, 2025--
+Ethan/Professor Bae
+* get rid fo KeyBERT, replace with cosine similarity function
+
+--April 10 2025--
+* Ethan finished making vault script... finally.
+
 --April 1 2025--
 * Karel finished HIV4 functions
 * Anthony finished Risk function
-* 
 
 --March 29 2025--
 * Karel finished LM sentiment functions
