@@ -13,14 +13,6 @@ that they remain fast even for large files.
 -------------------------------------------------------------
 """
 
-# ---------------------------------------------------------------------------
-# Ensure required NLTK models -------------------------------------------------
-# ---------------------------------------------------------------------------
-# Depending on your NLTK version, sentence/word tokenization relies on either
-#   tokenizers/punkt/...          (pre‑3.8)
-#   tokenizers/punkt_tab/...      (>=3.8)
-# We defensively check for both.  If missing we download quietly at runtime.
-
 REQUIRED_RESOURCES = [
     "tokenizers/punkt",            # classic location (English)
     "tokenizers/punkt_tab/english" # new location introduced in NLTK 3.8
@@ -34,9 +26,6 @@ for res in REQUIRED_RESOURCES:
         # after the slash ("punkt" / "punkt_tab"), so we split on '/'.
         nltk.download(res.split("/")[-1], quiet=True)
 
-# ---------------------------------------------------------------------------
-# Pre‑compiled regular expressions & constants --------------------------------
-# ---------------------------------------------------------------------------
 
 number_regex = re.compile(r"\b\d+(?:[\.,]\d+)?\b")  # integers & decimals
 question_regex = re.compile(r"\?")
@@ -50,9 +39,7 @@ singular_pronouns = {
     "he", "him", "his", "she", "her", "hers", "it", "its",
 }
 
-# Analyst introduction lines often follow one of these styles, among others:
-#   John Smith — Foo Capital — Analyst
-#   Jane Doe, Bar & Co. - Analyst
+
 analyst_pattern = re.compile(
     r"""
     ^\s*                           # start of line + optional whitespace
@@ -64,10 +51,6 @@ analyst_pattern = re.compile(
     """,
     re.MULTILINE | re.VERBOSE | re.IGNORECASE,
 )
-
-# ---------------------------------------------------------------------------
-# Metric helpers --------------------------------------------------------------
-# ---------------------------------------------------------------------------
 
 def count_words(text: str) -> int:
     """Return the number of word tokens in *text*."""
