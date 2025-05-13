@@ -1,5 +1,6 @@
 --May 12 2025--
 * Replace KeyBERT with cosine similaarity (something a bit more dynamic) and yet being more basic
+* FinBERT
 * 
 
 

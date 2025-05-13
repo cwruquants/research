@@ -13,6 +13,15 @@ As we build out our features, we are going to aggregate all of the features into
 - `date`: Date of the earnings call
 - `city`: City where the earnings call was held
 
+### Text Analysis Metrics
+For each section (full document, presentation, analyst Q&A, executive Q&A):
+- `word_count`: Total number of words in the section
+- `sentence_count`: Total number of sentences in the section
+- `number_to_words_ratio`: Ratio of numeric tokens to total word tokens
+- `proportion_plural_pronouns`: Proportion of plural pronouns among all personal pronouns
+- `analyst_count`: Number of unique analysts identified in the section
+- `question_count`: Count of questions (based on question marks)
+
 ### Exposure Analysis
 For each section (full document, presentation, analyst Q&A, executive Q&A):
 - `exposure_count`: Number of exposure words found in the section
