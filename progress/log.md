@@ -1,5 +1,10 @@
+--May 12 2025--
+* Replace KeyBERT with cosine similaarity (something a bit more dynamic) and yet being more basic
+* 
+
+
 --May 5 2025--
-* basic document level features: # of sentences, paragraphs, words, repeated words, etc. time to speak
+* basic document level features: # of sentences, paragraphs, words, repeated words, etc. *time to speak* DONE
 * ideas behind the difference between direct matching and indirect matching (KeyBERT), a little demo to show Prof. Bae
     * # of direct matchings (direct match) and indirect matchings (KeyBERT or cosine similarity)
 * give Professor Bae the pdf of the paper that we presented
