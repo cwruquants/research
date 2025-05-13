@@ -1,6 +1,7 @@
 from functions import extract_text, extract_exposure, extract_exposure2, csv_to_list, sentiment_score, extract_company_info, calculate_risk_word_percentage
 from readability import coleman_liau, dale_chall, automated_readability, flesch_ease, flesch_kincaid, gunning_fog, smog_index, overall
 from sentiment import LM_Positive, LM_Negative, LM_net_sentiment, LM_Polarity, LM_Subjectivity
+from attributes import count_words, count_sentences, number_to_words_ratio, proportion_plural_pronouns, count_analysts, count_questions
 import json
 import os
 from pathlib import Path
@@ -586,6 +587,25 @@ def process_earnings_call(xml_path, exposure_csv, n):
         }
     }
 
+def analyze_section_attributes(text):
+    """
+    Analyze text using various attribute metrics from attributes.py.
+    
+    Args:
+        text (str): Text to analyze
+        
+    Returns:
+        dict: Dictionary containing attribute metrics
+    """
+    return {
+        'word_count': count_words(text),
+        'sentence_count': count_sentences(text),
+        'number_to_words_ratio': number_to_words_ratio(text),
+        'proportion_plural_pronouns': proportion_plural_pronouns(text),
+        'analyst_count': count_analysts(text),
+        'question_count': count_questions(text)
+    }
+
 def get_ordered_headers(analyze_twitter_sentiment, analyze_lm_sentiment, analyze_readability, analyze_exposure):
     """
     Get ordered list of headers based on which analyses are enabled.
@@ -633,6 +653,11 @@ def get_ordered_headers(analyze_twitter_sentiment, analyze_lm_sentiment, analyze
         'exposure_count', 'risk_percentage'
     ]
     
+    attribute_metrics = [
+        'word_count', 'sentence_count', 'number_to_words_ratio',
+        'proportion_plural_pronouns', 'analyst_count', 'question_count'
+    ]
+    
     # Add headers for each section and analysis type
     for section in sections:
         if analyze_exposure:
@@ -654,6 +679,9 @@ def get_ordered_headers(analyze_twitter_sentiment, analyze_lm_sentiment, analyze
             headers.extend([f'{section}_{metric}' for metric in readability_metrics])
         else:
             headers.extend([f'{section}_{metric}' for metric in readability_metrics])
+            
+        # Always include attribute metrics
+        headers.extend([f'{section}_{metric}' for metric in attribute_metrics])
     
     return headers
 
@@ -771,6 +799,11 @@ def build_dataset_modular(folder_path, exposure_csv, n, output_csv, max_files=No
                               'flesch_ease', 'flesch_kincaid', 'gunning_fog',
                               'smog_index', 'overall']:
                         results[f'{section_name}_{key}'] = None
+            
+            # Add attribute analysis
+            attributes = analyze_section_attributes(text)
+            for key, value in attributes.items():
+                results[f'{section_name}_{key}'] = value
             
             all_results.append(results)
             logging.info(f"Completed processing {xml_file}")
@@ -958,6 +991,11 @@ def analyze_section(text, section_name, exposure_word_list, n, sentiment_analyze
     # Add readability analysis
     readability = analyze_section_readability(text)
     for key, value in readability.items():
+        results[f'{section_name}_{key}'] = value
+        
+    # Add attribute analysis
+    attributes = analyze_section_attributes(text)
+    for key, value in attributes.items():
         results[f'{section_name}_{key}'] = value
     
     return results
