@@ -55,11 +55,11 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
         direct_matches, keybert_matches = process_single_transcript(str(file_path), seed_words, buffer)
         
         # Aggregate direct matches
-        for word, context in direct_matches.items():
-            total_direct_matches[word] += 1
+        for word, contexts in direct_matches.items():
+            total_direct_matches[word] += len(contexts)
             if word not in all_direct_contexts:
                 all_direct_contexts[word] = []
-            all_direct_contexts[word].append(context)
+            all_direct_contexts[word].extend(contexts)
         
         # Aggregate KeyBERT matches
         for word, contexts in keybert_matches.items():
@@ -125,7 +125,7 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
     plt.close()
 
 if __name__ == "__main__":
-    folder_path = "/Users/efang/Documents/Transcript/2016"
+    folder_path = "src/data/earnings_calls/2016"
     seed_words = ["risk", "uncertainty", "challenge", "volatility", "concern"]
     
     compare_multiple_transcripts(folder_path, seed_words, num_files=10) 
