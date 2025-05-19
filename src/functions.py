@@ -139,7 +139,13 @@ def extract_exposure(text, keywords, window=10) -> dict :
             start = max(0, index - window)
             end = min(len(words), index + window + 1)
             context = " ".join(words[start:end])
-            contexts[word] = context
+            
+            # If the word is already in contexts, append the new context
+            if word.lower() in contexts:
+                contexts[word.lower()].append(context)
+            # Otherwise, create a new list with the context
+            else:
+                contexts[word.lower()] = [context]
 
     return contexts
 
