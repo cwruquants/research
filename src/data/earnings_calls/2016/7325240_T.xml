@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Event Id="7325240" lastUpdate="Wednesday, December 21, 2016 at 8:56:23pm GMT" eventTypeId="5" eventTypeName="Corporate Conference Call/Presentation">
+  <EventStory Id="7325240.F" expirationDate="Wednesday, December 21, 2016 at 2:00:00pm GMT" action="publish" storyType="transcript" version="Final">
+    <Headline><![CDATA[Edited Transcript of GLPG.AS conference call or presentation 21-Dec-16 2:00pm GMT]]></Headline>
+    <Body><![CDATA[Galapagos NV Reports Topline Results from its SAPHIRA 1 Phase 2 Study in Cystic Fibrosis Patients with Potentiator GLPG1837  Call
+
+Mechelen Dec 21, 2016 (Thomson StreetEvents) -- Edited Transcript of Galapagos NV conference call or presentation Wednesday, December 21, 2016 at 2:00:00pm GMT
+
+TEXT version of Transcript
+
+================================================================================
+Corporate Participants
+================================================================================
+   *  Elizabeth Goodwin
+      Galapagos NV - VP IR &amp; Corporate Communications
+   *  Onno van de Stolpe
+      Galapagos NV - CEO
+   *  Piet Wigerinck
+      Galapagos NV - Chief Scientific Officer
+
+================================================================================
+Conference Call Participants
+================================================================================
+   *  Debjit Chattopadhyay
+      Janney Montgomery Scott - Analyst
+   *  Phil Nadeau
+      Cowen &amp; Company - Analyst
+   *  Vikram Purohit
+      Morgan Stanley - Analyst
+   *  Michael Mauboussin
+      Credit Suisse - Analyst
+   *  Anastasia Karpova
+      Kempen &amp; Co - Analyst
+   *  Peter Welford
+      Jefferies - Analyst
+   *  Stephanie Vogt
+      Petercam - Analyst
+   *  Katherine Xu
+      William Blair - Analyst
+
+================================================================================
+Presentation
+--------------------------------------------------------------------------------
+Operator   [1]
+--------------------------------------------------------------------------------
+ Good day and welcome to the Galapagos Webcast Conference Call. At this time, I would like to turn the conference over to Elizabeth Goodwin. Please go ahead.
+
+--------------------------------------------------------------------------------
+ Elizabeth Goodwin,  Galapagos NV - VP IR &amp; Corporate Communications   [2]
+--------------------------------------------------------------------------------
+ Welcome all to the audio webcast on the SAPHIRA 1 topline results. I'm Elizabeth Goodwin from Investor Relations at Galapagos. This webcast will be accessible via our website homepage, www.glpg.com and will be available for replay later on today. The slides are already downloadable from the webcast player. So that your questions can be included, we request that you call into the telephone number given in today's press release. I'll give you the Belgium number. That's 32 2 404 0659 and the code is 6588087.
+ I would like to remind everyone that we'll be making forward-looking statements during today's audio conference. These forward-looking statements include remarks concerning future developments of the Company and possible changes in the industry and competitive environment. Because these forward-looking statements involve risks and uncertainties, Galapagos' actual results may differ materially from the results expressed or implied in these statements.
+ Today's speakers will be Onno van de Stolpe, CEO; and Piet Wigerinck, CSO. Onno and Piet will discuss the SAPHIRA 1 results in more detail today. You'll see a PowerPoint presentation on screen. We estimate that the presentation will take about 15 minutes and this will be followed by a Q&amp;A session.
+ I would like to hand over now to Onno to start the presentation.
+
+--------------------------------------------------------------------------------
+ Onno van de Stolpe,  Galapagos NV - CEO   [3]
+--------------------------------------------------------------------------------
+ Thank you, Elizabeth. Before Piet will discuss the data on 1837, I thought it would be a good moment to look back at 2016 and look at what we have achieved, the main results over a great execution year.
+ And on this slide, in January, we closed the deal with Gilead about filgotinib, received the upfront and the equity investment of a total of $725 million. And during the year, you've seen the progress that Gilead has made with filgotinib in the first set of diseases in rheumatoid arthritis, Crohn's disease and ulcerative colitis, in which Phase IIIs [and in the case] -- if you see, a Phase II, Phase III trial has started, so we're very pleased that we are now running these extensive trials in these very important diseases. This will actually not be the end of filgotinib with regard to different diseases. We are expecting and we're preparing for a number of other indications with filgotinib, which we will start Phase II trials in 2017.
+ About filgotinib, we had more news on scientific conferences, and the most important one was the endoscopic data that were reported out of the Crohn's disease trial that were presented at the Scientific Conference and got a lot of publicity and a lot of compliments, because the data set really set a standard for treatment of Crohn's disease patients.
+ If we switch to cystic fibrosis, we are very pleased that we now have all components of the triple combination in human trials. As you know, we are expecting to start the triple combo around halfway next year and we need to test all these molecules individually upon healthy volunteers before we can go into patients. And the first set of components are in these trials, or have completed these trials and more to come over the next couple of months. Our partner in CF is happy and we have renegotiated and expanded the collaboration around CF, which has resulted in substantial added value for Galapagos in this collaboration. So, we are very pleased with the outcome of those negotiations.
+ In rest of our pipeline, we saw a very robust progress, not only in the clinical ones, but also in the earlier discovery programs, though, we will not go into detail in this webcast. But we saw the start of a Phase II trial with our molecule 1690 in idiopathic pulmonary fibrosis, from which we will see the results in 2017.
+ And we also started our first antibody program that we have in collaboration with MorphoSys in Germany that we're progressing in atopic dermatitis, which is now in Phase Ib trial.
+ And then we're also pleased that the Company has now been included in three major indices; the BEL 20, the AEX in the Netherlands and the Stoxx Europe Index, which will cause more turnover in the stock and therefore have more visibility of Galapagos. So it's good that we are now in the -- on the big boards with the rest of the companies in the country.
+ With that I would like to turn over to Piet to talk us through the exciting 1837 CF data. Piet, the floor is yours.
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [4]
+--------------------------------------------------------------------------------
+ 
+ Thank you, Onno. Good morning or good afternoon to all or you on the line. I want to welcome you to this presentation in which I will share with you the topline results of the SAPHIRA 1 trial.
+ Before going to the trial, let me first explain to you where 1837 and SAPHIRA 1 fits into our major CF effort and portfolio. The goal of this effort, together with AbbVie, is to bring a triple combination product that will address the major medical need amongst the CF patients. To put together a triple combination, we need one potentiator, one C1 corrector, and one C2 corrector. A triple combination treatment, or bringing a triple combination treatment together is a quite complex effort to do. We've made sure that we have sufficient options in each of these axes.
+ As you can see on this slide, in fact, we have three potentiators in the game. I will present the first Phase II data on 1837. We have two C1s, 2222 and 2851; and we have two C2s. So our typical timeline and our ambition is to bring a triple to patients by mid of next year. And that critical timeline is especially driven by 2737. So, for the triple combination, we aim to bring in patients mid next year, that is a combination of 2737, 2222 -- these two are fixed, can't change -- but we still have the choice open between 2451 and 1837. The data of today will -- as well drive the selection of one of those two.
+ So it's a whole complex portfolio. We started a Phase II with 2222 recently in patients as well and you will see more data coming out of Phase Is and Phase IIs next year, but the main goal is indeed to bring the best triple to patients, and with that we hope to address both the heterozygous Delta F508, or the heterozygous minus Delta F508 CF patients, which in total is about 80% of the CF patient populations.
+ On the next slide now, let's start with the design of SAPHIRA 1. And let's spend some time here, because it's a special design. We have to come up with a special design, because in fact this is the first trial in the G551D patient population. As you all know, by the approval of ivacaftor, this is a patient population which is quite well served with the first drug, and so most patients are on ivacaftor.
+ The second limitation is that it's ethically not acceptable to put patients on the placebo too long, so we can -- it's generally accepted that between three and seven days of placebo treatment is fine for a study, but you can't keep patients for longer on placebo. So there is in this study not a placebo group, which goes along the trial. The trial was open, both for patients that were on treatment with ivacaftor or never had treatment. Finally, we included 26 patients on treatment and 25 of them were coming from their treatment. So there was only one naive patient included in the study.
+ Endpoints were safety and tolerability and the secondary endpoints were sweat chloride, FEV and plasma levels. While these are the classic endpoints in this in the CF studies, this is a new setting, where we in fact included mainly treatment experienced patients. It's very hard to compare the numbers, as we've generated them with the placebo-controlled studies Vertex has published a couple of years ago.
+ So within the setting of the study, patients that were on treatment, got a seven-day washout and then started for the first week on the low dose, which was 125 milligram bid, stepped up the second week to 250 milligram bid and then were maintained for two weeks on a 500 milligram bid. After that one month of treatment was again for the washout patients that were on treatment with ivacaftor, returned to treatment. So a very novel design, as well the special patient setting requires this type of a special design.
+ Let's go to the next slide. So, in total, 34 patients entered the study and were screened. During the washout period, eight patients stepped out of the study for different reasons, some did not meet inclusion or exclusion criteria, some finally decided not to go on treatment and some showed some pulmonary adverse events, showing that indeed the washouts might have some impact on patients. So 26 patients entered the study on treatment. All of them completed the treatment on the low-dose and the mid-dose, and then during the second phase, the last two weeks, we've lost two patients that were on treatment. One patient, we dropped (inaudible) part of the study and one patient was taken out, because of creatine phosphokinase increase and I'll come back to that later. And so, 24 patients completed the full study, and I'll show you the data on these 24 patients.
+ Next slide, please. So how comparable to other studies were the patients that entered the study. As for the (inaudible) you will see that the baseline characteristics and here these are measured after the one week washout, are very well in line with what was published for other G551D studies.
+ So the mean age was 30 years, who were split from 19 to 51, oldest patient was 51 years old. Weight around 70 kilos. It is a bit more females than males. And then 70% of them had the Delta F508 as a mutation on the 2nd allele. Important was the mean FEV after the washout, and we have split that up according to the different grades. Our two patients had percent predicted FEV of less than 40%. For those, in fact, we don't expect a big increase, because it has been shown multiple times that patients with a low percent predicted FEV have a hard time showing any improvement. And then I've given as well the numbers of the other groups. Big difference, of course, with the other studies is that all, except one, were on treatment, and in fact, were on treatment for an average three years. So these are really treatment experienced patients and were on a very stable regimen, and that as well has had an impact that it's difficult or impossible to compare how quickly, in fact, lung function will improve or should improve compared to patients that have never seen a drug and which were published in the studies by Vertex. But as a conclusion of this slide, we recruited the right population, the population we expected and hoped to see in the study.
+ Next slide please. So, how did we select the dosages? Dosages were selected on what we see in the in vitro cells, where we use cells from patients. And for G551D patients, it's well know that you have to target the opening of the channel 24/7. So we really have taken dosages that would give us sufficiently high pre-dose plasma levels, so that's a moment in the day where the plasma levels are at the lowest concentration. And so, out of those, we had selected 125 bid, 250 bid, and 500 milligram bid.
+ On this graph, we have how we had predicted the efficacy. And so, the X-axis is the concentration. So the lower group was predicted to show minimal efficacy, the mid group of 250 would come close, but little bit below our target level, and then the high group, the 500 milligram bid, really, was on the target of our exposure. And for that group, we expected the best results, which clearly we were hoping here to see a nice dose response, based on our in vitro data.
+ Next slide please. Let's first start with exposure. So on the X-axis, you have the time. So, day 1, patients have not taken medications. On the Y-axis, we depict the plasma concentration, so that is zero. And then of day 8, so they have taken one week of the low dose and we measure the plasma levels before they start the intake of the second week, in 250 milligram dose bid. On day 15, again, we take the pre-dose value before they escalate. Thus you can see day 22 and day 29 they have the same level. So, clearly from this slide is that with the high dose patients as a group here exceeded our target concentration in the study. What you can see as well is the exposure to last week is a stable exposure, so meaning that the variability is limited in that group.
+ If you now on the next slide use the same graph and add on here the sweat chloride, in orange, you can see that now on the left axis here, we have the sweat chloride in millimolar per liter, and sweat chloride is an excellent biomarker in G551D patients, so patients have the highest sweat chloride level of around 100 millimolar per liter. And what we see is, with time and by design, as well on the slide, by dose and exposure, we see a nice drop of sweat over time in the study.
+ So, sweat chloride is an important parameter, because it's a very specific biomarker that shows that your drug really binds to the CFTR and keeps the CFTR open. And by showing here dose dependent decrease of sweat, we show that the drug in a dose-dependent manner, binds and functions and opens the CFTR. Of note, as well, if you look to -- the exposures were stable between day 22 and day 29. Also the sweat outcome is the same, so showing the sweat is singled up, moves quickly, and is stable within one week, because 22 days and 29 days show exactly the same results. (inaudible) even with the low dose, although predicted to be sub-optimal, within one week we have a statistical significant drop, showing that as well low dosages starts to bind there, although they are sub-optimal as a treatment. This slide clearly shows that the dose we had selected were optimal for this design. The maximal drop in sweat of the high dose was around 32 millimolar as a mean over the group.
+ Next slide please, because we did some more work on the sweat chloride, as it's such a good biomarker and tried to compare it with exposures. And what we have now is, on the left we have the group of 15 patients, which exceeded our target levels of day 29. And on the right, a small group of six patients that did not exceed the target level after day 29.
+ So what you can see that those patients that did not exceed the target level of day 9 had clearly lower exposures during the whole study. And as a consequence, as well, they show a lower sweat chloride drop during the study. On the left, where you see the patients with the highest exposure now, you can see, in fact, that the 50 milligram -- the [50 milligram, 200 milligram] -- 250 milligram bid, in fact, we are already at the target level and we see a stronger drop of sweat chloride during those two weeks and this gave us a mean drop of 42 millimolar of sweat at the highest dose. As well showing nicely the exposure and sweat are tightly correlated with GLPG1837.
+ Next slide please. Over to the more important parameter from a medical point of view, that is the FEV1. We use again the same X-axis, which is time, have added here the screening FEV, which presents the mean of the patients on treatment, and you'll see a drop of around 5.4% over the first week during the washout. So on the Y-axis, we represent percent predicted FEV. What you can see as well is that after one week of treatment, there was a stable or even a slight further decrease of the FEV, showing that the low dose had no impact and maybe in the background of treatment there was either a further decline of the FEV, but because of the design we can't make any conclusions there.
+ What we saw was from day 8 onwards, a stable and steady increase with time of the percent predicted FEV. Important to note as well here is the difference between day 22 and day 29. So this difference here observed as a mean, but giving the idea that it takes much more time, more than the sweat to really get to a maximal of FEV.
+ So, in fact, we're very pleased to see that at the end of the study, the 29 patients fully returned to the levels of percent predicted FEV they had after three years on average of treatment with an effective drug. So clearly showing that in the study,1837 was able to show an effect of percent predicted FEV comparable to current medication on the market. It is clear, as well, that with this special design we cannot give the final answer whether this is now the maximal we can achieve with FEV, with 1837 and we will need longer studies to come to conclusion there as well. As well, I want to point to that it's, according to us, impossible to compare these values with those obtained in patients that have never seen a treatment before. On this graph, we've given the absolute percent predicted FEV. If you calculate into the relative percent predicted FEV, you come somewhere in the range of 8% increase of relative percent predicted FEV.
+ Over now to the safety. The compound was generally well tolerated, so we had few adverse events that really were in this. We had three SEs in two patients. So, one patient showed an acute increase of non-cardiac creatine phosphokinase, and was taken out of the study. We don't know very well what happened there. It's something we will have to watch and as well we need to study whether there is some frequency, or what the exact frequency of CPK increases are in CF studies. Some increases have been mentioned before and we've to see really what happened here. We did some investigations and can't link it to anything currently at the moment. And it's one of course, it's hard to come to any conclusions.
+ So the second patient that showed two SEs, showed one SE, which was a distal intestinal obstruction during the screening period and has an exacerbation -- a pulmonary exacerbation on the last day of the study. So this patient was -- for the pulmonary exacerbation taken up in the hospital, this was qualified as an SE. For the rest -- all other adverse events were mild to moderate, and the most common adverse events were headache and fatigue. To note as well is that especially during the first week of dosing, we still had some reports of respiratory adverse events and this can be due to two facts; either FEV was further declining, either the patients that have been washed out that had some more sputum, because treatment starts to work early on. But, during week two to four, in fact, there was a very low incidence of respiratory events in the study. So, overall, the drug, as we started the slide, was well tolerated and safe.
+ This brings me to the conclusions on the SAPHIRA 1 data and the conclusions on 1837. We are very proud, in fact, that we were the first group that could perform a study in G551D patients. We want to especially thank both the patients and the investigator in participating in the study and making this possible. This really illustrates the desire of the field to have more than one medication available for them, and as well the ambition to join industry and other groups in the efforts to bring forward triple therapies for all of the CF patients.
+ Compound was safe and well tolerated. We saw from week one onwards and at a low dose and exposure already statistical significant decrease in sweat chloride, which was dose dependent. And we were very pleased to see that FEV levels at the end of the study were at the same level as they were on a stable chronic treatment.
+ For us, SAPHIRA 1 as well was important, because it's the first time we validate our in vitro assays. And so this really helps us in designing the next trials and selecting doses that we're going to use in the triple combination.
+ So I want to thank you all for listening to my presentation here and we are open for questions now.
+
+--------------------------------------------------------------------------------
+ Elizabeth Goodwin,  Galapagos NV - VP IR &amp; Corporate Communications   [5]
+--------------------------------------------------------------------------------
+ Thank you very much, Piet. I would like to invite the operator now to connect us to any callers who might have questions.
+
+================================================================================
+Questions and Answers
+--------------------------------------------------------------------------------
+Operator   [1]
+--------------------------------------------------------------------------------
+ 
+ (Operator instructions) Phil Nadeau, Cowen &amp; Company.
+
+--------------------------------------------------------------------------------
+ Phil Nadeau,  Cowen &amp; Company - Analyst   [2]
+--------------------------------------------------------------------------------
+ 
+ Congratulations on the data. Thanks for taking my questions. I guess, first question is just on the plasma exposure. You showed pretty big difference in sweat chloride change depending on the plasma exposure of the different patient groups. Do you have a sense for what determines plasma exposure, was it lack of compliance or was there different absorption between different patient groups?
+
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [3]
+--------------------------------------------------------------------------------
+ 
+ Okay. So the question on the spread of plasma exposures, the patient in the study had a diary, and according to the diary the compliance was high, let's think like that. So we rather think it is due to the variability in terms of absorption and secretion. Don't forget what we measure here are the pre-dose values, so that's when the values are the lowest is the moment where the variability probably is the highest possible. So that maybe gives a bit of an over-picture here that in fact I think if you go to AUC or Cmax variability probably is smaller, but as we've taken the lowest level and the point of the day where the variability is the highest that is what we see here, but which is important and relevant as well, if you work with a potentiator, because we really need to open that channel 24/7.
+
+
+--------------------------------------------------------------------------------
+ Phil Nadeau,  Cowen &amp; Company - Analyst   [4]
+--------------------------------------------------------------------------------
+ And given that variability, what is your thought on dosing? Do you feel like the 500 milligram bid dose therefore is the practice, or is it possible that you might want to even dose at a higher level in future studies, assuming it does move forward?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [5]
+--------------------------------------------------------------------------------
+ So is 500 milligram bid our maximal? So, in Phase 1 we went up to 800 milligram bid, which was safe as well. We worked safely here and had to balance, because on the one hand side you want to dose high enough to give patient the maximal efficacy, on the other hand side, you know that the variability in patients typically is higher, so we took some safety precautions. I cannot exclude, if we move forward, we would go to a 600 milligram bid, or anything like that, but the margin there is quite limited. And variability in patients is always going to be a bit higher than what we've seen in Phase 1, but there is small room there for further increase in dosages.
+
+
+--------------------------------------------------------------------------------
+ Phil Nadeau,  Cowen &amp; Company - Analyst   [6]
+--------------------------------------------------------------------------------
+ And then, last question from me is just on the prior exposure to Kalydeco. You mentioned several times during the presentation that you can't compare these data to the data that Kalydeco, for example, produced in its Phase II, given that those patients were treatment naive. Is there results or any data out there to suggest that there is a change of responses of a patient, depending on exposure to Kalydeco, like has that been shown for Kalydeco that somebody who has been on Kalydeco for two years suddenly is less responsive after Kalydeco washout and anything to kind of support that notion that the washout isn't sufficient to return the patients to a naive baseline?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [7]
+--------------------------------------------------------------------------------
+ What has been published is, on general, with more incidental reports of patients that were off the drugged for a week, two weeks, 28 days, but not a systematic study that shows when and especially FEV and pulmonary exacerbations have -- or show the biggest impact of taking away medication. But that's more incidental reporting and really -- and a well-designed study and I don't think anybody really wants to do the study. So I think the field is keeping track of what they observe and we will take all of that together. So I don't think there is a study out there that really has mapped that out.
+
+--------------------------------------------------------------------------------
+Operator   [8]
+--------------------------------------------------------------------------------
+ Debjit Chattopadhyay, Janney.
+
+--------------------------------------------------------------------------------
+ Debjit Chattopadhyay,  Janney Montgomery Scott - Analyst   [9]
+--------------------------------------------------------------------------------
+ Congrats. It's a general housekeeping question then. Which potentiator are you thinking of taking forward? Do you want to go with -- stick with the bid dosing or would you prefer a once-daily dosing kind of paradigm? And then of the three potentiators that are in the clinic, are you planning to test it in CF patients or just move on with the safety data?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [10]
+--------------------------------------------------------------------------------
+ Okay, thank you for the expected questions on the composition of our triple combo. As I'd tried to explain during the portfolio slide, it was more driven currently time-wise then by 2737. And as I pointed out as well during my R&amp;D review, 2737 has the potential of being once a day, so we'll see how that turns out. Once a day for chronic treatment always has a huge advantage, so 2222 has PK of once a day. So, if 2737 confirms what we hope there, I guess, we'll go for 2451. If it's bid, then 1837 is in the game. We have more advanced data. We exactly know the dose, even under the SAPHIRA 1 to support dose later, so that would play. Then, I must say as well that this is something we have to decide as well together with our partner AbbVie. So, I can't say anything today, up to the moment that we want to have 2737 data, and two, have discussed this with the partner AbbVie. Was there other question or no?
+ The triple. For triple, how do we move triple combination into patients? So it's a mix of Phase I and Phase II data, and by Phase I data I mean the healthy volunteers. So, by mid of next year, we should have two out of the three components tested in patients. So, 2222 is in Phase I, 1837 has been in Phase I. By that moment 2451 as well. We have the time and principal to start testing in patients. So it will be only one component, 2737, which will only have seen healthy volunteers. And as a last component, the first exposure to patient we plan to do that in a triple combination setting, meaning a triple combo as well will go in healthy volunteers. First to prove it's safe and that there is no adverse PK interaction, and then move into patients with -- out of the triple combo, 2737 will be the only component at that moment is tested for the first time in patients. I hope I make it clear, not more confusing. But this will be the -- how complex the way to our triple combo in patients currently.
+
+
+--------------------------------------------------------------------------------
+ Debjit Chattopadhyay,  Janney Montgomery Scott - Analyst   [11]
+--------------------------------------------------------------------------------
+ And then when you broke down the baseline patient characteristics by the pulmonary function, based on levels basically, so those patients with less than 40%, how did they respond? I mean, how were they responding to Kalydeco one, how did they respond to your drug? And then the patients who were really doing well on Kalydeco, how did they come back, because the mean looks exactly the same and the [intervals] look the same too, but I'm just wondering if you can give us a little bit more clarity on the -- based on the baseline FEV1 levels?
+
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [12]
+--------------------------------------------------------------------------------
+ Let's say that -- I've given the breakdown to give all of you an impression on how severely affected was the population. We'll keep the specific patient efficacy, because if we talk about (inaudible) about specific patients for the scientific conferences, but we will clearly show up at the upcoming scientific conferences how our subgroup behaved. But I would say it would be a big surprise if a patient of around 40 would suddenly improve there. So let's not go into the details there and keep that for the scientific conferences.
+
+
+--------------------------------------------------------------------------------
+ Debjit Chattopadhyay,  Janney Montgomery Scott - Analyst   [13]
+--------------------------------------------------------------------------------
+ And the sweat chloride clearly was a function of the exposure levels. Was that also reflected in the FEV1 levels that you saw?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [14]
+--------------------------------------------------------------------------------
+ I think if you will look back to the slides on our website, you will see that the variability to start in FEV is much bigger, so one, the [senior] is much smaller, the variability is much higher, so that makes it more difficult to correlate really on individual level exposures to FEV. On the other hand, if you see that the mean of this group really goes with time and those we have convinced them there must be a link, but it's less strong than sweat, and that's as well why we've included sweat here, because we knew this is a more sensitive and a specific marker of CFTR modulation.
+
+--------------------------------------------------------------------------------
+ Debjit Chattopadhyay,  Janney Montgomery Scott - Analyst   [15]
+--------------------------------------------------------------------------------
+ And one last housekeeping question. When do you expect to receive the milestone payment from AbbVie? Was this the Phase II that was the gating factor, or there is more Phase II -- I mean it's linked to the Phase II data coming out next year?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [16]
+--------------------------------------------------------------------------------
+ So, for milestones, I have my CEO on the line, so that's good.
+
+--------------------------------------------------------------------------------
+ Onno van de Stolpe,  Galapagos NV - CEO   [17]
+--------------------------------------------------------------------------------
+ Yes. And, we're not disclosing any further milestone moments until they arise. We haven't disclosed that.
+
+--------------------------------------------------------------------------------
+Operator   [18]
+--------------------------------------------------------------------------------
+ Matthew Harrison, Morgan Stanley.
+
+--------------------------------------------------------------------------------
+ Vikram Purohit,  Morgan Stanley - Analyst   [19]
+--------------------------------------------------------------------------------
+ This is Vikram on for Matthew. So just one quick question from our side. Would you be able to share what the pre-Kalydeco washout sweat chloride levels were? I don't think we saw those in the slides today. And that's it for us, thanks.
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [20]
+--------------------------------------------------------------------------------
+ Okay that's correct. Pre-Kalydeco washout levels were not on the slides. We tried to keep the overflow of data comprehensive and did not include that to keep all of the graphs in the complex time exposure and sweat a little bit simple. On Kalydeco, the mean sweat, prior to treatment was around 45 millimolars, and so they showed an increase during screening of around 50 millimolars.
+
+--------------------------------------------------------------------------------
+Operator   [21]
+--------------------------------------------------------------------------------
+ [Michael Mauboussin], Credit Suisse.
+
+--------------------------------------------------------------------------------
+ Michael Mauboussin,  Credit Suisse - Analyst   [22]
+--------------------------------------------------------------------------------
+ Congratulations on the trial and thanks for taking my question. I'm on for Vamil Divan, by the way. I just had a question. The two patients that had the SAEs, were they in the exposure above target or below target populations?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [23]
+--------------------------------------------------------------------------------
+ I don't know it by heart and let's keep that for the scientific conference as well. Honestly, I don't know it by heart. I believe that the pulmonary exacerbation did well in the study and we were very -- also the patient, of course, was very fortunate, because we believed he or she did well, but then showed this [during the last day]. The phosphocreatine kinase was probably below, but to be 100% sure, let's put that on our scientific conferences as well.
+
+--------------------------------------------------------------------------------
+Operator   [24]
+--------------------------------------------------------------------------------
+ Katherine Xu, William Blair.
+
+--------------------------------------------------------------------------------
+ Katherine Xu,  William Blair - Analyst   [25]
+--------------------------------------------------------------------------------
+ I was just wondering whether you observed any lower grade CPK increases?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [26]
+--------------------------------------------------------------------------------
+ 
+ No, we did not observe anything at all. So it was a single case and an acute increase. So that's also where this case is puzzling for us, where we can't link it to the drug exposure, but it can be a single case, can also for those more experienced in drug development, a fast case that when numbers increase or exposure increases, you might see more. So it really it was a very -- it was a spike of a single, but the investigator took the decision at the moment to take the patient off and out of the study, and that's it.
+
+
+--------------------------------------------------------------------------------
+ Katherine Xu,  William Blair - Analyst   [27]
+--------------------------------------------------------------------------------
+ 
+ And can you describe your strategies/criteria on the safety side, when you put these compounds together, currently their exposure in humans is quite limited in durations?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [28]
+--------------------------------------------------------------------------------
+ 
+ That is correct. Yes. The moment we will put a triple combination together, we will have in healthy volunteers about two weeks exposure, in patients up to one month exposure. We especially -- we'll have been running pre-clinical, then the chronic and the subchronic tox and the combination tox. So, we there want to exclude that the combination of drugs is adding toxicities. But as far as we can see it from animal studies, and we want to make sure that the PK is stable when combining the three. So that's then a combination of in vitro assays, the DDI assessments, and the in vivo exposures in healthy volunteers. For one of the -- for 2222, in fact, we have a three-month study ongoing. So there the exposure will be longer. But it's clear that for the time limiting component, 2737 exposure will be limited at the moment of the selection. But I don't think there is a real other way when you want to start to treat the CF patients, you really want to give them as soon as possible, as well access to an experimental triple combo, because there is lot of hope for them as well that some good improvement might be observed there.
+
+
+--------------------------------------------------------------------------------
+ Katherine Xu,  William Blair - Analyst   [29]
+--------------------------------------------------------------------------------
+ 
+ Can you then explain what happened to that naive patient?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [30]
+--------------------------------------------------------------------------------
+ 
+ The naive patient behaved as one could expect from a naive patient. And I think the most impressive sweat chloride drop that we've seen in the study, so was really in naive-naive and showed an increase in FEV as well. So, (inaudible) press releases are in the presentation we normally do. And it is one case, so then that was probably for the scientific conferences, but he or she really behaved as one would expect a naive patient would behave on an active potentiator treatment.
+
+--------------------------------------------------------------------------------
+Operator   [31]
+--------------------------------------------------------------------------------
+ Anastasia Karpova, Kempen.
+
+--------------------------------------------------------------------------------
+ Anastasia Karpova,  Kempen &amp; Co - Analyst   [32]
+--------------------------------------------------------------------------------
+ Congratulations on the results. Three questions from my side. Were there any specific supposed or actual side-effects that prevented you from exploring 800 milligram dose in SAPHIRA? Then the second question, what would be your main takeaway from this result in regards to triple combo? And then more of a conceptual question, but you are not reaching the predicted max efficacy with 1837 at 500 milligram dose, and as you mentioned, you have a small margin to up dose. And on pre-clinical studies, 2451 has been shown to have lower max efficacy. So is there a risk that the degree of outperformance you see over competitive dual combo might not be translated in full in the clinic, because potentiator is not performing at the full power?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [33]
+--------------------------------------------------------------------------------
+ Thank you for four questions, rather than three questions. And I'll try to answer them all. So first of all, the dose selection and especially the max limitation is based like any studies on the total behavior in preclinical species what we learn in the Phase I, and I can't remember any specifics there, but was just what we've seen, what exposures we judge we are safe in general to be explored, first in healthy volunteers and later in patients. Then the second question was the takeaway, what was that on?
+
+--------------------------------------------------------------------------------
+ Anastasia Karpova,  Kempen &amp; Co - Analyst   [34]
+--------------------------------------------------------------------------------
+ In regards to triple combo.
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [35]
+--------------------------------------------------------------------------------
+ Well, as I said earlier, I believe during this call if you would go for a bid regimen, 1837 is still in the game, has the disadvantage of -- it's clear that you have to go up to 500 mgs bid, maybe 600 mgs, so that's a higher volume, but okay. Then you have large pills that is I think for the level of efficacy we hope to bring to patients acceptable, but not optimal. So that you at least have this 1837 shown that in a patient it is well tolerated, you know the exposure and you know the efficacy of the potentiator. So we've learned there, one, we know how to select potentiators, secondly, how to predict doses of potentiators.
+ Then on the maximal efficacy, a difficult question, we don't know that and I've said that before that with the design, without the placebo and with the fact that this is the first time in treatment experienced patient, is two week sufficient? I know that in treatment naives, treatment was close to maximal efficacy after two weeks. This is the first in treatment experienced patients that something we need to work out further. And I don't know -- I don't think anybody knows the answer there, whether you will be at the maximal efficacy there in two weeks or whether four weeks or three months might bring you anything extra there. Don't forget as well, most of you compare now the absolute FEV improvements. But baseline lung function, lung [cleaner] of patient probably was much better when they entered the study compared to patients that had never seen a drug. So there is a difference there as well, so that as well may -- an objective difference makes comparing the numbers of different studies difficult.
+ Impact on 2451, therefore, Delta F508 patients, in terms of triple combo is our main goal. There is absolutely no difference in terms of maximal efficacy between 2451 and 1837. So really don't see any difference there. We don't see any risk associated neither. If you would decide to switch, then we enter here the complexity of the CF between the three, all data points can be driven by the mutational background, but I can confirm here that for Delta F508 patients, there is no difference between 2451 and 1837.
+ And was there a final question or no? No, these are the -- I believe I've now answered most of all of your questions?
+
+--------------------------------------------------------------------------------
+Operator   [36]
+--------------------------------------------------------------------------------
+ 
+ Peter Welford, Jefferies.
+
+--------------------------------------------------------------------------------
+ Peter Welford,  Jefferies - Analyst   [37]
+--------------------------------------------------------------------------------
+ 
+ Hi, just two questions [only left] please. Firstly, did you monitor at all patients when they returned to Kalydeco therapy? So, I guess, was there any further gains in the patients, did you notice anything when those patients -- the 25 patients returned back to the Kalydeco, where patients not followed during that period? And then secondly, just with regards to the target exposure graph that you've showed. I guess, I mean it looks as though that in the group that had above target exposure, the exposure continues to increase in week four, suggesting some sort of accumulation, I guess. Is there a suggestion during week four that was continuing to increase, or was already beginning to plateau at the end of the study? And equally, in the other group, it looks as though the drug considerations dropped to even below those of the sort of low doses in week four. I want you to make some sort of comment as to why we seem to be seeing that in that -- I know a relatively small group. Thank you.
+
+--------------------------------------------------------------------------------
+ Onno van de Stolpe,  Galapagos NV - CEO   [38]
+--------------------------------------------------------------------------------
+ First question was on, did we [have off-visit] when patients returned to treatment? Yes we [saw] patients when they had been on treatment back for about a week I believe, a couple of days to a week, between 3 and 10 days. Patients behaved are expected. What I mean is there it's a mix of results, a few do a little bit better, a few do a little bit worse, as a group it's stable. So it's not that as a group that we clearly see difference there. But we have to mention that the sweat tends to increase a bit, or the sweat drop tends to become bigger, so the sweat effect drops a little further, but was not back yet neither at where it was when they entered screening of the study. Then about the group that reached a target exposure at day 29, high increase there. You're right that at week four the levels are somewhat higher. I think as well if you will look to the slides, the variability as well increase, I think. Part of that is normal -- is the variability, one, by the smaller numbers; to time it takes when the variability is highest, honestly, because it's when they have lowest level. But we expected with increasing dosages, a small accumulation, but that normally should take place by day 22 and should be stable by day -- and should have the same outcome at day 29. Then the group that did not reach target levels at day 29, that group showed, from the first data point onwards lower levels and you see at every time point that that group is low, so that's clearly variability there that we see in terms of absorption and distribution.
+
+
+--------------------------------------------------------------------------------
+Operator   [39]
+--------------------------------------------------------------------------------
+ Stephanie Vogt, Petercam.
+
+
+--------------------------------------------------------------------------------
+ Stephanie Vogt,  Petercam - Analyst   [40]
+--------------------------------------------------------------------------------
+ Two from my side. First, I was wondering, these patients that enrolled in the study, they are actually on stable treatment. What is the main motive for them to switch from Kalydeco for a while to enter the trial? And then the second question is more on the future and the triple combination, how do you see the timelines, especially after the first trial, what will be the next step? Thank you.
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [41]
+--------------------------------------------------------------------------------
+ Thank you, in fact, for joining as well, and special thanks for the question, because it gives me an opportunity again to thank the patients and investigators to participate in the study. We've been pleasantly surprised that really this CF field is an extremely motivated field. Don't forget that they've been waiting for disease modifying drugs for a long time. They've set up a worldwide impressive effort to improve the life of patients and what we heard from the patient that participated, they really want to give something back to the field as well, and they really hope and are motivated if they can contribute to bring novel drugs also for other CF patients that they are willing to participate there and that's why they joined this effort. But I agree with you, purely medically for them there is not too much in here, but they are really motivated to, in general, bring more effective drugs to patients, more specifically for their group as well. I think that what we hear as well in the field. The field really would appreciate to have a choice between two or more drugs, rather than to be limited to a single drug, because they can't make any choice, they can't make any judgment. They have to use what is available and so there is in the field a general desire to see competition there. That's one. And second, patients really want to invest as well in the research for novel and more effective therapy. And I think as well the quote of the investigator in our press release clearly hints to that.
+ So, timelines for triple with this study, well, we can confirm [anything] like that. So we are very pleased at this study we could recruit in time, we could accomplish in time and as we said, we have an extremely busy year ahead of us. So the number of individual studies in this CF program is high, but timelines for triple we can confirm then that we are on track to bring a triple combination to patients by mid of next year. Thank you.
+
+--------------------------------------------------------------------------------
+ Stephanie Vogt,  Petercam - Analyst   [42]
+--------------------------------------------------------------------------------
+ 
+ And how would you see then the next phase? Can we see it as a Phase I, as you will include healthy volunteers, or should we see it as a Phase II already?
+
+--------------------------------------------------------------------------------
+ Piet Wigerinck,  Galapagos NV - Chief Scientific Officer   [43]
+--------------------------------------------------------------------------------
+ 
+ I think, if we now focus on triple combination, there's going to be a combination of studies for the more advanced components, like 2222, it's clearly the Phase II exploration. For 2737, it will be an exclusive healthy volunteer exploration and 2451 as well, a combination there of healthy volunteers and patients. So it's going to be mixed bag there. And as soon as we can make sense and medically there's a good argument to test some of the components individual or in combination in patients, we will start to do that. That really gives us a lot of info on how patients -- what patients feel with this drug, how they tolerate it, how variable the application. So we will try to derisk as much as we can, prior to starting our triple cocktail in patients.
+
+--------------------------------------------------------------------------------
+ Elizabeth Goodwin,  Galapagos NV - VP IR &amp; Corporate Communications   [44]
+--------------------------------------------------------------------------------
+ 
+ I'm going to jump in now, because we've run out of time. And I really appreciate all the interest that people have in our data. If there are folks who are not able to ask questions in the call, please mail me and I'd be happy to try to get your questions answered. This would also be a good moment to let the audience know that our next financial results are -- for full year 2016 are actually going to be on February 24, 2017, so a full week earlier than usual and what we've previously announced. So just mark that in your calendars. Again, I'd like to thank all of the folks who've listened in and dialed in. Thanks for your support and your participation. I want to wish you all a very happy holiday from Galapagos. Thank you and goodbye.
+
+]]></Body>
+  </EventStory>
+  <eventTitle><![CDATA[Galapagos NV Reports Topline Results from its SAPHIRA 1 Phase 2 Study in Cystic Fibrosis Patients with Potentiator GLPG1837  Call]]></eventTitle>
+  <city>Mechelen</city>
+  <companyName>Galapagos NV</companyName>
+  <companyTicker>GLPG.AS</companyTicker>
+  <startDate>21-Dec-16 2:00pm GMT</startDate>
+</Event>

@@ -7,9 +7,9 @@ import xml.etree.ElementTree as ET
 import re
 import os
 import csv
+import inflect
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
-
 
 ###### TEXT EXTRACTION FUNCTIONS ######
 def extract_text(file_path: str) -> str:
@@ -134,13 +134,20 @@ def extract_exposure(text, keywords, window=10) -> dict :
     words = re.findall(r'\w+', text)
     contexts = {}
 
+    expanded_keywords = add_plurals(keywords)
+
     for index, word in enumerate(words):
-        if word.lower() in keywords:
+        if word.lower() in expanded_keywords:
             start = max(0, index - window)
             end = min(len(words), index + window + 1)
             context = " ".join(words[start:end])
-            contexts[word] = context
-
+            
+            # If the word is already in contexts, append the new context
+            if word.lower() in contexts:
+                contexts[word.lower()].append(context)
+            # Otherwise, create a new list with the context
+            else:
+                contexts[word.lower()] = [context]
     return contexts
 
 def extract_exposure2(text_string, seed_words, buffer):
@@ -160,17 +167,19 @@ def extract_exposure2(text_string, seed_words, buffer):
 
     all_words = re.findall(r'\b\w+\b', text_string.lower())
 
+    expanded_keywords = add_plurals(seed_words)
+
     kw_model = KeyBERT()
 
     # Use KeyBERT to extract related words based on the full text
     keywords = kw_model.extract_keywords(text_string, keyphrase_ngram_range=(1, 2), 
-                                         stop_words='english', top_n=10)
+                                         stop_words='english', top_n=10, use_mmr=True, diversity=0.5)
     
     # Extract just the words from the KeyBERT results
     similar_words = set(word.lower() for word, _ in keywords)
     
     # Include both seed words and their similar words
-    search_words = set(seed_words) | similar_words
+    search_words = set(expanded_keywords) | similar_words
 
     results = {}
 
@@ -187,6 +196,12 @@ def extract_exposure2(text_string, seed_words, buffer):
 
     return results
 
+def add_plurals(word_list):
+    p = inflect.engine()
+    all_words = list(word_list)
+    for word in word_list:
+        all_words.append(p.plural(word))
+    return all_words
 
 def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     """
@@ -233,17 +248,21 @@ def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
 
 
 
-def sentiment_score(text_dict):
+def sentiment_score(text_dict, sentiment_analyzer=None):
     """
     Returns sentiment scores for each string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
-    """
-    from transformers import pipeline
     
-    sentiment_analyzer = pipeline(
-        "sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest"
-    )
+    Args:
+        text_dict (dict): Dictionary of text strings to analyze
+        sentiment_analyzer: Optional pre-initialized sentiment analyzer pipeline
+    """
+    if sentiment_analyzer is None:
+        from transformers import pipeline
+        sentiment_analyzer = pipeline(
+            "sentiment-analysis",
+            model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+        )
 
     results = {}
 
