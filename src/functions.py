@@ -7,15 +7,18 @@ import xml.etree.ElementTree as ET
 import re
 import os
 import csv
-import inflect
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
+from nltk.tokenize import word_tokenize
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
 
 ###### TEXT EXTRACTION FUNCTIONS ######
 def extract_text(file_path: str) -> str:
     """
-
     This function takes in an earnings transcript as an input, and extracts the words from the transcript.
+    Uses NLTK tokenization for better word separation.
 
     Input: .xml file
     Output: str
@@ -43,15 +46,21 @@ def extract_text(file_path: str) -> str:
     # Join all text parts with spaces
     raw_text = ' '.join(text_parts)
     
-    # Clean up the text
+    # Clean up the text before tokenization
+    # Remove special characters but keep basic punctuation
+    cleaned_text = re.sub(r'[^\w\s.,?!-]', ' ', raw_text)
     # Remove multiple spaces
-    cleaned_text = re.sub(r'\s+', ' ', raw_text)
-    # Remove special characters and normalize whitespace
-    cleaned_text = re.sub(r'[^\w\s.,?!-]', '', cleaned_text)
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
     # Trim leading/trailing whitespace
     cleaned_text = cleaned_text.strip()
     
-    return cleaned_text
+    # Tokenize the text using NLTK
+    tokens = word_tokenize(cleaned_text)
+    
+    # Rejoin tokens with spaces
+    final_text = ' '.join(tokens)
+    
+    return final_text
 
 def extract_company_info(file_path: str) -> list:
     '''
@@ -80,7 +89,6 @@ def extract_company_info(file_path: str) -> list:
 
 
     return [company_name, ticker, date, city]
-
 
 def csv_to_list(filepath):
     """
@@ -112,7 +120,6 @@ def csv_to_list(filepath):
     
     return political_list
 
-
 def extract_exposure(text, keywords, window=10) -> dict :
     """
         This takes in the str returned from extract_text, and extracts regions (+- buffer) where the exposure
@@ -134,20 +141,13 @@ def extract_exposure(text, keywords, window=10) -> dict :
     words = re.findall(r'\w+', text)
     contexts = {}
 
-    expanded_keywords = add_plurals(keywords)
-
     for index, word in enumerate(words):
-        if word.lower() in expanded_keywords:
+        if word.lower() in keywords:
             start = max(0, index - window)
             end = min(len(words), index + window + 1)
             context = " ".join(words[start:end])
-            
-            # If the word is already in contexts, append the new context
-            if word.lower() in contexts:
-                contexts[word.lower()].append(context)
-            # Otherwise, create a new list with the context
-            else:
-                contexts[word.lower()] = [context]
+            contexts[word] = context
+
     return contexts
 
 def extract_exposure2(text_string, seed_words, buffer):
@@ -167,19 +167,17 @@ def extract_exposure2(text_string, seed_words, buffer):
 
     all_words = re.findall(r'\b\w+\b', text_string.lower())
 
-    expanded_keywords = add_plurals(seed_words)
-
     kw_model = KeyBERT()
 
     # Use KeyBERT to extract related words based on the full text
     keywords = kw_model.extract_keywords(text_string, keyphrase_ngram_range=(1, 2), 
-                                         stop_words='english', top_n=10, use_mmr=True, diversity=0.5)
+                                         stop_words='english', top_n=10)
     
     # Extract just the words from the KeyBERT results
     similar_words = set(word.lower() for word, _ in keywords)
     
     # Include both seed words and their similar words
-    search_words = set(expanded_keywords) | similar_words
+    search_words = set(seed_words) | similar_words
 
     results = {}
 
@@ -195,13 +193,6 @@ def extract_exposure2(text_string, seed_words, buffer):
             results[normalized_word].append(surrounding_words)
 
     return results
-
-def add_plurals(word_list):
-    p = inflect.engine()
-    all_words = list(word_list)
-    for word in word_list:
-        all_words.append(p.plural(word))
-    return all_words
 
 def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     """
@@ -229,7 +220,6 @@ def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     percentage = (count_with_risk / total_entries) * 100
     return [count_with_risk, percentage]
 
-
 def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
     """
     Calculate what percentage of key-value pairs in `data_dict` contain
@@ -244,9 +234,6 @@ def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
     """
     
     return 0.0
-
-
-
 
 def sentiment_score(text_dict, sentiment_analyzer=None):
     """
@@ -305,5 +292,119 @@ def tf_idf(*args):
         print(word, ':', idf)
 
     return result
+
+def extract_exposure3(text_string, seed_words, buffer, similarity_threshold=0.7):
+    """
+    Extracts regions around seed words and their similar words using cosine similarity with TF-IDF.
+    
+    Args:
+        text_string (str): The text to analyze
+        seed_words (list): List of seed words to search for in the text
+        buffer (int): Number of words to extract left and right of the considered word
+        similarity_threshold (float): Threshold for cosine similarity (default: 0.7)
+        
+    Returns:
+        dict: Dictionary with seed words and similar words as keys, 
+              and the surrounding words as values.
+    """
+    # Tokenize the text
+    words = re.findall(r'\b\w+\b', text_string.lower())
+    
+    # Create TF-IDF matrix with stop words and minimum document frequency
+    vectorizer = TfidfVectorizer(
+        analyzer='word',
+        ngram_range=(1, 1),
+        stop_words='english',  # Remove common English words
+        min_df=2  # Word must appear in at least 2 documents
+    )
+    tfidf_matrix = vectorizer.fit_transform([text_string])
+    
+    # Get feature names (words)
+    feature_names = vectorizer.get_feature_names_out()
+    
+    # Calculate cosine similarity between seed words and all words
+    similar_words = set()
+    for seed_word in seed_words:
+        if seed_word in feature_names:
+            # Get the index of the seed word
+            seed_idx = np.where(feature_names == seed_word)[0][0]
+            
+            # Get the TF-IDF vector for the seed word
+            seed_vector = tfidf_matrix[:, seed_idx].toarray().flatten()
+            
+            # Calculate cosine similarity with all other words
+            similarities = cosine_similarity(seed_vector.reshape(1, -1), tfidf_matrix.T)[0]
+            
+            # Find words with similarity above threshold
+            similar_indices = np.where(similarities >= similarity_threshold)[0]
+            similar_words.update(feature_names[similar_indices])
+    
+    # Include both seed words and their similar words
+    search_words = set(seed_words) | similar_words
+    
+    # Extract contexts
+    results = {}
+    for i, word in enumerate(words):
+        normalized_word = word.strip()
+        if normalized_word in search_words:
+            start_idx = max(0, i - buffer)
+            end_idx = min(len(words), i + buffer + 1)
+            surrounding_words = ' '.join(words[start_idx:end_idx])
+            
+            if normalized_word not in results:
+                results[normalized_word] = []
+            
+            results[normalized_word].append(surrounding_words)
+    
+    return results
+
+def test_extract_exposure_3():
+    """
+    Test function for extract_exposure_3 to verify its functionality.
+    """
+    try:
+        # Test file path
+        test_file = "src/data/earnings_calls/ex1.xml"
+        
+        # Extract text from the test file
+        text = extract_text(test_file)
+        
+        # Sample keywords to test
+        keywords = ["earnings", "revenue", "growth", "forecast", "fleet"]
+        
+        # Test with different window sizes
+        for window_size in [5]:
+            print(f"\nTesting with window size {window_size}:")
+            results = extract_exposure3(text, keywords, window_size)
+            
+            # Print results for each keyword
+            for keyword in keywords:
+                if keyword in results:
+                    print(f"\nKeyword: {keyword}")
+                    print(f"Found {len(results[keyword])} occurrences")
+                    print("Contexts:")
+                    for i, context in enumerate(results[keyword][:], 1):
+                        print(f"{i}. {context}")
+                else:
+                    print(f"\nKeyword: {keyword} - Not found")
+            
+            # Print statistics
+            total_occurrences = sum(len(contexts) for contexts in results.values())
+            print(f"\nTotal occurrences found: {total_occurrences}")
+            
+            # Print similar words found
+            print("\nSimilar words found:")
+            for word in results.keys():
+                if word not in keywords:
+                    print(f"- {word}")
+            
+    except FileNotFoundError:
+        print(f"Error: Test file not found at {test_file}")
+    except Exception as e:
+        print(f"Error during testing: {str(e)}")
+
+if __name__ == "__main__":
+    test_extract_exposure_3()
+
 
 
