@@ -10,6 +10,7 @@ import csv
 import inflect
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
+from sentence_transformers import SentenceTransformer, util
 
 ###### TEXT EXTRACTION FUNCTIONS ######
 def extract_text(file_path: str) -> str:
@@ -195,6 +196,62 @@ def extract_exposure2(text_string, seed_words, buffer):
             results[normalized_word].append(surrounding_words)
 
     return results
+
+def extract_exposure3(text, keywords, threshold=0.7, window=5):
+    """
+    Extracts regions around keywords and semantically similar words using sentence transformers
+    and cosine similarity.
+    
+    Args:
+        text (str): The text to analyze
+        keywords (list): List of seed keywords to search for
+        threshold (float): Cosine similarity threshold for matches (default: 0.7)
+        window (int): Number of words to extract left and right of matched words (default: 10)
+        
+    Returns:
+        dict: Dictionary with matched words as keys and list of surrounding contexts as values
+    """
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    
+    expanded_keywords = add_plurals(keywords)
+    # print(f"DEBUG: Expanded Keywords: {expanded_keywords}")
+    
+    words = re.findall(r'\b\w+\b', text.lower())
+    
+    if not expanded_keywords:
+        # print("DEBUG: No expanded keywords to process.")
+        return {}
+    keyword_embeddings = model.encode(expanded_keywords)
+    
+    contexts = {}
+    
+    for index, word in enumerate(words):
+        if not word.strip():
+            continue
+        word_embedding = model.encode([word])
+        
+        # Calculate cosine similarities for all keywords
+        similarities = util.cos_sim(word_embedding, keyword_embeddings)[0]
+        
+        # print(f"DEBUG: Processing word: '{word}'")
+        # for kw_idx, score in enumerate(similarities):
+        #     print(f"DEBUG:   Similarity with '{expanded_keywords[kw_idx]}': {score:.4f}")
+            
+        # Check if any similarity exceeds threshold
+        for keyword_idx, similarity_score in enumerate(similarities):
+            if similarity_score >= threshold:
+                matched_keyword = expanded_keywords[keyword_idx]
+                
+                # Get context around word
+                start = max(0, index - window)
+                end = min(len(words), index + window + 1)
+                context = " ".join(words[start:end])
+                
+                if matched_keyword in contexts:
+                    contexts[matched_keyword].append(context)
+                else:
+                    contexts[matched_keyword] = [context]
+    return contexts
 
 def add_plurals(word_list):
     p = inflect.engine()

@@ -1,32 +1,35 @@
 import pandas as pd
-from functions import extract_text, extract_exposure, extract_exposure2
+from functions import extract_text, extract_exposure, extract_exposure2, extract_exposure3
 import matplotlib.pyplot as plt
 from collections import Counter
 import os
 from pathlib import Path
 
-def process_single_transcript(file_path, seed_words, buffer=10):
+def process_single_transcript(file_path, seed_words, buffer, threshold, window):
     """
     Process a single transcript and return the extraction results.
     
     Args:
         file_path (str): Path to the earnings transcript XML file
         seed_words (list): List of seed words to search for
-        buffer (int): Number of words to extract around each match
+        buffer (int): Number of words to extract around each match for direct and keybert
+        threshold (float): Similarity threshold for extract_exposure3
+        window (int): Window size for extract_exposure3
         
     Returns:
-        tuple: (direct_matches, keybert_matches)
+        tuple: (direct_matches, keybert_matches, exposure3_matches)
     """
     try:
         text = extract_text(file_path)
         direct_matches = extract_exposure(text, seed_words, window=buffer)
         keybert_matches = extract_exposure2(text, seed_words, buffer=buffer)
-        return direct_matches, keybert_matches
+        exposure3_matches = extract_exposure3(text, seed_words, threshold=threshold, window=window)
+        return direct_matches, keybert_matches, exposure3_matches
     except Exception as e:
         print(f"Error processing {file_path}: {str(e)}")
-        return {}, {}
+        return {}, {}, {}
 
-def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=10):
+def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=2, threshold=0.8, window=1):
     """
     Compare extraction methods across multiple transcripts.
     
@@ -34,7 +37,9 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
         folder_path (str): Path to folder containing transcript XML files
         seed_words (list): List of seed words to search for
         num_files (int): Number of files to process
-        buffer (int): Number of words to extract around each match
+        buffer (int): Number of words to extract around each match for direct and keybert
+        threshold (float): Similarity threshold for extract_exposure3
+        window (int): Window size for extract_exposure3
     """
     # Get list of XML files
     xml_files = list(Path(folder_path).glob("*.xml"))[:num_files]
@@ -48,11 +53,15 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
     total_keybert_matches = Counter()
     all_direct_contexts = {}
     all_keybert_contexts = {}
+    total_exposure3_matches = Counter()
+    all_exposure3_contexts = {}
     
     # Process each file
     for file_path in xml_files:
         print(f"\nProcessing {file_path.name}...")
-        direct_matches, keybert_matches = process_single_transcript(str(file_path), seed_words, buffer)
+        direct_matches, keybert_matches, exposure3_matches = process_single_transcript(
+            str(file_path), seed_words, buffer=buffer, threshold=threshold, window=window
+        )
         
         # Aggregate direct matches
         for word, contexts in direct_matches.items():
@@ -67,21 +76,29 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
             if word not in all_keybert_contexts:
                 all_keybert_contexts[word] = []
             all_keybert_contexts[word].extend(contexts)
+        
+        # Aggregate exposure3 matches
+        for matched_keyword, contexts_list in exposure3_matches.items():
+            total_exposure3_matches[matched_keyword] += len(contexts_list)
+            if matched_keyword not in all_exposure3_contexts:
+                all_exposure3_contexts[matched_keyword] = []
+            all_exposure3_contexts[matched_keyword].extend(contexts_list)
     
     # Print overall statistics
     print("\n=== Overall Extraction Method Comparison ===")
     print(f"Number of files processed: {len(xml_files)}")
     print(f"Total direct matches: {sum(total_direct_matches.values())}")
     print(f"Total KeyBERT matches: {sum(total_keybert_matches.values())}")
+    print(f"Total extract_exposure3 matches: {sum(total_exposure3_matches.values())}")
     
     # Print detailed results
     print("\nDirect Matches Summary:")
     for word, count in total_direct_matches.most_common():
         print(f"\nWord: {word}")
         print(f"Total occurrences: {count}")
-        print("All contexts:")
-        for i, context in enumerate(all_direct_contexts[word], 1):
-            print(f"{i}. {context}")
+        # print("All contexts:")
+        # for i, context in enumerate(all_direct_contexts[word], 1):
+        #     print(f"{i}. {context}")
     
     print("\nKeyBERT Matches Summary:")
     for word, count in total_keybert_matches.most_common():
@@ -89,6 +106,14 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
         print(f"Total occurrences: {count}")
         print("All contexts:")
         for i, context in enumerate(all_keybert_contexts[word], 1):
+            print(f"{i}. {context}")
+    
+    print("\nextract_exposure3 Matches Summary:")
+    for word, count in total_exposure3_matches.most_common():
+        print(f"\nWord: {word}")
+        print(f"Total occurrences: {count}")
+        print("All contexts:")
+        for i, context in enumerate(all_exposure3_contexts[word], 1):
             print(f"{i}. {context}")
     
     # Create visualizations
@@ -108,7 +133,7 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
     plt.xlabel('Words')
     plt.ylabel('Number of Matches')
     plt.title('Matches per Word: Direct vs KeyBERT')
-    plt.xticks(x, words, rotation=45, ha='right')
+    plt.xticks(x, words, rotation=45, ha='right') 
     plt.legend()
     
     # Plot 2: Total matches comparison
@@ -125,7 +150,7 @@ def compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=1
     plt.close()
 
 if __name__ == "__main__":
-    folder_path = "src/data/earnings_calls/2016"
+    folder_path = "src/data/earnings_test/"
     seed_words = ["risk", "uncertainty", "challenge", "volatility", "concern"]
     
-    compare_multiple_transcripts(folder_path, seed_words, num_files=10) 
+    compare_multiple_transcripts(folder_path, seed_words, num_files=10, buffer=2, threshold=0.7, window=5)
