@@ -1,3 +1,9 @@
+--May 26 2025--
+* reverse gneinerr what words are associated with positive reactions in the market
+    * paper never ran any returns or associations for future returns, this is something that we can think of going forward
+* maybe even come up with our own vocabulary or dataset that we backtest on our own
+* 
+
 --May 12 2025--
 * Replace KeyBERT with cosine similaarity (something a bit more dynamic) and yet being more basic
 * FinBERT
