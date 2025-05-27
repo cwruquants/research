@@ -200,58 +200,43 @@ def extract_exposure2(text_string, seed_words, buffer):
 def extract_exposure3(text, keywords, threshold=0.7, window=5):
     """
     Extracts regions around keywords and semantically similar words using sentence transformers
-    and cosine similarity.
-    
-    Args:
-        text (str): The text to analyze
-        keywords (list): List of seed keywords to search for
-        threshold (float): Cosine similarity threshold for matches (default: 0.7)
-        window (int): Number of words to extract left and right of matched words (default: 10)
-        
-    Returns:
-        dict: Dictionary with matched words as keys and list of surrounding contexts as values
+    and cosine similarity, and prints each match with its similarity score.
     """
     model = SentenceTransformer('all-MiniLM-L6-v2')
-    
     expanded_keywords = add_plurals(keywords)
-    # print(f"DEBUG: Expanded Keywords: {expanded_keywords}")
-    
     words = re.findall(r'\b\w+\b', text.lower())
     
     if not expanded_keywords:
-        # print("DEBUG: No expanded keywords to process.")
         return {}
-    keyword_embeddings = model.encode(expanded_keywords)
-    
-    contexts = {}
-    
-    for index, word in enumerate(words):
-        if not word.strip():
-            continue
-        word_embedding = model.encode([word])
-        
-        # Calculate cosine similarities for all keywords
-        similarities = util.cos_sim(word_embedding, keyword_embeddings)[0]
-        
-        # print(f"DEBUG: Processing word: '{word}'")
-        # for kw_idx, score in enumerate(similarities):
-        #     print(f"DEBUG:   Similarity with '{expanded_keywords[kw_idx]}': {score:.4f}")
-            
-        # Check if any similarity exceeds threshold
-        for keyword_idx, similarity_score in enumerate(similarities):
-            if similarity_score >= threshold:
-                matched_keyword = expanded_keywords[keyword_idx]
-                
-                # Get context around word
-                start = max(0, index - window)
-                end = min(len(words), index + window + 1)
-                context = " ".join(words[start:end])
-                
-                if matched_keyword in contexts:
-                    contexts[matched_keyword].append(context)
-                else:
-                    contexts[matched_keyword] = [context]
-    return contexts
+
+    # batching
+    keyword_embeddings = model.encode(expanded_keywords, convert_to_tensor=True)
+    word_embeddings    = model.encode(words, convert_to_tensor=True)
+    sims = util.cos_sim(word_embeddings, keyword_embeddings)  # shape: [n_words, n_keywords]
+
+    contexts = {kw: [] for kw in expanded_keywords}
+
+    # get rid of contexts that we've already seen
+    seen = set()  
+
+    for i, word in enumerate(words):
+        for k_idx, score in enumerate(sims[i]):
+            if score >= threshold:
+                key = expanded_keywords[k_idx]
+                # print the word, the matched keyword, and the similarity
+                print(f"Matched word='{word}'   keyword='{key}'   score={score:.4f}")
+
+                # extract the surrounding window
+                start = max(0, i - window)
+                end   = min(len(words), i + window + 1)
+                ctx   = " ".join(words[start:end])
+
+                if (key, ctx) not in seen:
+                    seen.add((key, ctx))
+                    contexts[key].append(ctx)
+
+    # return and drop empty entries
+    return {k: v for k, v in contexts.items() if v}
 
 def add_plurals(word_list):
     p = inflect.engine()
