@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from nltk.tokenize import word_tokenize
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from collections import defaultdict
 
 
 ###### TEXT EXTRACTION FUNCTIONS ######
@@ -120,35 +121,32 @@ def csv_to_list(filepath):
     
     return political_list
 
-def extract_exposure(text, keywords, window=10) -> dict :
+
+def extract_exposure(text, keywords, window=10) -> dict:
     """
-        This takes in the str returned from extract_text, and extracts regions (+- buffer) where the exposure
-        words exist. 
+    Extracts all surrounding word contexts around each keyword in a text.
 
-        For example, if buffer = 5, then wherever we identify an exposure word, we take the substring of words beginning
-        5 words before exposure word, and 5 words after the exposure words. This would create a string with 11 words. 
-        We would then add this to our return dict.
+    Args:
+        text (str): Input text.
+        keywords (list of str): List of lowercase keywords to search for.
+        window (int): Number of words to include before and after the keyword.
 
-        Input: 
-        - exposure_words: csv
-        - txt_string: str
-        - buffer: int
-
-        Output:
-        dictionary
-        
+    Returns:
+        dict: A dictionary where keys are matched keywords and values are lists of
+              context windows (strings) around each appearance.
     """
     words = re.findall(r'\w+', text)
-    contexts = {}
+    contexts = defaultdict(list)
 
     for index, word in enumerate(words):
         if word.lower() in keywords:
             start = max(0, index - window)
             end = min(len(words), index + window + 1)
             context = " ".join(words[start:end])
-            contexts[word] = context
+            contexts[word.lower()].append(context)
 
-    return contexts
+    return dict(contexts)
+
 
 def extract_exposure2(text_string, seed_words, buffer):
     """

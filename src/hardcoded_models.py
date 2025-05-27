@@ -24,8 +24,8 @@ def model3v1(analyze_path, exposure_csv, risk_path, n):
     # print(exposure_word_list)
 
     logging.info("Calculating Risk-Word Percentage...")
-    risk_list = calculate_risk_word_percentage(exposure, "src/data/risk.csv")
-    print("Risk Percentage: ", risk_list[1])
+    # risk_list = calculate_risk_word_percentage(exposure, "src/data/risk.csv")
+    # print("Risk Percentage: ", risk_list[1])
 
     return 0
 
@@ -53,12 +53,10 @@ def model5v1(analyze_path, exposure_csv, n):
     exposure = extract_exposure(text, exposure_word_list, window=n)
     # print(exposure)
 
-    logging.info("Calculating Risk-Word Percentage...")
-    risk_list = calculate_risk_word_percentage(exposure, "src/data/risk.csv")
-    print("Risk Percentage: ", risk_list[1])
-
     logging.info("Finding Sentiment...")
     final = sentiment_score(exposure)
+
+    print(final)
 
     return final
 
