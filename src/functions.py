@@ -233,15 +233,20 @@ def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
     
     return 0.0
 
+from collections import defaultdict
+
 def sentiment_score(text_dict, sentiment_analyzer=None):
     """
-    Returns sentiment scores for each string in text_dict using RoBERTa-based
+    Returns sentiment scores for each context string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
-    
+
     Args:
-        text_dict (dict): Dictionary of text strings to analyze
-        sentiment_analyzer: Optional pre-initialized sentiment analyzer pipeline
+        text_dict (dict[str, list[str]]): 
+            Dictionary mapping each keyword to a list of context strings.
+        sentiment_analyzer: 
+            Optional pre-initialized transformers sentiment-analysis pipeline.
     """
+    # 1) lazy-load the pipeline if not provided
     if sentiment_analyzer is None:
         from transformers import pipeline
         sentiment_analyzer = pipeline(
@@ -249,29 +254,33 @@ def sentiment_score(text_dict, sentiment_analyzer=None):
             model="cardiffnlp/twitter-roberta-base-sentiment-latest"
         )
 
-    results = {}
+    # 2) We’ll build a new dict mapping each keyword -> list of scored contexts
+    results = defaultdict(list)
 
-    for key, text in text_dict.items():
-        prediction = sentiment_analyzer(text)[0]
-        
-        label = prediction["label"].lower() 
-        score = prediction["score"]     
+    for key, contexts in text_dict.items():
+        # contexts is now a list of strings
+        for ctx in contexts:
+            pred = sentiment_analyzer(ctx)[0]
+            label = pred["label"].lower()
+            score = pred["score"]
 
-        if label == "positive":
-            numeric_score = score
-        elif label == "negative":
-            numeric_score = -score
-        else:
-            numeric_score = 0
+            # convert to a signed numeric score
+            if label == "positive":
+                numeric_score = score
+            elif label == "negative":
+                numeric_score = -score
+            else:  # "neutral"
+                numeric_score = 0
 
-        results[key] = {
-            "text": text,
-            "label": label,
-            "score": score,
-            "numeric_score": numeric_score
-        }
+            results[key].append({
+                "text": ctx,
+                "label": label,
+                "score": score,
+                "numeric_score": numeric_score
+            })
 
-    return results
+    return dict(results)
+
 
 def tf_idf(*args):
     '''
