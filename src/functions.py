@@ -10,18 +10,7 @@ import csv
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
 
-import nltk
-nltk.download('punkt')  # Download sentence tokenizer
-from nltk.tokenize import sent_tokenize
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
-# Load FinBERT sentiment analysis pipeline
-model_name = "yiyanghkust/finbert-tone"
-finbert = pipeline(
-    "sentiment-analysis",
-    model=AutoModelForSequenceClassification.from_pretrained(model_name),
-    tokenizer=AutoTokenizer.from_pretrained(model_name)
-)
 
 
 ###### TEXT EXTRACTION FUNCTIONS ######
@@ -202,7 +191,7 @@ def extract_exposure2(text_string, seed_words, buffer):
 
 
 def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
-    """
+    '''
     Calculate what percentage of key-value pairs in `data_dict` contain
     at least one risk word from the CSV file at `risk_words_csv_path`.
 
@@ -211,7 +200,7 @@ def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     :return: List containing:
              [0]: Count of risk word appearances.
              [1]: Floating-point percentage of dictionary entries containing risk words.
-    """
+    '''
     risk_words = csv_to_list(risk_words_csv_path)
     count_with_risk = 0
 
@@ -300,58 +289,7 @@ def tf_idf(*args):
 
     return result
 
-# Helper function for single-sentence sentiment
-def get_sentiment(sentence):
-    """
-    Analyzes the sentiment of a single sentence using FinBERT.
 
-    Args:
-        sentence (str): A sentence from financial text.
-
-    Returns:
-        str: Sentiment label ('positive', 'negative', or 'neutral').
-    """
-    result = finbert(sentence)[0]
-    return result['label']
-
-# Main function to get sentiment proportions
-def get_proportions(text):
-    """
-    Splits a paragraph of financial text into sentences, runs FinBERT sentiment analysis on each,
-    and calculates the proportion of positive, negative, and neutral sentiments.
-
-    Args:
-        text (str): A paragraph or document containing financial text.
-
-    Returns:
-        tuple: A tuple of floats (positive_proportion, negative_proportion, neutral_proportion),
-               where each value is the proportion of that sentiment among all sentences.
-    """
-    sentences = sent_tokenize(text)
-    positive, negative, neutral = 0, 0, 0
-
-    print("Sentences:", sentences)
-
-    for sentence in sentences:
-        sentiment = get_sentiment(sentence)
-        print(f"{sentiment}: {sentence.strip()}\n")
-
-        if sentiment.lower() == 'positive':
-            positive += 1
-        elif sentiment.lower() == 'negative':
-            negative += 1
-        else:
-            neutral += 1
-
-    s = positive + negative + neutral
-    if s == 0:
-        return 0, 0, 0  # Avoid division by zero
-
-    positive_proportion = positive / s
-    negative_proportion = negative / s
-    neutral_proportion = neutral / s
-
-    return positive_proportion, negative_proportion, neutral_proportion
 
 
 
