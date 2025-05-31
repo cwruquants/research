@@ -1,5 +1,5 @@
 import nltk
-nltk.download('punkt')  # Download sentence tokenizer
+nltk.download('punkt_tab')  # Download sentence tokenizer
 from nltk.tokenize import sent_tokenize
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
@@ -8,7 +8,9 @@ model_name = "yiyanghkust/finbert-tone"
 finbert = pipeline(
     "sentiment-analysis",
     model=AutoModelForSequenceClassification.from_pretrained(model_name),
-    tokenizer=AutoTokenizer.from_pretrained(model_name)
+    tokenizer=AutoTokenizer.from_pretrained(model_name),
+    return_all_scores=True
+
 )
 
 # Helper function for single-sentence sentiment
@@ -25,44 +27,25 @@ def get_sentiment(sentence):
     result = finbert(sentence)[0]
     return result['label']
 
-# Main function to get sentiment proportions
-# Main function to get sentiment proportions
-def get_proportions(text):
+
+def get_sentiment_score(sentence):
     """
-    Splits a paragraph of financial text into sentences, runs FinBERT sentiment analysis on each,
-    and calculates the proportion of positive, negative, and neutral sentiments.
-
-    Args:
-        text (str): A paragraph or document containing financial text.
-
-    Returns:
-        tuple: A tuple of floats (positive_proportion, negative_proportion, neutral_proportion),
-               where each value is the proportion of that sentiment among all sentences.
+    Returns the overall sentiment score for the text.Score is in range [-1, 1], where -1 is negative and 1 is positive and 0 is neutral.
     """
-    sentences = sent_tokenize(text)
-    positive, negative, neutral = 0, 0, 0
+    #runnign the model on the text
+    result = finbert(sentence)[0]  
 
-    print("Sentences:", sentences)
+    positive_score = 0.0
+    negative_score = 0.0
 
-    for sentence in sentences:
-        sentiment = get_sentiment(sentence)
-        label = sentiment['label'].lower()  # ✅ Fix here
-        print(sentence)
-        print(label)
-
+    for i in result:
+        label = i['label'].lower()
+        score = i['score']
         if label == 'positive':
-            positive += 1
+            positive_score = score
         elif label == 'negative':
-            negative += 1
-        else:
-            neutral += 1
+            negative_score = score
 
-    s = positive + negative + neutral
-    if s == 0:
-        return 0, 0, 0  # Avoid division by zero
-
-    positive_proportion = positive / s
-    negative_proportion = negative / s
-    neutral_proportion = neutral / s
-
-    return positive_proportion, negative_proportion, neutral_proportion
+    #calculating and returning sentiment score
+    sentiment_score = positive_score - negative_score
+    return sentiment_score
