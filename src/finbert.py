@@ -26,6 +26,7 @@ def get_sentiment(sentence):
     return result['label']
 
 # Main function to get sentiment proportions
+# Main function to get sentiment proportions
 def get_proportions(text):
     """
     Splits a paragraph of financial text into sentences, runs FinBERT sentiment analysis on each,
@@ -45,11 +46,13 @@ def get_proportions(text):
 
     for sentence in sentences:
         sentiment = get_sentiment(sentence)
-        print(f"{sentiment}: {sentence.strip()}\n")
+        label = sentiment['label'].lower()  # ✅ Fix here
+        print(sentence)
+        print(label)
 
-        if sentiment.lower() == 'positive':
+        if label == 'positive':
             positive += 1
-        elif sentiment.lower() == 'negative':
+        elif label == 'negative':
             negative += 1
         else:
             neutral += 1
