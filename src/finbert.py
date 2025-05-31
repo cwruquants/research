@@ -35,8 +35,8 @@ def get_sentiment_score(sentence):
     #runnign the model on the text
     result = finbert(sentence)[0]  
 
-    positive_score = 0.0
-    negative_score = 0.0
+    positive_score = 0
+    negative_score = 0
 
     for i in result:
         label = i['label'].lower()
