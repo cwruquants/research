@@ -13,6 +13,7 @@ from nltk.tokenize import word_tokenize
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from collections import defaultdict
+from word_forms.word_forms import get_word_forms
 
 
 ###### TEXT EXTRACTION FUNCTIONS ######
@@ -135,11 +136,14 @@ def extract_exposure(text, keywords, window=10) -> dict:
         dict: A dictionary where keys are matched keywords and values are lists of
               context windows (strings) around each appearance.
     """
+
+    all_forms = get_all_forms(keywords)
+
     words = re.findall(r'\w+', text)
     contexts = defaultdict(list)
 
     for index, word in enumerate(words):
-        if word.lower() in keywords:
+        if word.lower() in all_forms:
             start = max(0, index - window)
             end = min(len(words), index + window + 1)
             context = " ".join(words[start:end])
@@ -165,6 +169,8 @@ def extract_exposure2(text_string, seed_words, buffer):
 
     all_words = re.findall(r'\b\w+\b', text_string.lower())
 
+    all_forms = get_all_forms(seed_words)
+
     kw_model = KeyBERT()
 
     # Use KeyBERT to extract related words based on the full text
@@ -175,7 +181,7 @@ def extract_exposure2(text_string, seed_words, buffer):
     similar_words = set(word.lower() for word, _ in keywords)
     
     # Include both seed words and their similar words
-    search_words = set(seed_words) | similar_words
+    search_words = set(all_forms) | similar_words
 
     results = {}
 
@@ -191,6 +197,13 @@ def extract_exposure2(text_string, seed_words, buffer):
             results[normalized_word].append(surrounding_words)
 
     return results
+
+def get_all_forms(word_list):
+    all_forms = []
+    for word in word_list:
+        forms = get_word_forms(word)
+        all_forms.extend(list(set().union(*forms.values())))
+    return all_forms
 
 def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     """
