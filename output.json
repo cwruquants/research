@@ -9,30 +9,44 @@
         "exposure_count": 4,
         "risk_percentage": 0.0,
         "sentiment": {
-            "congress": {
-                "text": "Analyst Presentation Operator 1 Good morning and welcome to in congress Ryder System Incorporated fourth quarter 2015 earnings release conference call",
-                "label": "positive",
-                "score": 0.6520465612411499,
-                "numeric_score": 0.6520465612411499
-            },
-            "Executive": {
-                "text": "Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial Officer Additionally Dennis Cooke President",
-                "label": "neutral",
-                "score": 0.9356687068939209,
-                "numeric_score": 0
-            },
-            "economy": {
-                "text": "2016 forecast anticipates slow to moderate growth for the overall economy We re expecting our average interest rate to be consistent",
-                "label": "neutral",
-                "score": 0.814728319644928,
-                "numeric_score": 0
-            },
-            "conservative": {
-                "text": "to get the rental fleet down further to be more conservative in our fleeting So those vehicles were out serviced and",
-                "label": "neutral",
-                "score": 0.7537549734115601,
-                "numeric_score": 0
-            }
+            "congress": [
+                {
+                    "text": "Analyst Presentation Operator 1 Good morning and welcome to in congress Ryder System Incorporated fourth quarter 2015 earnings release conference call",
+                    "label": "positive",
+                    "score": 0.6520465612411499,
+                    "numeric_score": 0.6520465612411499
+                }
+            ],
+            "executive": [
+                {
+                    "text": "on today s call are Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial",
+                    "label": "neutral",
+                    "score": 0.9438517689704895,
+                    "numeric_score": 0
+                },
+                {
+                    "text": "Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial Officer Additionally Dennis Cooke President",
+                    "label": "neutral",
+                    "score": 0.9356687068939209,
+                    "numeric_score": 0
+                }
+            ],
+            "economy": [
+                {
+                    "text": "2016 forecast anticipates slow to moderate growth for the overall economy We re expecting our average interest rate to be consistent",
+                    "label": "neutral",
+                    "score": 0.814728319644928,
+                    "numeric_score": 0
+                }
+            ],
+            "conservative": [
+                {
+                    "text": "to get the rental fleet down further to be more conservative in our fleeting So those vehicles were out serviced and",
+                    "label": "neutral",
+                    "score": 0.7537549734115601,
+                    "numeric_score": 0
+                }
+            ]
         },
         "readability": {
             "coleman_liau": 9.34,
@@ -56,24 +70,36 @@
         "exposure_count": 3,
         "risk_percentage": 0.0,
         "sentiment": {
-            "congress": {
-                "text": "Analyst Presentation Operator 1 Good morning and welcome to in congress Ryder System Incorporated fourth quarter 2015 earnings release conference call",
-                "label": "positive",
-                "score": 0.6520465612411499,
-                "numeric_score": 0.6520465612411499
-            },
-            "Executive": {
-                "text": "Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial Officer Additionally Dennis Cooke President",
-                "label": "neutral",
-                "score": 0.9356687068939209,
-                "numeric_score": 0
-            },
-            "economy": {
-                "text": "2016 forecast anticipates slow to moderate growth for the overall economy We re expecting our average interest rate to be consistent",
-                "label": "neutral",
-                "score": 0.814728319644928,
-                "numeric_score": 0
-            }
+            "congress": [
+                {
+                    "text": "Analyst Presentation Operator 1 Good morning and welcome to in congress Ryder System Incorporated fourth quarter 2015 earnings release conference call",
+                    "label": "positive",
+                    "score": 0.6520465612411499,
+                    "numeric_score": 0.6520465612411499
+                }
+            ],
+            "executive": [
+                {
+                    "text": "on today s call are Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial",
+                    "label": "neutral",
+                    "score": 0.9438517689704895,
+                    "numeric_score": 0
+                },
+                {
+                    "text": "Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial Officer Additionally Dennis Cooke President",
+                    "label": "neutral",
+                    "score": 0.9356687068939209,
+                    "numeric_score": 0
+                }
+            ],
+            "economy": [
+                {
+                    "text": "2016 forecast anticipates slow to moderate growth for the overall economy We re expecting our average interest rate to be consistent",
+                    "label": "neutral",
+                    "score": 0.814728319644928,
+                    "numeric_score": 0
+                }
+            ]
         },
         "readability": {
             "coleman_liau": 11.77,
@@ -119,12 +145,14 @@
         "exposure_count": 1,
         "risk_percentage": 0.0,
         "sentiment": {
-            "conservative": {
-                "text": "to get the rental fleet down further to be more conservative in our fleeting So those vehicles were out serviced and",
-                "label": "neutral",
-                "score": 0.7537549734115601,
-                "numeric_score": 0
-            }
+            "conservative": [
+                {
+                    "text": "to get the rental fleet down further to be more conservative in our fleeting So those vehicles were out serviced and",
+                    "label": "neutral",
+                    "score": 0.7537549734115601,
+                    "numeric_score": 0
+                }
+            ]
         },
         "readability": {
             "coleman_liau": 7.13,

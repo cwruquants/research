@@ -124,6 +124,8 @@ def csv_to_list(filepath):
 
 def extract_exposure(text, keywords, window=10) -> dict:
     """
+    Direct Matching
+
     Extracts all surrounding word contexts around each keyword in a text.
 
     Args:
@@ -150,6 +152,8 @@ def extract_exposure(text, keywords, window=10) -> dict:
 
 def extract_exposure2(text_string, seed_words, buffer):
     """
+    KeyBERT
+
     Extracts regions around seed words and their similar words using KeyBERT.
     
     Args:
@@ -207,7 +211,7 @@ def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
     count_with_risk = 0
 
     for key, text_value in data_dict.items():
-        lower_text = text_value.lower()
+        lower_text = text_value #.lower()
         if any(risk_word in lower_text for risk_word in risk_words):
             count_with_risk += 1
 
@@ -365,53 +369,6 @@ def extract_exposure3(text_string, seed_words, buffer, similarity_threshold=0.7)
     
     return results
 
-def test_extract_exposure_3():
-    """
-    Test function for extract_exposure_3 to verify its functionality.
-    """
-    try:
-        # Test file path
-        test_file = "src/data/earnings_calls/ex1.xml"
-        
-        # Extract text from the test file
-        text = extract_text(test_file)
-        
-        # Sample keywords to test
-        keywords = ["earnings", "revenue", "growth", "forecast", "fleet"]
-        
-        # Test with different window sizes
-        for window_size in [5]:
-            print(f"\nTesting with window size {window_size}:")
-            results = extract_exposure3(text, keywords, window_size)
-            
-            # Print results for each keyword
-            for keyword in keywords:
-                if keyword in results:
-                    print(f"\nKeyword: {keyword}")
-                    print(f"Found {len(results[keyword])} occurrences")
-                    print("Contexts:")
-                    for i, context in enumerate(results[keyword][:], 1):
-                        print(f"{i}. {context}")
-                else:
-                    print(f"\nKeyword: {keyword} - Not found")
-            
-            # Print statistics
-            total_occurrences = sum(len(contexts) for contexts in results.values())
-            print(f"\nTotal occurrences found: {total_occurrences}")
-            
-            # Print similar words found
-            print("\nSimilar words found:")
-            for word in results.keys():
-                if word not in keywords:
-                    print(f"- {word}")
-            
-    except FileNotFoundError:
-        print(f"Error: Test file not found at {test_file}")
-    except Exception as e:
-        print(f"Error during testing: {str(e)}")
-
-if __name__ == "__main__":
-    test_extract_exposure_3()
 
 
 

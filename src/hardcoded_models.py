@@ -3,6 +3,32 @@ import logging
 import os
 import json
 from pathlib import Path
+from typing import List, Union
+
+def list_file_paths(folder: Union[str, Path]) -> List[Path]:
+    """
+    Return a list of full paths for every file inside `folder`
+    (recursing through sub‑directories).
+
+    Parameters
+    ----------
+    folder : str | pathlib.Path
+        The root directory you want to scan.
+
+    Returns
+    -------
+    List[pathlib.Path]
+        All file paths found beneath `folder`.
+    """
+    root = Path(folder).expanduser().resolve()
+    if not root.is_dir():
+        raise NotADirectoryError(f"{root} is not a directory")
+
+    # rglob('*') walks the tree and yields every file and directory;
+    # we keep only the files (is_file()).
+    return [p for p in root.rglob('*') if p.is_file()]
+
+
 
 def model3v1(analyze_path, exposure_csv, risk_path, n):
     """
@@ -56,9 +82,24 @@ def model5v1(analyze_path, exposure_csv, n):
     logging.info("Finding Sentiment...")
     final = sentiment_score(exposure)
 
-    print(final)
+    # print(final)
 
     return final
+
+def model5v1_f(transcript_directory, exposure_word_path, save_directory):
+    results = {}
+
+    for fp in list_file_paths(transcript_directory):
+        filename = os.path.basename(fp)                      # e.g. "call1.xml"
+        key = os.path.splitext(filename)[0]                  # strips ".xml", gives "call1"
+        print(f"Processing {filename}")
+        results[key] = model5v1(fp, exposure_word_path, 5)
+
+    # write out to JSON
+    with open(save_directory, "w") as f:
+        json.dump(results, f, indent=2)
+
+    print(f"Saved results for {len(results)} files to save_directory")
 
 def model5v2(analyze_path, exposure_csv, n):
     """
