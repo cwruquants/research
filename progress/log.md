@@ -1,3 +1,9 @@
+--Jun 1 2025--
+* robustness, need the csv function towork with spaces, underscores, etc.
+* asked about product maanagement
+* add risk word csv parameter into the main script function 
+* what is *your* end goal out of this?
+
 --May 26 2025--
 * reverse gneinerr what words are associated with positive reactions in the market
     * paper never ran any returns or associations for future returns, this is something that we can think of going forward
