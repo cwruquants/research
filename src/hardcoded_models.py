@@ -43,10 +43,10 @@ def model3v1(analyze_path, exposure_csv, risk_path, n):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     logging.info("Extracting Text...")
-    text = extract_text(analyze_path)
+    text = extract_text(analyze_path) #unecessary ? 
 
     logging.info("Loading Exposure Word List...")
-    exposure_word_list = csv_to_list(exposure_csv)
+    exposure_word_list = csv_to_list(exposure_csv) 
     # print(exposure_word_list)
 
     logging.info("Calculating Risk-Word Percentage...")

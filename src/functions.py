@@ -16,7 +16,7 @@ from collections import defaultdict
 
 
 ###### TEXT EXTRACTION FUNCTIONS ######
-def extract_text(file_path: str) -> str:
+def extract_text(file_path: str) -> list[str]:
     """
     This function takes in an earnings transcript as an input, and extracts the words from the transcript.
     Uses NLTK tokenization for better word separation.
@@ -61,7 +61,7 @@ def extract_text(file_path: str) -> str:
     # Rejoin tokens with spaces
     final_text = ' '.join(tokens)
     
-    return final_text
+    return tokens
 
 def extract_company_info(file_path: str) -> list:
     '''
@@ -122,7 +122,7 @@ def csv_to_list(filepath):
     return political_list
 
 
-def extract_exposure(text, keywords, window=10) -> dict:
+def extract_exposure(tokens, keywords, window=10) -> dict:
     """
     Direct Matching
 
@@ -137,7 +137,7 @@ def extract_exposure(text, keywords, window=10) -> dict:
         dict: A dictionary where keys are matched keywords and values are lists of
               context windows (strings) around each appearance.
     """
-    words = re.findall(r'\w+', text)
+    words = tokens  # Assuming tokens is a list of words already tokenized
     contexts = defaultdict(list)
 
     for index, word in enumerate(words):
@@ -150,7 +150,7 @@ def extract_exposure(text, keywords, window=10) -> dict:
     return dict(contexts)
 
 
-def extract_exposure2(text_string, seed_words, buffer):
+def extract_exposure2(tokens, seed_words, buffer):
     """
     KeyBERT
 
@@ -167,8 +167,9 @@ def extract_exposure2(text_string, seed_words, buffer):
     """
     from keybert import KeyBERT
 
-    all_words = re.findall(r'\b\w+\b', text_string.lower())
+    all_words = tokens
 
+    text_string = ' '.join(tokens)
     kw_model = KeyBERT()
 
     # Use KeyBERT to extract related words based on the full text
