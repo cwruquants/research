@@ -637,10 +637,11 @@ def build_dataset_modular(folder_path, exposure_csv, n, output_csv, max_files=No
                               'smog_index', 'overall']:
                         results[f'{section_name}_{key}'] = None
             
-            # Add attribute analysis
-            attributes = analyze_section_attributes(text)
-            for key, value in attributes.items():
-                results[f'{section_name}_{key}'] = value
+                # Add attribute analysis
+                attributes = analyze_section_attributes(text)
+                print("ATTRIBUTES: ", attributes)
+                for key, value in attributes.items():
+                    results[f'{section_name}_{key}'] = value
             
             all_results.append(results)
             logging.info(f"Completed processing {xml_file}")
