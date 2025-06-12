@@ -101,7 +101,7 @@ def analyze_transcript(file_path: str) -> Dict[str, float]:
     """Extract text from *file_path* and compute all metrics."""
     text = extract_text(file_path)
     return {
-        "word_count": count_words(text),
+        "word_count": len(text),
         "sentence_count": count_sentences(text),
         "number_to_words_ratio": number_to_words_ratio(text),
         "proportion_plural_pronouns": proportion_plural_pronouns(text),
