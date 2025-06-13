@@ -1,3 +1,15 @@
+--Jun 1 2025--
+* robustness, need the csv function towork with spaces, underscores, etc.
+* asked about product maanagement
+* add risk word csv parameter into the main script function 
+* what is *your* end goal out of this?
+
+--May 26 2025--
+* reverse gneinerr what words are associated with positive reactions in the market
+    * paper never ran any returns or associations for future returns, this is something that we can think of going forward
+* maybe even come up with our own vocabulary or dataset that we backtest on our own
+* 
+
 --May 12 2025--
 * Replace KeyBERT with cosine similaarity (something a bit more dynamic) and yet being more basic
 * FinBERT
