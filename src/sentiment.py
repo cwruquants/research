@@ -45,7 +45,7 @@ def LM_Negative(text) -> int:
 
 def LM_net_sentiment(text) -> int:
     """
-    Imports library with LM and HIV4 methods, tokenizes the string,
+    Imports library with LM and HIV4 methodgis, tokenizes the string,
     and returns the net sentiment score as per the Loughran-McDonald Dictionary,
     which is calculated as the number of positive words minus the number of negative words.
 
