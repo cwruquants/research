@@ -11,13 +11,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from bs4 import BeautifulSoup
 
 
-
-
 ###### TEXT EXTRACTION FUNCTIONS ######
 def extract_text(file_path: str) -> str:
     """
-
     This function takes in an earnings transcript as an input, and extracts the words from the transcript.
+    Uses NLTK tokenization for better word separation.
 
     Input: .xml file
     Output: str
@@ -45,15 +43,21 @@ def extract_text(file_path: str) -> str:
     # Join all text parts with spaces
     raw_text = ' '.join(text_parts)
     
-    # Clean up the text
+    # Clean up the text before tokenization
+    # Remove special characters but keep basic punctuation
+    cleaned_text = re.sub(r'[^\w\s.,?!-]', ' ', raw_text)
     # Remove multiple spaces
-    cleaned_text = re.sub(r'\s+', ' ', raw_text)
-    # Remove special characters and normalize whitespace
-    cleaned_text = re.sub(r'[^\w\s.,?!-]', '', cleaned_text)
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
     # Trim leading/trailing whitespace
     cleaned_text = cleaned_text.strip()
     
-    return cleaned_text
+    # Tokenize the text using NLTK
+    tokens = word_tokenize(cleaned_text)
+    
+    # Rejoin tokens with spaces
+    final_text = ' '.join(tokens)
+    
+    return final_text
 
 def extract_company_info(file_path: str) -> list:
     '''
@@ -82,7 +86,6 @@ def extract_company_info(file_path: str) -> list:
 
 
     return [company_name, ticker, date, city]
-
 
 def csv_to_list(filepath):
     """
@@ -115,38 +118,38 @@ def csv_to_list(filepath):
     return political_list
 
 
-def extract_exposure(text, keywords, window=10) -> dict :
+def extract_exposure(text, keywords, window=10) -> dict:
     """
-        This takes in the str returned from extract_text, and extracts regions (+- buffer) where the exposure
-        words exist. 
+    Direct Matching
 
-        For example, if buffer = 5, then wherever we identify an exposure word, we take the substring of words beginning
-        5 words before exposure word, and 5 words after the exposure words. This would create a string with 11 words. 
-        We would then add this to our return dict.
+    Extracts all surrounding word contexts around each keyword in a text.
 
-        Input: 
-        - exposure_words: csv
-        - txt_string: str
-        - buffer: int
+    Args:
+        text (str): Input text.
+        keywords (list of str): List of lowercase keywords to search for.
+        window (int): Number of words to include before and after the keyword.
 
-        Output:
-        dictionary
-        
+    Returns:
+        dict: A dictionary where keys are matched keywords and values are lists of
+              context windows (strings) around each appearance.
     """
     words = re.findall(r'\w+', text)
-    contexts = {}
+    contexts = defaultdict(list)
 
     for index, word in enumerate(words):
         if word.lower() in keywords:
             start = max(0, index - window)
             end = min(len(words), index + window + 1)
             context = " ".join(words[start:end])
-            contexts[word] = context
+            contexts[word.lower()].append(context)
 
-    return contexts
+    return dict(contexts)
+
 
 def extract_exposure2(text_string, seed_words, buffer):
     """
+    KeyBERT
+
     Extracts regions around seed words and their similar words using KeyBERT.
     
     Args:
@@ -190,34 +193,7 @@ def extract_exposure2(text_string, seed_words, buffer):
     return results
 
 
-def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
-    '''
-    Calculate what percentage of key-value pairs in `data_dict` contain
-    at least one risk word from the CSV file at `risk_words_csv_path`.
-
-    :param data_dict: Dictionary where values are strings to be checked.
-    :param risk_words_csv_path: Path to CSV file containing a single column of risk words.
-    :return: List containing:
-             [0]: Count of risk word appearances.
-             [1]: Floating-point percentage of dictionary entries containing risk words.
-    '''
-    risk_words = csv_to_list(risk_words_csv_path)
-    count_with_risk = 0
-
-    for key, text_value in data_dict.items():
-        lower_text = text_value.lower()
-        if any(risk_word in lower_text for risk_word in risk_words):
-            count_with_risk += 1
-
-    total_entries = len(data_dict)
-    if total_entries == 0:
-        return [0, 0.0]  # Always return a list with two elements.
-
-    percentage = (count_with_risk / total_entries) * 100
-    return [count_with_risk, percentage]
-
-
-def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
+def sentiment_score(text_dict):
     """
     Calculate what percentage of key-value pairs in `data_dict` contain
     at least one risk word from the CSV file at `risk_words_csv_path`.
@@ -232,13 +208,15 @@ def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
     
     return 0.0
 
+from collections import defaultdict
 
-
-
-def sentiment_score(text_dict):
+def sentiment_score(text_dict, sentiment_analyzer=None):
     """
-    Returns sentiment scores for each string in text_dict using RoBERTa-based
+    Returns sentiment scores for each context string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
+
+    TODO:
+    - reference to how the sentiment reference works
     """
     from transformers import pipeline
     
@@ -247,29 +225,33 @@ def sentiment_score(text_dict):
         model="cardiffnlp/twitter-roberta-base-sentiment-latest"
     )
 
-    results = {}
+    # 2) We’ll build a new dict mapping each keyword -> list of scored contexts
+    results = defaultdict(list)
 
-    for key, text in text_dict.items():
-        prediction = sentiment_analyzer(text)[0]
-        
-        label = prediction["label"].lower() 
-        score = prediction["score"]     
+    for key, contexts in text_dict.items():
+        # contexts is now a list of strings
+        for ctx in contexts:
+            pred = sentiment_analyzer(ctx)[0]
+            label = pred["label"].lower()
+            score = pred["score"]
 
-        if label == "positive":
-            numeric_score = score
-        elif label == "negative":
-            numeric_score = -score
-        else:
-            numeric_score = 0
+            # convert to a signed numeric score
+            if label == "positive":
+                numeric_score = score
+            elif label == "negative":
+                numeric_score = -score
+            else:  # "neutral"
+                numeric_score = 0
 
-        results[key] = {
-            "text": text,
-            "label": label,
-            "score": score,
-            "numeric_score": numeric_score
-        }
+            results[key].append({
+                "text": ctx,
+                "label": label,
+                "score": score,
+                "numeric_score": numeric_score
+            })
 
-    return results
+    return dict(results)
+
 
 def tf_idf(*args):
     '''
@@ -288,8 +270,5 @@ def tf_idf(*args):
         print(word, ':', idf)
 
     return result
-
-
-
 
 

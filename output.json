@@ -1,0 +1,175 @@
+{
+    "company_info": {
+        "name": "Ryder System Inc",
+        "ticker": "R",
+        "date": "02-02-2016",
+        "city": "MIAMI"
+    },
+    "full_document": {
+        "exposure_count": 4,
+        "risk_percentage": 0.0,
+        "sentiment": {
+            "congress": [
+                {
+                    "text": "Analyst Presentation Operator 1 Good morning and welcome to in congress Ryder System Incorporated fourth quarter 2015 earnings release conference call",
+                    "label": "positive",
+                    "score": 0.6520465612411499,
+                    "numeric_score": 0.6520465612411499
+                }
+            ],
+            "executive": [
+                {
+                    "text": "on today s call are Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial",
+                    "label": "neutral",
+                    "score": 0.9438517689704895,
+                    "numeric_score": 0
+                },
+                {
+                    "text": "Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial Officer Additionally Dennis Cooke President",
+                    "label": "neutral",
+                    "score": 0.9356687068939209,
+                    "numeric_score": 0
+                }
+            ],
+            "economy": [
+                {
+                    "text": "2016 forecast anticipates slow to moderate growth for the overall economy We re expecting our average interest rate to be consistent",
+                    "label": "neutral",
+                    "score": 0.814728319644928,
+                    "numeric_score": 0
+                }
+            ],
+            "conservative": [
+                {
+                    "text": "to get the rental fleet down further to be more conservative in our fleeting So those vehicles were out serviced and",
+                    "label": "neutral",
+                    "score": 0.7537549734115601,
+                    "numeric_score": 0
+                }
+            ]
+        },
+        "readability": {
+            "coleman_liau": 9.34,
+            "dale_chall": 5.98,
+            "automated_readability": 10.2,
+            "flesch_ease": 62.98,
+            "flesch_kincaid": 8.6,
+            "gunning_fog": 8.17,
+            "smog_index": 11.5,
+            "overall": 8.0
+        },
+        "sentiment_metrics": {
+            "LM_Positive": 80,
+            "LM_Negative": 149,
+            "LM_net_sentiment": -69,
+            "LM_Polarity": -0.3013100423523579,
+            "LM_Subjectivity": 0.060120766589624376
+        }
+    },
+    "presentation": {
+        "exposure_count": 3,
+        "risk_percentage": 0.0,
+        "sentiment": {
+            "congress": [
+                {
+                    "text": "Analyst Presentation Operator 1 Good morning and welcome to in congress Ryder System Incorporated fourth quarter 2015 earnings release conference call",
+                    "label": "positive",
+                    "score": 0.6520465612411499,
+                    "numeric_score": 0.6520465612411499
+                }
+            ],
+            "executive": [
+                {
+                    "text": "on today s call are Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial",
+                    "label": "neutral",
+                    "score": 0.9438517689704895,
+                    "numeric_score": 0
+                },
+                {
+                    "text": "Robert Sanchez Chairman and Chief Executive Officer and Art Garcia Executive Vice President and Chief Financial Officer Additionally Dennis Cooke President",
+                    "label": "neutral",
+                    "score": 0.9356687068939209,
+                    "numeric_score": 0
+                }
+            ],
+            "economy": [
+                {
+                    "text": "2016 forecast anticipates slow to moderate growth for the overall economy We re expecting our average interest rate to be consistent",
+                    "label": "neutral",
+                    "score": 0.814728319644928,
+                    "numeric_score": 0
+                }
+            ]
+        },
+        "readability": {
+            "coleman_liau": 11.77,
+            "dale_chall": 6.65,
+            "automated_readability": 12.3,
+            "flesch_ease": 47.28,
+            "flesch_kincaid": 10.5,
+            "gunning_fog": 8.45,
+            "smog_index": 12.6,
+            "overall": 10.0
+        },
+        "sentiment_metrics": {
+            "LM_Positive": 33,
+            "LM_Negative": 68,
+            "LM_net_sentiment": -35,
+            "LM_Polarity": -0.3465346500343104,
+            "LM_Subjectivity": 0.05111336029801955
+        }
+    },
+    "analyst_qa": {
+        "exposure_count": 0,
+        "risk_percentage": 0.0,
+        "sentiment": {},
+        "readability": {
+            "coleman_liau": 7.54,
+            "dale_chall": 6.61,
+            "automated_readability": 8.8,
+            "flesch_ease": 70.13,
+            "flesch_kincaid": 8.0,
+            "gunning_fog": 9.12,
+            "smog_index": 10.0,
+            "overall": 7.5
+        },
+        "sentiment_metrics": {
+            "LM_Positive": 15,
+            "LM_Negative": 31,
+            "LM_net_sentiment": -16,
+            "LM_Polarity": -0.34782607939508525,
+            "LM_Subjectivity": 0.06415620632614197
+        }
+    },
+    "executive_qa": {
+        "exposure_count": 1,
+        "risk_percentage": 0.0,
+        "sentiment": {
+            "conservative": [
+                {
+                    "text": "to get the rental fleet down further to be more conservative in our fleeting So those vehicles were out serviced and",
+                    "label": "neutral",
+                    "score": 0.7537549734115601,
+                    "numeric_score": 0
+                }
+            ]
+        },
+        "readability": {
+            "coleman_liau": 7.13,
+            "dale_chall": 6.26,
+            "automated_readability": 8.5,
+            "flesch_ease": 70.23,
+            "flesch_kincaid": 7.9,
+            "gunning_fog": 8.68,
+            "smog_index": 10.4,
+            "overall": 8.0
+        },
+        "sentiment_metrics": {
+            "LM_Positive": 32,
+            "LM_Negative": 50,
+            "LM_net_sentiment": -18,
+            "LM_Polarity": -0.21951219244497328,
+            "LM_Subjectivity": 0.07347670244312123
+        }
+    }
+}
