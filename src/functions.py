@@ -9,10 +9,6 @@ import os
 import csv
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from bs4 import BeautifulSoup
-from nltk.tokenize import word_tokenize
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-from collections import defaultdict
 
 
 ###### TEXT EXTRACTION FUNCTIONS ######
@@ -196,33 +192,8 @@ def extract_exposure2(text_string, seed_words, buffer):
 
     return results
 
-def calculate_risk_word_percentage(data_dict, risk_words_csv_path):
-    """
-    Calculate what percentage of key-value pairs in `data_dict` contain
-    at least one risk word from the CSV file at `risk_words_csv_path`.
 
-    :param data_dict: Dictionary where values are strings to be checked.
-    :param risk_words_csv_path: Path to CSV file containing a single column of risk words.
-    :return: List containing:
-             [0]: Count of risk word appearances.
-             [1]: Floating-point percentage of dictionary entries containing risk words.
-    """
-    risk_words = csv_to_list(risk_words_csv_path)
-    count_with_risk = 0
-
-    for key, text_value in data_dict.items():
-        lower_text = text_value #.lower()
-        if any(risk_word in lower_text for risk_word in risk_words):
-            count_with_risk += 1
-
-    total_entries = len(data_dict)
-    if total_entries == 0:
-        return [0, 0.0]  # Always return a list with two elements.
-
-    percentage = (count_with_risk / total_entries) * 100
-    return [count_with_risk, percentage]
-
-def calculate_risk_word_percentage2(data_dict, risk_words_csv_path):
+def sentiment_score(text_dict):
     """
     Calculate what percentage of key-value pairs in `data_dict` contain
     at least one risk word from the CSV file at `risk_words_csv_path`.
@@ -244,19 +215,15 @@ def sentiment_score(text_dict, sentiment_analyzer=None):
     Returns sentiment scores for each context string in text_dict using RoBERTa-based
     sentiment analysis for positive/negative/neutral sentiment.
 
-    Args:
-        text_dict (dict[str, list[str]]): 
-            Dictionary mapping each keyword to a list of context strings.
-        sentiment_analyzer: 
-            Optional pre-initialized transformers sentiment-analysis pipeline.
+    TODO:
+    - reference to how the sentiment reference works
     """
-    # 1) lazy-load the pipeline if not provided
-    if sentiment_analyzer is None:
-        from transformers import pipeline
-        sentiment_analyzer = pipeline(
-            "sentiment-analysis",
-            model="cardiffnlp/twitter-roberta-base-sentiment-latest"
-        )
+    from transformers import pipeline
+    
+    sentiment_analyzer = pipeline(
+        "sentiment-analysis",
+        model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+    )
 
     # 2) We’ll build a new dict mapping each keyword -> list of scored contexts
     results = defaultdict(list)
@@ -303,72 +270,5 @@ def tf_idf(*args):
         print(word, ':', idf)
 
     return result
-
-def extract_exposure3(text_string, seed_words, buffer, similarity_threshold=0.7):
-    """
-    Extracts regions around seed words and their similar words using cosine similarity with TF-IDF.
-    
-    Args:
-        text_string (str): The text to analyze
-        seed_words (list): List of seed words to search for in the text
-        buffer (int): Number of words to extract left and right of the considered word
-        similarity_threshold (float): Threshold for cosine similarity (default: 0.7)
-        
-    Returns:
-        dict: Dictionary with seed words and similar words as keys, 
-              and the surrounding words as values.
-    """
-    # Tokenize the text
-    words = re.findall(r'\b\w+\b', text_string.lower())
-    
-    # Create TF-IDF matrix with stop words and minimum document frequency
-    vectorizer = TfidfVectorizer(
-        analyzer='word',
-        ngram_range=(1, 1),
-        stop_words='english',  # Remove common English words
-        min_df=2  # Word must appear in at least 2 documents
-    )
-    tfidf_matrix = vectorizer.fit_transform([text_string])
-    
-    # Get feature names (words)
-    feature_names = vectorizer.get_feature_names_out()
-    
-    # Calculate cosine similarity between seed words and all words
-    similar_words = set()
-    for seed_word in seed_words:
-        if seed_word in feature_names:
-            # Get the index of the seed word
-            seed_idx = np.where(feature_names == seed_word)[0][0]
-            
-            # Get the TF-IDF vector for the seed word
-            seed_vector = tfidf_matrix[:, seed_idx].toarray().flatten()
-            
-            # Calculate cosine similarity with all other words
-            similarities = cosine_similarity(seed_vector.reshape(1, -1), tfidf_matrix.T)[0]
-            
-            # Find words with similarity above threshold
-            similar_indices = np.where(similarities >= similarity_threshold)[0]
-            similar_words.update(feature_names[similar_indices])
-    
-    # Include both seed words and their similar words
-    search_words = set(seed_words) | similar_words
-    
-    # Extract contexts
-    results = {}
-    for i, word in enumerate(words):
-        normalized_word = word.strip()
-        if normalized_word in search_words:
-            start_idx = max(0, i - buffer)
-            end_idx = min(len(words), i + buffer + 1)
-            surrounding_words = ' '.join(words[start_idx:end_idx])
-            
-            if normalized_word not in results:
-                results[normalized_word] = []
-            
-            results[normalized_word].append(surrounding_words)
-    
-    return results
-
-
 
 
