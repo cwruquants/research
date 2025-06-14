@@ -1,48 +1,44 @@
 from typing import Dict, Any
 
 class Attr:
-    def __init__(self):
+    def __init__(self, text):
+        self.text=text
+        self.sentiment = 0.0
+        self.ML = 0.0
+        self.LM = 0.0
+        self.HIV4 = 0.0
         pass
 
     def to_dict(self):
-        return self.__dict__
+        return {
+              "sentiment": self.sentiment
+            , "ML": self.ML
+            , "LM": self.LM
+            , "HIV4": self.HIV4
+        }
     
 class WordAttr(Attr):
     def __init__(self, word=""):
         """ 
-            This function will need to set up the features for the word.
+            Constructor for word
         """
-        super().__init__()
-        # self.sentiment = sentiment
-        # self.ML = ML
-        # self.LM = LM
-        # self.HIV4 = HIV4
-        pass
+        super().__init__(word)
 
 
 class SentenceAttr(Attr):
-    def __init__(self, List[WordAttr]):
-        """ 
-            This function will need to set up the features for the sentence.
+    def __init__(self, sentence=""):
         """
-        super().__init__()
-        pass
-
-
-class ParagraphAttr(Attr):
-    def __init__(self, paragraph=""):
-        """ 
-            This function will need to set up the features for the sentence.
+            Constructor for sentence
         """
-        super().__init__()
-        pass
+        super().__init__(sentence)
 
 
-class DocumentAttr(Attr):
-    def __init__(self, document=""):
-        """ 
-            This function will need to set up the features for the paragraph.
+class BigramAttr(Attr):
+    def __init__(self, bigram=""):
         """
-        super().__init__()
-        pass
+            Constructor for bigram
+        """
+        super().__init__(bigram)
 
+    
+        
