@@ -62,7 +62,7 @@ class SentenceAttr(Attr):
                 - LM (float or None)
                 - HIV4 (float or None)
         """
-
+        super().__init__()
         self.words = words
         self.sentence = sentence
         self.sentiment = sentiment
@@ -70,6 +70,9 @@ class SentenceAttr(Attr):
         self.LM = LM
         self.HIV4 =HIV4
 
+        """
+        Checks if the list of words passed in make up the sentence
+        """
         words_joined = " ".join(w.word for w in words).strip()
         if words_joined != self.sentence.strip():
             raise ValueError("Word list does not make up the sentence")
@@ -114,11 +117,3 @@ class DocumentAttr(Attr):
         super().__init__()
         pass
 
-a = WordAttr("hello",1,2,2,3)
-b = WordAttr("hello",1,2,2,3)
-c = WordAttr("hello",1,2,2,3)
-d = WordAttr("hello",1,2,2,3)
-e = WordAttr("hello",1,2,2,3)
-words  = [a,b,c,d,e]
-f = SentenceAttr(words, "hello hello hello hello hello",1,23,4,5)
-print(f.to_dict())
