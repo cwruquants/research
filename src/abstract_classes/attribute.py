@@ -23,8 +23,12 @@ class WordAttr(Attr):
             Constructor for word
         """
         super().__init__(word)
-
+    
+    
     def to_dict(self):
+        """
+        Converts the WordAttr object to a dictionary representation.
+        """
         return {
             "word" : self.text
             ,"sentiment": self.sentiment
@@ -45,6 +49,9 @@ class SentenceAttr(Attr):
 
     
     def to_dict(self):
+        """
+        Converts the sentenceattr object to a dictionary representation
+        """
         d =  {
             "sentence" : self.text
             ,"sentiment": self.sentiment
@@ -67,7 +74,3 @@ class BigramAttr(Attr):
         super().__init__(bigram)
 
     
-s = SentenceAttr("Hello i am bored", True)
-print(s.to_dict())
-s2 = SentenceAttr("Hello i am bored", False)
-print(s2.to_dict())
