@@ -40,5 +40,12 @@ class BigramAttr(Attr):
         """
         super().__init__(bigram)
 
+class ParagraphAttr(Attr):
+    def __init__(self, par=""):
+        """
+            Constructor for Paragraph
+        """
+        super().__init__(par)
+
     
         
