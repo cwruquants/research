@@ -18,19 +18,52 @@ class Attr:
         }
     
 class WordAttr(Attr):
-    def __init__(self, word=""):
+    def __init__(self, word : str = ""):
         """ 
             Constructor for word
         """
         super().__init__(word)
-
+    
+    
+    def to_dict(self):
+        """
+        Converts the WordAttr object to a dictionary representation.
+        """
+        return {
+            "word" : self.text
+            ,"sentiment": self.sentiment
+            , "ML": self.ML
+            , "LM": self.LM
+            , "HIV4": self.HIV4
+        }
 
 class SentenceAttr(Attr):
-    def __init__(self, sentence=""):
+    def __init__(self, sentence="", store_words : bool = False):
         """
             Constructor for sentence
         """
         super().__init__(sentence)
+        self.words = None
+        if store_words:
+            self.words = [WordAttr(word) for word in sentence.split()]
+
+    
+    def to_dict(self):
+        """
+        Converts the sentenceattr object to a dictionary representation
+        """
+        d =  {
+            "sentence" : self.text
+            ,"sentiment": self.sentiment
+            , "ML": self.ML
+            , "LM": self.LM
+            , "HIV4": self.HIV4
+
+        }
+        if self.words:
+            d["words"] = [word.to_dict() for word in self.words]
+        
+        return d
 
 
 class BigramAttr(Attr):
@@ -48,4 +81,3 @@ class ParagraphAttr(Attr):
         super().__init__(par)
 
     
-        
