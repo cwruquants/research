@@ -41,11 +41,48 @@ class BigramAttr(Attr):
         super().__init__(bigram)
 
 class ParagraphAttr(Attr):
-    def __init__(self, par=""):
+    def __init__(self, paragraph: str = "", store_sentences: bool = False):
         """
-            Constructor for Paragraph
+        Constructor for ParagraphAttr.
         """
-        super().__init__(par)
+        super().__init__(paragraph)
+        self.sentences = None
+        if store_sentences:
+            # sentence split by .
+            self.sentences = [SentenceAttr(s.strip()) for s in paragraph.split('.') if s.strip()]
 
+    def to_dict(self):
+        dt = {
+            "paragraph": self.text,
+            "sentiment": self.sentiment,
+            "ML": self.ML,
+            "LM": self.LM,
+            "HIV4": self.HIV4
+        }
+        if self.sentences:
+            dt["sentences"] = [sent.to_dict() for sent in self.sentences]
+        return dt
     
+class DocumentAttr(Attr):
+    def __init__(self, document: str = "", store_paragraphs: bool = False):
+        """
+        Constructor for DocumentAttr.
+        """
+        super().__init__(document)
+        self.paragraphs = None
+        if store_paragraphs:
+            # split by \n newline
+            self.paragraphs = [ParagraphAttr(p.strip()) for p in document.split('\n\n') if p.strip()]
+
+    def to_dict(self):
+        dt = {
+            "document": self.text,
+            "sentiment": self.sentiment,
+            "ML": self.ML,
+            "LM": self.LM,
+            "HIV4": self.HIV4
+        }
+        if self.paragraphs:
+            dt["paragraphs"] = [par.to_dict() for par in self.paragraphs]
+        return dt
         
