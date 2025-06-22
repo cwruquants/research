@@ -35,10 +35,3 @@ class CosineSimAgent:
         if not document:
             raise ValueError("Please provide a valid document attribute.")
         
-        
-
-
-
-class ExposureResults:
-    def __init__():
-        pass
