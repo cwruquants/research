@@ -7,6 +7,7 @@ class Attr:
         self.ML = 0.0
         self.LM = 0.0
         self.HIV4 = 0.0
+        # self.weight = tf*idf
         pass
 
     def to_dict(self):
