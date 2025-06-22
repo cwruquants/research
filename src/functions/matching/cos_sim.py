@@ -1,7 +1,7 @@
 from ....src.abstract_classes.attribute import DocumentAttr
 
 class CosineSimAgent:
-    def __init__(self, threshold, csv_path):
+    def __init__(self, threshold = 0.7, csv_path = None):
         """
             Path is going to be a csv file of the exposure words.
 
@@ -16,8 +16,9 @@ class CosineSimAgent:
                     SentenceAttr, etc. 
             
         """
-        self.exposure_list = None
 
+        self.exposure_list = None
+        self.threshold = threshold
 
         pass
 
@@ -33,6 +34,8 @@ class CosineSimAgent:
         """
         if not document:
             raise ValueError("Please provide a valid document attribute.")
+        
+        
 
 
 
