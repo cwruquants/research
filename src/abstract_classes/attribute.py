@@ -3,7 +3,7 @@ from ..functions.decompose_text import par_to_sentence, sentence_to_word, senten
 
 class Attr:
     def __init__(self, text):
-        self.text=text
+        self.text = text
         self.sentiment = 0.0
         self.ML = 0.0
         self.LM = 0.0
