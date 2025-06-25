@@ -1,37 +1,84 @@
 from ....src.abstract_classes.attribute import DocumentAttr
 
-class CosineSimAgent:
-    def __init__(self, threshold = 0.7, csv_path = None):
+class MatchingAgent:
+    def __init__(self, keyword_doc: DocumentAttr, threshold = 0.7, csv_path = None):
         """
-            Path is going to be a csv file of the exposure words.
+        Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
-            Ideally we would want our agent to *specialize* in this csv file. And be able to 
-            analyze any earnings call document (DocAttr) that we give it.
-
-            What does this agent need to be able to do?
-            - take in csv
-                - convert the csv file into a list that is usable by the agent
-            - be able to take in any DocAttr, and return the DocAttr's exposure to its self.exposure_list
-                - you should have a parameter, where you are able to *retrieve* the dictionary of WordAttr,
-                    SentenceAttr, etc. 
-            
+        Args:
+            keyword_doc (DocumentAttr): Document containing the keywords to match against
+            threshold (float): Similarity threshold for matching (default: 0.7)
+            csv_path (str, optional): Path to CSV file containing exposure words
         """
-
-        self.exposure_list = None
+        self.keyword_doc = keyword_doc
         self.threshold = threshold
+        self.exposure_list = []
 
+        if csv_path:
+            self.load_exposure_words(csv_path)
+
+    def load_exposure_words(self, csv_path: str) -> None:
+        """
+        Load and process exposure words from a CSV file.
+
+        Args:
+            csv_path (str): Path to the CSV file containing exposure words
+        """
+        # TODO:
+        # 1. Read CSV file
+        # 2. Process words (cleanup, normalize)
+        # 3. Store in self.exposure_list
         pass
 
-    def analyze(self, document: DocumentAttr = None):
+    def cos_similarity(self, threshold: float = None, return_instances: bool = False, return_context: bool = False):
         """
-            This function should take in a DocumentAttr (which should already contain a list of ParAttrs, etc.) and
-            return an ExposureResults class object that contains all of the information that we want to know about
-            the analysis.
+        Calculate cosine similarity between documents and find matching instances.
 
-            So information that we want to know could be:
-            - count of words matching our self.exposure_list over our given self.threshold.
-            - list the sentences containing 
+        Args
+            threshold (float, optional): Override default similarity threshold
+            return_instances (bool): If True, return detailed match instances
+            return_context (bool): If True, return context around matches
+
+        Returns:
+            ExposureResults: Object containing match statistics and instances
         """
-        if not document:
-            raise ValueError("Please provide a valid document attribute.")
-        
+        # TODO:
+        # 1. Get effective threshold (passed or self.threshold)
+        # 2. Calculate embeddings for both documents
+        # 3. Compute cosine similarity
+        # 4. Find matches above threshold
+        # 5. If return_instances, collect context
+        # 6. Return ExposureResults object
+        pass
+
+    def direct_match(self, return_instances: bool = False, return_context: bool = False):
+        """
+        Find exact matches between keywords and document text.
+
+        Args:
+            return_context (bool):
+            return_instances (bool): If return_context is true, return match instances
+
+        Returns:
+            Number of matches and optionally match details
+        """
+        # TODO:
+        # 1. Extract keywords from keyword_doc
+        # 2. Find exact matches in target document
+        # 3. Count matches
+        # 4. If return_instances, collect match context
+        # 5. Return results
+        pass
+
+    def get_context_window(self, doc: DocumentAttr, match_position: int, window_size: int = 2) -> str:
+        """
+        Get context window around a match in the document.
+
+        Returns:
+            str: Context window around the match
+        """
+        # TODO:
+        # 1. Find sentence containing match
+        # 2. Get surrounding sentences based on window_size
+        # 3. Join and return context
+        pass
