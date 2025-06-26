@@ -1,7 +1,9 @@
 from typing import List, Dict, Any, Optional
 from transformers import pipeline, Pipeline
-from .attribute import Attr
+from attribute import Attr
 import numpy as np
+import pandas as pd
+import re
 
 from transformers import pipeline
 import pysentiment2 as ps
@@ -9,8 +11,11 @@ import pysentiment2 as ps
 class Setup:
     def __init__(
         self,
+        sheet_name_positive: str,
+        sheet_name_negative: str,
+        file_path: str,
         hf_model: str = "cardiffnlp/twitter-roberta-base-sentiment-latest",
-        device: int = -1
+        device: int = -1,
     ):
         self.transformer = pipeline(
             "sentiment-analysis",
@@ -19,6 +24,9 @@ class Setup:
         )
         self.lm = ps.LM()
         self.hiv4 = ps.HIV4()
+        
+        self.ml_words_positive = self.ExceltoList(file_path, sheet_name_positive)
+        self.ml_words_negative = self.ExceltoList(file_path, sheet_name_negative)
 
     def fit(self, attr_obj: Attr):
         """
@@ -53,10 +61,34 @@ class Setup:
         hiv4_scores = self.hiv4.get_score(hiv4_tokens)
         attr_obj.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
 
-        # ML sentiment..... DO THIS
-        # pos_uni = ML_Unigrams_Positive(text)
-        # pos_bi  = ML_Bigrams_Positive(text)
-        # attr_obj.ML = pos_uni + pos_bi
+        # ML sentiment
+        ml_tokens = re.findall(r'\b\w+\b', text.lower())
+        attr_obj.ML = 0
+    
+        for i in range(len(ml_tokens) - 1):
+            if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
+                attr_obj.ML -= 1
+            if ml_tokens[i] in self.ml_words_positive and ml_tokens[i + 1] in self.ml_words_positive:
+                attr_obj.ML += 1
+        # Iterate through the words and count positive unigrams
+        
 
         return attr_obj
+    
+
+    def ExceltoList(self, file_path, sheet_name) -> list:
+
+        # Read the Excel file
+        df = pd.read_excel(file_path,sheet_name=sheet_name ,header=None)
+        values = df[0].tolist()
+
+        # Normalize the strings in the list, skipping empty entries
+        normalized_list = []
+        for val in values:
+            if pd.isna(val) or str(val).strip() == '':
+                continue  # Skip empty or whitespace-only entries
+            normalized_list.append(str(val).replace('_', ' ').lower())
+        # Normalize by replacing underscores with spaces and converting to lowercase
+        return normalized_list
+
 
