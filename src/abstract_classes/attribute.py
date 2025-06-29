@@ -1,6 +1,3 @@
-from typing import Dict, Any
-from ..functions.decompose_text import par_to_sentence, sentence_to_word, sentence_to_bigram
-
 class Attr:
     def __init__(self, text):
         self.text = text
@@ -54,7 +51,7 @@ class ParagraphAttr(Attr):
             # sentence split by .
             self.sentences = [SentenceAttr(s.strip()) for s in paragraph.split('.') if s.strip()]
 
-    def store_sentences():
+    def store_sentences(self):
         pass
 
     def to_dict(self):
@@ -91,4 +88,3 @@ class DocumentAttr(Attr):
         if self.paragraphs:
             dt["paragraphs"] = [par.to_dict() for par in self.paragraphs]
         return dt
-        
