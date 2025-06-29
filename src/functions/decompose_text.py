@@ -1,4 +1,4 @@
-from attribute import SentenceAttr, ParagraphAttr
+from src.abstract_classes.attribute import SentenceAttr, ParagraphAttr
 import nltk
 nltk.download('punkt')
 from nltk.tokenize import word_tokenize, sent_tokenize
