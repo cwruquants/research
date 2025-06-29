@@ -1,12 +1,15 @@
 from src.abstract_classes.attribute import DocumentAttr
+from src.functions.matching.exposure_results import ExposureResults
 import os, csv
 from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
-import torch
+from typing import List, Dict, Union
+
+
 
 
 class MatchingAgent:
-    def __init__(self, keywords_file=None, document: DocumentAttr = None, cos_threshold: float = 0.7):
+    def __init__(self, keywords_file=None, document: DocumentAttr = None, cos_threshold: float = 0.5):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
@@ -21,9 +24,7 @@ class MatchingAgent:
 
         if keywords_file:
             self.load_keywords(keywords_file)
-            print("LOADED KEYWORDS")
             self.load_keyword_variations(self.keywords_list)
-            print("LIST", self.keywords_list)
 
     def load_keywords(self, keywords_file: str) -> None:
         """
@@ -72,7 +73,7 @@ class MatchingAgent:
             all_variations.extend(list(set().union(*forms.values())))
         self.keywords_list += all_variations
 
-    def cos_similarity(self, match_type: str = "", threshold: float = None):
+    def cos_similarity(self, matching_type: str = "", threshold: float = None) -> ExposureResults:
         """
         Calculate cosine similarity between documents and find matching instances.
 
@@ -85,37 +86,87 @@ class MatchingAgent:
         model = SentenceTransformer("all-MiniLM-L6-v2")
         document_text = self.document.text
 
-        if match_type == "single":
+        if matching_type == "word":
+            # Split document into individual words, remove punctuation, and lower case
             document_words = [word.strip('.,!?:;()[]{}"\'').lower()
                               for word in document_text.split()
                               if word.strip('.,!?:;()[]{}"\'')]
-            # print("Document words:", document_words)
             corpus_embeddings = model.encode(document_words, convert_to_tensor=True)
+
+            all_hits = []
             for keyword in self.keywords_list:
                 query_embedding = model.encode(keyword, convert_to_tensor=True)
                 hits = util.semantic_search(query_embedding, corpus_embeddings, top_k=5)
-                # Format the hits to show the actual words
-                formatted_hits = [
-                    {
-                        'word': document_words[hit['corpus_id']],
-                        'score': round(hit['score'], 3)
-                    } for hit in hits[0]
-                ]
-                print(f"Matches for keyword '{keyword}': {formatted_hits}")
-    pass
+                all_hits.append(hits[0])  # hits[0] contains the list of dictionaries for this keyword
 
+            if threshold is None:
+                threshold = self.cos_threshold
 
-def direct_match(self):
-    """
-    Find exact matches between keywords and document text.
+            filtered_hits = self.filter_hits(all_hits, threshold)
 
-    Returns:
-        Number of matches and optionally match details
-    """
-    # TODO:
-    # 1. Extract keywords from document_text
-    # 2. Find exact matches in target document
-    # 3. Count matches
-    # 4. If return_instances, collect match context
-    # 5. Return results
-    pass
+            results = ExposureResults(
+                keyword_doc=self.keywords_list,
+                earnings_call=self.document, # Unsure about this
+                results_cosine=filtered_hits,
+                results_cosine_threshold=threshold
+            )
+
+            return results
+
+            # print("\n" + "=" * 60)
+            # print("COSINE SIMILARITY MATCHING RESULTS")
+            # print("=" * 60)
+            #
+            # for i, (keyword, keyword_hits) in enumerate(zip(self.keywords_list, filtered_hits)):
+            #     if keyword_hits:  # Only show keywords that have matches above threshold
+            #         print(f"\nKeyword: '{keyword}'")
+            #         print("-" * 40)
+            #         for hit in keyword_hits:
+            #             word = document_words[hit['corpus_id']]
+            #             score = hit['score']
+            #             print(f"  • '{word}' (similarity: {score:.3f})")
+            #     else:
+            #         print(f"\nKeyword: '{keyword}' - No matches above threshold")
+            #
+            # print("\n" + "=" * 60)
+
+            # return filtered_hits
+
+    def filter_hits(self, hits: List[List[Dict[str, Union[int, float]]]], threshold: float = None) -> List[
+        List[Dict[str, Union[int, float]]]]:
+        """
+        Filter hits based on a similarity threshold.
+
+        Args:
+            hits (List[List[Dict[str, Union[int, float]]]]): List of hit lists from semantic search
+            threshold (float, optional): Similarity threshold to filter hits
+
+        Returns:
+            List[List[Dict[str, Union[int, float]]]]: Filtered list of hits
+        """
+
+        if threshold is None:
+            threshold = self.cos_threshold
+
+        filtered_hits = []
+        for hit_list in hits:
+            # Filter each list of hits for a keyword
+            filtered_list = [hit for hit in hit_list if hit['score'] >= threshold]
+            filtered_hits.append(filtered_list)
+
+        return filtered_hits
+
+    def direct_match(self):
+        """
+        Find exact matches between keywords and document text.
+
+        Returns:
+            Number of matches and optionally match details
+        """
+        # TODO:
+        # 1. Extract keywords from document_text
+        # 2. Find exact matches in target document
+        # 3. Count matches
+        # 4. If return_instances, collect match context
+        # 5. Return results
+        pass
