@@ -4,25 +4,27 @@ class ExposureResults:
 
         The results will be stored in a result dictionary
     """
-    def __init__(self, keyword_doc, earnings_call ):
+    def __init__(self, keyword_doc, earnings_call,
+                 results_direct=None, results_cosine=None,
+                 results_cosine_threshold=None):
         
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
-        # Result Dictionary to store the results (do we want to have a different data structure for this?)
-        self.resultDict_direct = {}
-        self.resultDict_cosine = {}
+        self.results_direct = results_direct
+        self.results_cosine = results_cosine
+        self.results_cosine_threshold = results_cosine_threshold
 
     def getDict(self, choice: str = ""):
         if str != "direct" or str != "cosine":
             raise ValueError("Must provide dictionary choice, either 'direct' or 'cosine'")
         if str == "direct":
-            if self.resultDict_direct:
-                return self.resultDict_direct
+            if self.results_direct:
+                return self.results_direct
             else:
                 raise ValueError("Direct dictionary has not been initialized yet.")
         else:
-            if self.resultDict_cosine:
-                return self.resultDict_cosine
+            if self.results_cosine:
+                return self.results_cosine
             else:
                 raise ValueError("Cosine dictionary has not been initialized yet.")
             
