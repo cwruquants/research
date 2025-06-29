@@ -4,6 +4,7 @@ from attribute import Attr
 import numpy as np
 import pandas as pd
 import re
+from attribute import DocumentAttr
 
 from transformers import pipeline
 import pysentiment2 as ps
@@ -90,5 +91,9 @@ class Setup:
             normalized_list.append(str(val).replace('_', ' ').lower())
         # Normalize by replacing underscores with spaces and converting to lowercase
         return normalized_list
+    
+    #TODO: Diliya
+    def findWeight(corpus: DocumentAttr = None):
+        pass
 
 

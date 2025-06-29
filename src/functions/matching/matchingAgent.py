@@ -1,4 +1,4 @@
-from ....src.abstract_classes.attribute import DocumentAttr
+from ...abstract_classes.attribute import DocumentAttr
 
 class MatchingAgent:
     def __init__(self, keyword_doc: DocumentAttr, threshold = 0.7, csv_path = None):
@@ -70,15 +70,15 @@ class MatchingAgent:
         # 5. Return results
         pass
 
-    def get_context_window(self, doc: DocumentAttr, match_position: int, window_size: int = 2) -> str:
-        """
-        Get context window around a match in the document.
+    # def get_context_window(self, doc: DocumentAttr, match_position: int, window_size: int = 2) -> str:
+    #     """
+    #     Get context window around a match in the document.
 
-        Returns:
-            str: Context window around the match
-        """
-        # TODO:
-        # 1. Find sentence containing match
-        # 2. Get surrounding sentences based on window_size
-        # 3. Join and return context
-        pass
+    #     Returns:
+    #         str: Context window around the match
+    #     """
+    #     # TODO:
+    #     # 1. Find sentence containing match
+    #     # 2. Get surrounding sentences based on window_size
+    #     # 3. Join and return context
+    #     pass
