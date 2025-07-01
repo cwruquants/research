@@ -82,24 +82,39 @@ class MatchingAgent:
         self.keywords_list = [keyword for keyword in self.keywords_list
                               if keyword.lower() not in seen and not seen.add(keyword.lower())]
 
-    def _get_context(self, position: int, context_size: int = 50) -> str:
+    def _get_context(self, match_start: int, match_end: int, context_size: int = 1) -> str:
         """
-        Extract context around a match position.
+        Extract word-based context around a match position.
 
         Args:
-            position (int): Position of the match
-            context_size (int): Number of characters to include on each side
+            match_start (int): Start position of the match
+            match_end (int): End position of the match
+            context_size (int): Number of words to include on each side
 
         Returns:
-            str: Context string with the match highlighted
+            str: Context string
         """
         if not self.document or not self.document.text:
             raise ValueError("No document provided for matching")
 
         text = self.document.text
-        start = max(0, position - context_size)
-        end = min(len(text), position + context_size)
-        return text[start:end].strip()
+        
+        # Text before the match
+        text_before = text[:match_start]
+        words_before = text_before.split()
+        
+        # Text after the match
+        text_after = text[match_end:]
+        words_after = text_after.split()
+        
+        # Extract context words
+        context_words_before = words_before[-context_size:]
+        context_words_after = words_after[:context_size]
+        
+        # Join words to form the context string
+        full_context = context_words_before + [text[match_start:match_end]] + context_words_after
+        
+        return " ".join(full_context).strip()
 
     def direct_match(self) -> ExposureResults:
         """
@@ -122,14 +137,13 @@ class MatchingAgent:
         for keyword in self.keywords_list:
             direct_matches = []
             
-            # Find all occurrences of the keyword (case-insensitive)
-            pattern = re.compile(re.escape(keyword), re.IGNORECASE)
+            # Find all occurrences of the keyword (case-insensitive, whole word)
+            pattern = re.compile(r'\b' + re.escape(keyword) + r'\b', re.IGNORECASE)
             for match in pattern.finditer(document_text):
-                context = self._get_context(match.start())
+                context = self._get_context(match.start(), match.end())
                 match_instance = MatchInstance(
                     matched_text=match.group(),
                     context=context,
-                    similarity_score=1.0,
                     position=match.start()
                 )
                 direct_matches.append(match_instance)
@@ -194,7 +208,7 @@ class MatchingAgent:
                         if hit['score'] >= threshold:
                             word_idx = hit['corpus_id']
                             _, position, original_word = words_with_positions[int(word_idx)]
-                            context = self._get_context(position)
+                            context = self._get_context(position, position + len(original_word))
                             
                             match_instance = MatchInstance(
                                 matched_text=original_word,
