@@ -4,6 +4,7 @@ import os, csv, re
 from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
 from typing import List, Dict, Union
+from src.functions.decompose_text import document_to_word
 
 class MatchingAgent:
     def __init__(self, keywords_file: str | None = None, document: DocumentAttr | None = None, cos_threshold: float = 0.7):
@@ -32,7 +33,6 @@ class MatchingAgent:
     def load_keywords(self, keywords_file: str) -> None:
         """
         Load and process exposure words from a CSV file.
-
         Args:
             keywords_file (str): Path to the CSV file containing exposure words
         """
@@ -82,51 +82,36 @@ class MatchingAgent:
         self.keywords_list = [keyword for keyword in self.keywords_list
                               if keyword.lower() not in seen and not seen.add(keyword.lower())]
 
-    def _get_context(self, match_start: int, match_end: int, context_size: int = 1) -> str:
+    def _get_context(self, word_index: int, word_list: List[str], context_size: int = 1) -> str:
         """
-        Extract word-based context around a match position.
-
+        Extract word-based context around a match.
         Args:
-            match_start (int): Start position of the match
-            match_end (int): End position of the match
-            context_size (int): Number of words to include on each side
-
+            word_index (int): Index of the matched word in the word list.
+            word_list (List[str]): The list of words in the document.
+            context_size (int): Number of words to include on each side.
         Returns:
-            str: Context string
+            str: Context string.
         """
-        if not self.document or not self.document.text:
-            raise ValueError("No document provided for matching")
+        if not word_list:
+            return ""
 
-        text = self.document.text
+        start = max(0, word_index - context_size)
+        end = min(len(word_list), word_index + context_size + 1)
         
-        # Text before the match
-        text_before = text[:match_start]
-        words_before = text_before.split()
+        context_words = word_list[start:end]
         
-        # Text after the match
-        text_after = text[match_end:]
-        words_after = text_after.split()
-        
-        # Extract context words
-        context_words_before = words_before[-context_size:]
-        context_words_after = words_after[:context_size]
-        
-        # Join words to form the context string
-        full_context = context_words_before + [text[match_start:match_end]] + context_words_after
-        
-        return " ".join(full_context).strip()
+        return " ".join(context_words).strip()
 
     def direct_match(self) -> ExposureResults:
         """
         Find exact matches between keywords and document text.
-
         Returns:
             ExposureResults: Object containing direct match results
         """
         if not self.document or not self.document.text:
             raise ValueError("No document provided for matching")
 
-        document_text = self.document.text
+        document_words = document_to_word(self.document)
         results = ExposureResults(
             keyword_doc=self.keywords_list,
             earnings_call=self.document,
@@ -137,16 +122,16 @@ class MatchingAgent:
         for keyword in self.keywords_list:
             direct_matches = []
             
-            # Find all occurrences of the keyword (case-insensitive, whole word)
-            pattern = re.compile(r'\b' + re.escape(keyword) + r'\b', re.IGNORECASE)
-            for match in pattern.finditer(document_text):
-                context = self._get_context(match.start(), match.end())
-                match_instance = MatchInstance(
-                    matched_text=match.group(),
-                    context=context,
-                    position=match.start()
-                )
-                direct_matches.append(match_instance)
+            # Find all occurrences of the keyword (case-insensitive)
+            for i, word in enumerate(document_words):
+                if keyword.lower() == word.lower():
+                    context = self._get_context(i, document_words)
+                    match_instance = MatchInstance(
+                        matched_text=word,
+                        context=context,
+                        position=i
+                    )
+                    direct_matches.append(match_instance)
 
             results.add_direct_matches(keyword, direct_matches)
 
@@ -155,11 +140,9 @@ class MatchingAgent:
     def cos_similarity(self, match_type: str = "word", threshold: float | None = None) -> ExposureResults:
         """
         Calculate cosine similarity between keywords and document text.
-
         Args:
             match_type (str): Type of matching ("word" or "bigram")
             threshold (float, optional): Override default similarity threshold
-
         Returns:
             ExposureResults: Object containing cosine similarity match results
         """
@@ -167,7 +150,6 @@ class MatchingAgent:
             raise ValueError("No document provided for matching")
 
         model = self._get_model()
-        document_text = self.document.text
         
         if threshold is None:
             threshold = self.cos_threshold
@@ -179,20 +161,11 @@ class MatchingAgent:
         )
 
         if match_type == "word":
-            # Split document into individual words, potentially use a library for this
-            words_with_positions = []
-            word_pattern = re.compile(r'\b\w+\b')
-            
-            for match in word_pattern.finditer(document_text):
-                word = match.group().lower()
-                position = match.start()
-                words_with_positions.append((word, position, match.group()))  # (cleaned, position, original)
-
-            if not words_with_positions:
+            document_words_original = document_to_word(self.document)
+            if not document_words_original:
                 return results
 
-            # Extract just the words for encoding
-            document_words = [item[0] for item in words_with_positions]
+            document_words = [word.lower() for word in document_words_original]
             corpus_embeddings = model.encode(document_words, convert_to_tensor=True)
 
             # Process each keyword
@@ -206,15 +179,15 @@ class MatchingAgent:
                     # Filter hits by threshold and create match instances
                     for hit in hits[0]:  # hits[0] contains the list for this keyword
                         if hit['score'] >= threshold:
-                            word_idx = hit['corpus_id']
-                            _, position, original_word = words_with_positions[int(word_idx)]
-                            context = self._get_context(position, position + len(original_word))
+                            word_idx = int(hit['corpus_id'])
+                            original_word = document_words_original[word_idx]
+                            context = self._get_context(word_idx, document_words_original)
                             
                             match_instance = MatchInstance(
                                 matched_text=original_word,
                                 context=context,
                                 similarity_score=float(hit['score']),
-                                position=position
+                                position=word_idx
                             )
                             cosine_matches.append(match_instance)
                 
