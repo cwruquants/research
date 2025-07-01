@@ -1,6 +1,5 @@
 from src.functions.matching.matching_agent import MatchingAgent
 from src.abstract_classes.attribute import DocumentAttr
-import os
 
 def test_matching_agent():
 
@@ -13,7 +12,7 @@ def test_matching_agent():
 
     print("1. Creating MatchingAgent instance...")
     agent = MatchingAgent(
-        keywords_file="test_keywords.csv",
+        keywords_file="src/functions/matching/test_keywords.csv",
         document=test_document
     )
 
@@ -23,8 +22,8 @@ def test_matching_agent():
     #
     print("\n3. Testing cosine similarity matching...")
     print("Document text:", test_document.text)
-    result = agent.cos_similarity(match_type="single")
-    print("Cosine similarity results:", result)
+    result = agent.cos_similarity(match_type="word")
+    print("Cosine similarity results:", result.export_to_dict())
     #
     # print("\n4. Testing with custom threshold...")
     # result_strict = agent.cos_similarity(match_type="single", threshold=0.9)
