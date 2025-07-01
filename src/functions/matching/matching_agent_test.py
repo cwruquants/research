@@ -16,23 +16,20 @@ def test_matching_agent():
         document=test_document
     )
 
-    # print("\n2. Loaded keywords:")
-    # print(f"Number of keywords (including variations): {len(agent.keywords_list)}")
-    # print("Sample keywords:", agent.keywords_list[:10])
-    #
+    agent2 = MatchingAgent(
+        keywords_file="src/functions/matching/test_keywords.csv",
+        document=test_document
+    )
+
+    
     print("\n3. Testing cosine similarity matching...")
     print("Document text:", test_document.text)
     result = agent.cos_similarity(match_type="word")
-    print("Cosine similarity results:", result.export_to_dict())
-    #
-    # print("\n4. Testing with custom threshold...")
-    # result_strict = agent.cos_similarity(match_type="single", threshold=0.9)
-    # print("Strict threshold results:", result_strict)
-    #
-    # # Clean up
-    # if os.path.exists(test_keywords_file):
-    #     os.remove(test_keywords_file)
-    # print("\n=== Test Complete ===")
+    print("Cosine similarity results:", result)
+    
+    # print("\n4. Testing direct matching...")
+    # result = agent2.direct_match()
+    # print("Direct matching results:", result)
 
 if __name__ == "__main__":
     test_matching_agent()
