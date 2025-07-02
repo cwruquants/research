@@ -1,3 +1,6 @@
+import json
+import os
+from datetime import datetime
 from dataclasses import dataclass
 from typing import List, Dict
 
@@ -167,7 +170,14 @@ class ExposureResults:
 
     def export(self, path: str = ""):
         """
-            Calling export will export the result dictionary to a path of choice.
+            Calling export will export the result dictionary to a JSON file at the path of choice.
         """
-        pass
+        if not path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = "output"
+            os.makedirs(output_dir, exist_ok=True)
+            path = os.path.join(output_dir, f"exposure_results_{timestamp}.json")
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.export_to_dict(), f, indent=4)
 
