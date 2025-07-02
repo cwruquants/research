@@ -4,7 +4,8 @@ import os, csv, re
 from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
 from typing import List, Dict, Union
-from src.functions.decompose_text import document_to_word
+from src.functions.decompose_text import document_to_word, document_to_sentence
+from nltk.tokenize import RegexpTokenizer
 
 class MatchingAgent:
     def __init__(self, keywords_file: str | None = None, document: DocumentAttr | None = None, cos_threshold: float = 0.7):
@@ -82,25 +83,40 @@ class MatchingAgent:
         self.keywords_list = [keyword for keyword in self.keywords_list
                               if keyword.lower() not in seen and not seen.add(keyword.lower())]
 
-    def _get_context(self, word_index: int, word_list: List[str], context_size: int = 1) -> str:
+    def _get_context(self, word_index: int, sentences: List[str], context_size: int = 1) -> str:
         """
-        Extract word-based context around a match.
+        Extract sentence-based context around a match.
         Args:
-            word_index (int): Index of the matched word in the word list.
-            word_list (List[str]): The list of words in the document.
-            context_size (int): Number of words to include on each side.
+            word_index (int): Index of the matched word in the document's word list.
+            sentences (List[str]): The list of sentences in the document.
+            context_size (int): Number of sentences to include on each side.
         Returns:
             str: Context string.
         """
-        if not word_list:
+        if not sentences:
             return ""
 
-        start = max(0, word_index - context_size)
-        end = min(len(word_list), word_index + context_size + 1)
+        # Find which sentence the word belongs to
+        word_count = 0
+        sentence_index = -1
+        tokenizer = RegexpTokenizer(r'\w+')
+        for i, sentence in enumerate(sentences):
+            sentence_word_count = len(tokenizer.tokenize(sentence))
+            if word_index < word_count + sentence_word_count:
+                sentence_index = i
+                break
+            word_count += sentence_word_count
         
-        context_words = word_list[start:end]
+        if sentence_index == -1:
+            return ""
+
+        # Get context sentences
+        start = max(0, sentence_index - context_size)
+        end = min(len(sentences), sentence_index + context_size + 1)
         
-        return " ".join(context_words).strip()
+        context_sentences = sentences[start:end]
+        
+        return " ".join(context_sentences).strip()
 
     def direct_match(self) -> ExposureResults:
         """
@@ -112,6 +128,7 @@ class MatchingAgent:
             raise ValueError("No document provided for matching")
 
         document_words = document_to_word(self.document)
+        sentences = document_to_sentence(self.document)
         results = ExposureResults(
             keyword_doc=self.keywords_list,
             earnings_call=self.document,
@@ -125,7 +142,7 @@ class MatchingAgent:
             # Find all occurrences of the keyword (case-insensitive)
             for i, word in enumerate(document_words):
                 if keyword.lower() == word.lower():
-                    context = self._get_context(i, document_words)
+                    context = self._get_context(i, sentences)
                     match_instance = MatchInstance(
                         matched_text=word,
                         context=context,
@@ -162,6 +179,7 @@ class MatchingAgent:
 
         if match_type == "word":
             document_words_original = document_to_word(self.document)
+            sentences = document_to_sentence(self.document)
             if not document_words_original:
                 return results
 
@@ -170,6 +188,7 @@ class MatchingAgent:
 
             # Process each keyword
             for keyword in self.keywords_list:
+                direct_matches = []
                 cosine_matches = []
                 
                 try:
@@ -181,21 +200,34 @@ class MatchingAgent:
                         if hit['score'] >= threshold:
                             word_idx = int(hit['corpus_id'])
                             original_word = document_words_original[word_idx]
-                            context = self._get_context(word_idx, document_words_original)
+                            context = self._get_context(word_idx, sentences)
                             
-                            match_instance = MatchInstance(
-                                matched_text=original_word,
-                                context=context,
-                                similarity_score=float(hit['score']),
-                                position=word_idx
-                            )
-                            cosine_matches.append(match_instance)
+                            if hit['score'] == 1.0:
+                                match_instance = MatchInstance(
+                                    matched_text=original_word,
+                                    context=context,
+                                    position=word_idx
+                                )
+                                direct_matches.append(match_instance)
+                            else:
+                                match_instance = MatchInstance(
+                                    matched_text=original_word,
+                                    context=context,
+                                    similarity_score=float(hit['score']),
+                                    position=word_idx
+                                )
+                                cosine_matches.append(match_instance)
                 
                 except Exception as e:
                     print(f"Warning: Error processing keyword '{keyword}': {e}")
+                    direct_matches = []
                     cosine_matches = []
 
-                results.add_cosine_matches(keyword, cosine_matches)
+                if direct_matches:
+                    results.add_direct_matches(keyword, direct_matches)
+
+                if cosine_matches:
+                    results.add_cosine_matches(keyword, cosine_matches)
 
         else:
             raise ValueError(f"Unsupported match_type: {match_type}. Use 'word'.")

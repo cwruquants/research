@@ -8,7 +8,8 @@ __all__ = [
     "par_to_sentence",
     "sentence_to_word",
     "sentence_to_bigram",
-    "document_to_word"
+    "document_to_word",
+    "document_to_sentence"
 ]
 
 
@@ -67,6 +68,14 @@ def document_to_word(document: DocumentAttr):
     tokens = tokenizer.tokenize(document.text)
 
     return tokens
-    
 
+def document_to_sentence(document: DocumentAttr):
+    """
+        Input:
+        - document: DocumentAttr
 
+        Output:
+        - sentence_strings: List[String]
+    """
+    sentences = sent_tokenize(document.text)
+    return sentences
