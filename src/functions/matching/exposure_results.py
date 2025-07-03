@@ -95,8 +95,6 @@ class ExposureResults:
     def __str__(self) -> str:
         lines = []
         lines.append("=" * 25 + " Exposure Analysis Results " + "=" * 25)
-        lines.append(f"Keyword Document: {str(self.keyword_doc)}")
-        lines.append(f"Earnings Call: {str(self.earnings_call)}")
         if self.cosine_threshold is not None:
             lines.append(f"Cosine Similarity Threshold: {self.cosine_threshold}")
 
