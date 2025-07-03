@@ -16,20 +16,9 @@ def test_matching_agent():
         document=test_document
     )
 
-    agent2 = MatchingAgent(
-        keywords_file="src/functions/matching/test_keywords.csv",
-        document=test_document
-    )
-
+    matches = agent.cos_similarity(match_type="hybrid")
+    print(matches)
     
-    print("\n3. Testing cosine similarity matching...")
-    print("Document text:", test_document.text)
-    result = agent.cos_similarity(match_type="word")
-    print("Cosine similarity results:", result)
-    
-    # print("\n4. Testing direct matching...")
-    # result = agent2.direct_match()
-    # print("Direct matching results:", result)
 
 if __name__ == "__main__":
     test_matching_agent()
