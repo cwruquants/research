@@ -1,14 +1,15 @@
-from ..abstract_classes.attribute import SentenceAttr, ParagraphAttr
+from src.abstract_classes.attribute import SentenceAttr, ParagraphAttr, DocumentAttr
 import nltk
 nltk.download('punkt')
-from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.tokenize import sent_tokenize, RegexpTokenizer
 from nltk.util import bigrams
-import string
 
 __all__ = [
     "par_to_sentence",
     "sentence_to_word",
-    "sentence_to_bigram"
+    "sentence_to_bigram",
+    "document_to_word",
+    "document_to_sentence"
 ]
 
 
@@ -31,14 +32,13 @@ def sentence_to_word(sentence: SentenceAttr):
         Output:
         - tokens: List[String] # List of words with all of the punctuation removed
     """
-    string_raw = sentence.text
-    tokens = word_tokenize(string_raw) # List[strings]
+    tokenizer = RegexpTokenizer(r'\w+')
+    tokens = tokenizer.tokenize(sentence.text)
 
-    tokens = [t for t in tokens if t not in string.punctuation] # Removes ['.']
     return tokens
 
 
-def sentence_to_bigram(sentence: "SentenceAttr"):
+def sentence_to_bigram(sentence: SentenceAttr):
     """
         Input:
         - sentence: SentenceAttr
@@ -48,15 +48,34 @@ def sentence_to_bigram(sentence: "SentenceAttr"):
 
         Returns a list of bigram strings for us to initialize as BigramAttr objects
     """
-    string_raw = sentence.text
-    tokens = word_tokenize(string_raw) # List[strings]
-
-    # remove punctuation
-    tokens = [t for t in tokens if t not in string.punctuation] # Removes ['.']
+    tokenizer = RegexpTokenizer(r'\w+')
+    tokens = tokenizer.tokenize(sentence.text)
 
     bigram_tuples = list(bigrams(tokens))
     bigram_strings = [" ".join(pair) for pair in bigram_tuples]
 
     return bigram_strings # List[string]
 
+def document_to_word(document: DocumentAttr):
+    """
+        Input:
+        - document: DocumentAttr
 
+        Output:
+        - word_strings: List[String]
+    """
+    tokenizer = RegexpTokenizer(r'\w+')
+    tokens = tokenizer.tokenize(document.text)
+
+    return tokens
+
+def document_to_sentence(document: DocumentAttr):
+    """
+        Input:
+        - document: DocumentAttr
+
+        Output:
+        - sentence_strings: List[String]
+    """
+    sentences = sent_tokenize(document.text)
+    return sentences
