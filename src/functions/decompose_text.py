@@ -79,3 +79,21 @@ def document_to_sentence(document: DocumentAttr):
     """
     sentences = sent_tokenize(document.text)
     return sentences
+
+def document_to_bigram(document: DocumentAttr):
+    """
+        Input:
+        - document: DocumentAttr
+
+        Output:
+        - bigram_strings: List[String]
+
+        Returns a list of bigram strings from the document text
+    """
+    tokenizer = RegexpTokenizer(r'\w+')
+    tokens = tokenizer.tokenize(document.text)
+
+    bigram_tuples = list(bigrams(tokens))
+    bigram_strings = [" ".join(pair) for pair in bigram_tuples]
+
+    return bigram_strings
