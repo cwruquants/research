@@ -86,7 +86,7 @@ class MatchingAgent:
         self.keywords_list = [keyword for keyword in self.keywords_list
                               if keyword.lower() not in seen and not seen.add(keyword.lower())]
 
-    def _get_context(self, word_index: int, sentences: List[str], context_size: int = 1) -> str:
+    def _get_context(self, word_index: int, sentences: List[str], context_size: int = 0) -> str:
         """
         Extract sentence-based context around a match.
         Args:
@@ -204,7 +204,7 @@ class MatchingAgent:
                             original_word = document_words_original[word_idx]
                             context = self._get_context(word_idx, sentences)
                             
-                            if hit['score'] == 1.0:
+                            if hit['score'] > 0.99:
                                 match_instance = MatchInstance(
                                     matched_text=original_word,
                                     context=context,
@@ -221,7 +221,7 @@ class MatchingAgent:
                                 cosine_matches.append(match_instance)
                 
                 except Exception as e:
-                    print(f"Warning: Error processing keyword '{keyword}': {e}")
+                    print(f"Warning: Error processing keyword '{keyword}': {str(e)}")
                     direct_matches = []
                     cosine_matches = []
 
@@ -256,7 +256,7 @@ class MatchingAgent:
                             # The position of the bigram is the position of its first word
                             context = self._get_context(bigram_idx, sentences)
                             
-                            if hit['score'] == 1.0:
+                            if hit['score'] > 0.99:
                                 match_instance = MatchInstance(
                                     matched_text=original_bigram,
                                     context=context,
@@ -273,7 +273,7 @@ class MatchingAgent:
                                 cosine_matches.append(match_instance)
                 
                 except Exception as e:
-                    print(f"Warning: Error processing keyword '{keyword}': {e}")
+                    print(f"Warning: Error processing keyword '{keyword}': {str(e)}")
                     direct_matches = []
                     cosine_matches = []
 
@@ -321,7 +321,7 @@ class MatchingAgent:
 
                             context = self._get_context(word_idx, sentences)
                             
-                            if hit['score'] == 1.0:
+                            if hit['score'] > 0.99:
                                 match_instance = MatchInstance(
                                     matched_text=original_text,
                                     context=context,
@@ -338,7 +338,7 @@ class MatchingAgent:
                                 cosine_matches.append(match_instance)
                 
                 except Exception as e:
-                    print(f"Warning: Error processing keyword '{keyword}': {e}")
+                    print(f"Warning: Error processing keyword '{keyword}': {str(e)}")
                     direct_matches = []
                     cosine_matches = []
 
