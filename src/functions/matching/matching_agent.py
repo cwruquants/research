@@ -27,7 +27,7 @@ class MatchingAgent:
 
         if keywords_file:
             self.load_keywords(keywords_file)
-            self.load_keyword_variations(self.keywords_list)
+            # self.load_keyword_variations(self.keywords_list)
 
     def _get_model(self):
         if self.model is None:

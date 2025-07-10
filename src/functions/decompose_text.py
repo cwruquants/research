@@ -9,7 +9,8 @@ __all__ = [
     "sentence_to_word",
     "sentence_to_bigram",
     "document_to_word",
-    "document_to_sentence"
+    "document_to_sentence",
+    "document_to_bigram"
 ]
 
 
