@@ -5,7 +5,7 @@ from src.functions.decompose_transcript import extract_presentation_section, ext
 def test_matching_agent():
     agent = MatchingAgent(
         keywords_file="src/functions/matching/test_keywords.csv",
-        document=load_sample_document("c:/Users/arete/Cursor/research/data/earnings_calls/ex1.xml")
+        document=load_sample_document("data/earnings_calls/ex1.xml")
     )
 
     matches = agent.cos_similarity(match_type="word")
