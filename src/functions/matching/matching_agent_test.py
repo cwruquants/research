@@ -8,7 +8,7 @@ def test_matching_agent():
         document=load_sample_document("data/earnings_calls/ex1.xml")
     )
 
-    matches = agent.cos_similarity(match_type="word")
+    matches = agent.cos_similarity(match_type="hybrid", exclude_duplicates=True)
     print(matches)
 
 def load_sample_document(file_path: str) -> DocumentAttr:
