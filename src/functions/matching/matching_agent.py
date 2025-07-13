@@ -366,6 +366,7 @@ class MatchingAgent:
 
             # Collect all matches and find the best one for each position
             for keyword, km in results.keyword_matches.items():
+                # TODO: for cosine bigram matches, check if the setnence is already in the direct matches first.
                 # Direct matches
                 for match in km.direct_matches:
                     if match.position is not None:
