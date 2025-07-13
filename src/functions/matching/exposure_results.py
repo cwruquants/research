@@ -7,10 +7,11 @@ from typing import List, Dict
 @dataclass
 class MatchInstance:
     """Represents a single match occurrence"""
+    keyword: str
     matched_text: str
     context: str
+    position: int | None = None
     similarity_score: float | None = None
-    position: int | None = None  # character position in document
 
 
 @dataclass
