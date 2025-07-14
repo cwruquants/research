@@ -98,3 +98,17 @@ def document_to_bigram(document: DocumentAttr):
     bigram_strings = [" ".join(pair) for pair in bigram_tuples]
 
     return bigram_strings
+
+def is_bigram(text: str) -> bool:
+    """
+    Checks if the input text is a bigram (i.e., two words separated by whitespace).
+
+    Args:
+        text (str): The input string to check.
+
+    Returns:
+        bool: True if the text is a bigram, False otherwise.
+    """
+    # Split by whitespace and check if there are exactly two non-empty words
+    words = text.strip().split()
+    return len(words) == 2 and all(word.isalnum() for word in words)
