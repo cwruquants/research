@@ -7,11 +7,11 @@ from typing import List, Dict
 @dataclass
 class MatchInstance:
     """Represents a single match occurrence"""
-    keyword: str
-    matched_text: str
-    context: str
-    position: int | None = None
-    similarity_score: float | None = None
+    keyword: str # The keyword that is being searched for
+    matched_text: str # The word that was found
+    context: str # Sentence where match was found
+    position: int | None = None # Word index in the text
+    similarity_score: float | None = None # Cosine similarity score (0-1)
 
 
 @dataclass
@@ -31,6 +31,8 @@ class ExposureResults:
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
         self.cosine_threshold = cosine_threshold
+        # Store the total number of keywords searched
+        self.total_keywords_searched = len(keyword_doc) if keyword_doc else 0
 
         if keyword_matches is None:
             self.keyword_matches: Dict[str, KeywordMatches] = {}
@@ -100,7 +102,7 @@ class ExposureResults:
             lines.append(f"Cosine Similarity Threshold: {self.cosine_threshold}")
 
         lines.append("\n" + "-" * 20 + " Summary " + "-" * 20)
-        lines.append(f"Total keywords searched: {len(self.keyword_matches)}")
+        lines.append(f"Total keywords searched: {self.total_keywords_searched}")
         lines.append(f"Total keywords with matches: {self.total_keywords_with_matches}")
         lines.append(f"Total direct matches: {self.total_direct_matches}")
         lines.append(f"Total cosine matches: {self.total_cosine_matches}")
@@ -140,7 +142,7 @@ class ExposureResults:
         return {
             'metadata': {
                 'cosine_threshold': self.cosine_threshold,
-                'total_keywords_searched': len(self.keyword_matches),
+                'total_keywords_searched': self.total_keywords_searched,
                 'total_keywords_with_matches': self.total_keywords_with_matches,
                 'total_direct_matches': self.total_direct_matches,
                 'total_cosine_matches': self.total_cosine_matches
@@ -179,4 +181,3 @@ class ExposureResults:
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.export_to_dict(), f, indent=4)
-
