@@ -39,6 +39,12 @@ class ExposureResults:
         else:
             self.keyword_matches = keyword_matches
 
+    def load():
+        """
+            Loads json (need to do a check whether or not it is a valid ExposureResults json export) from past export to do analysis on it.
+        """
+        pass
+
     def add_keyword_matches(self, keyword: str, direct_match_list: List[MatchInstance],
                             cosine_match_list: List[MatchInstance]):
         """Add matches for a specific keyword"""
@@ -107,7 +113,7 @@ class ExposureResults:
         lines.append(f"Total direct matches: {self.total_direct_matches}")
         lines.append(f"Total cosine matches: {self.total_cosine_matches}")
         lines.append(f"Total unique matches: {len(self.get_unique_matches())}")
-        lines.append(f"Unique matches: {self.get_unique_matches()}")
+        lines.append(f"Unique matches: {self.get_unique_matches()}") #TODO: make this a parameter for whether or not we want to include unique matches
 
         if not self.keyword_matches:
             lines.append("\nNo matches found.")
