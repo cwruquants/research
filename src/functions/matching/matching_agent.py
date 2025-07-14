@@ -159,7 +159,7 @@ class MatchingAgent:
             results.add_direct_matches(keyword, direct_matches)
         return results
 
-    def cos_similarity(self, match_type: str = "word", threshold: float | None = None, exclude_duplicates: bool = False) -> ExposureResults:
+    def cos_similarity(self, match_type: str = "word", threshold: float | None = None, exclude_duplicates: bool = True) -> ExposureResults:
         """
         Calculate cosine similarity between keywords and document text.
         Args:
@@ -370,6 +370,7 @@ class MatchingAgent:
             
             # Collect all matches and separate by type
             for keyword, km in results.keyword_matches.items():
+                # TODO: for cosine bigram matches, check if the setnence is already in the direct matches first.
                 # Direct matches
                 for match in km.direct_matches:
                     if match.position is not None:
