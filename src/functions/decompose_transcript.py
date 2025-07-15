@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 import re
+from src.abstract_classes.attribute import DocumentAttr
 
 __all__ = [
     "extract_presentation_section",
@@ -79,3 +80,26 @@ def clean_spoken_content(raw_text: str) -> str:
         i += 1
 
     return "\n".join(cleaned_lines).strip()
+
+
+def load_sample_document(file_path: str) -> DocumentAttr:
+    """
+    Load a sample XML earnings call transcript and extract its text content
+    using the decompose_transcript functions.
+    Returns a DocumentAttr object with the text.
+    """
+    try:
+        # Extract presentation and Q&A sections
+        presentation_text = extract_presentation_section(file_path)
+        qa_text = extract_qa_section(file_path)
+        
+        # Combine sections
+        full_text = presentation_text + "\n\n" + qa_text
+        
+        # Clean spoken content to remove speaker tags and separators
+        cleaned_text = clean_spoken_content(full_text)
+        
+        return DocumentAttr(document=cleaned_text)
+    except Exception as e:
+        print(f"Error loading document: {e}")
+        return ""
