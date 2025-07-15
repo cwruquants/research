@@ -1,5 +1,4 @@
 from src.functions.matching.matching_agent import MatchingAgent
-from src.abstract_classes.attribute import DocumentAttr
 from src.functions.decompose_transcript import load_sample_document
 
 def test_matching_agent():
