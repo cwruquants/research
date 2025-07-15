@@ -13,8 +13,9 @@ def extract_presentation_section(xml_path):
     root = tree.getroot()
     
     # Extract the full transcript body
-    body = root.find(".//Body").text
-    lines = body.splitlines()
+    body_elem = root.find(".//Body")
+    body = body_elem.text if body_elem is not None else None
+    lines = body.splitlines() if body is not None else []
 
     # Flags and buffers
     in_presentation = False
@@ -37,8 +38,9 @@ def extract_qa_section(xml_path):
     root = tree.getroot()
 
     # Extract the full transcript body
-    body = root.find(".//Body").text
-    lines = body.splitlines()
+    body_elem = root.find(".//Body")
+    body = body_elem.text if body_elem is not None else None
+    lines = body.splitlines() if body is not None else []
 
     in_qa = False
     qa_lines = []
@@ -102,4 +104,4 @@ def load_sample_document(file_path: str) -> DocumentAttr:
         return DocumentAttr(document=cleaned_text)
     except Exception as e:
         print(f"Error loading document: {e}")
-        return ""
+        return DocumentAttr(document="")
