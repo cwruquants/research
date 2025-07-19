@@ -1,0 +1,1 @@
+This is a sample large document for performance testing.\n\n"Risk" and "uncertainty" are important terms in financial documents.\n\n"Exposure" and "impact" are also frequently discussed.\n\n"Risk" is often repeated.\n\n"Uncertainty" is a key metric.\n\n"Exposure" can be high or low.\n\n"Impact" is desired.\n\n// Repeat the above block 1,500 times to exceed 10,000 words.\n\n 
