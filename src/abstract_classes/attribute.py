@@ -1,3 +1,7 @@
+import nltk
+nltk.download('punkt')
+from nltk.tokenize import sent_tokenize
+
 class Attr:
     def __init__(self, text):
         self.text = text
@@ -5,54 +9,51 @@ class Attr:
         self.ML = 0.0
         self.LM = 0.0
         self.HIV4 = 0.0
-        # self.weight = tf*idf
-        pass
 
     def to_dict(self):
         return {
-              "sentiment": self.sentiment
-            , "ML": self.ML
-            , "LM": self.LM
-            , "HIV4": self.HIV4
+            "text": self.text,
+            "sentiment": self.sentiment,
+            "ML": self.ML,
+            "LM": self.LM,
+            "HIV4": self.HIV4
         }
-    
+
 class WordAttr(Attr):
     def __init__(self, word=""):
-        """ 
-            Constructor for word
-        """
         super().__init__(word)
 
-
 class SentenceAttr(Attr):
-    def __init__(self, sentence=""):
-        """
-            Constructor for sentence
-        """
+    def __init__(self, sentence="", store_words=False):
         super().__init__(sentence)
+        self.store_words = store_words
+        self.words = None
 
+        if self.store_words:
+            # Stub for word-level parsing (you can add your tokenizer here)
+            tokens = sentence.split()
+            self.words = [WordAttr(w) for w in tokens]
+
+    def to_dict(self):
+        dt = super().to_dict()
+        if self.words:
+            dt["words"] = [w.to_dict() for w in self.words]
+        return dt
 
 class BigramAttr(Attr):
     def __init__(self, bigram=""):
-        """
-            Constructor for bigram
-        """
         super().__init__(bigram)
 
 class ParagraphAttr(Attr):
-    def __init__(self, paragraph: str = "", store_sentences: bool = False):
-        """
-        Constructor for ParagraphAttr.
-        """
+    def __init__(self, paragraph: str = "", store_sentences: bool = False, store_words: bool = False):
         super().__init__(paragraph)
-        self.store_sentences = store_sentences
         self.sentences = None
-        if self.store_sentences:
-            # sentence split by .
-            self.sentences = [SentenceAttr(s.strip()) for s in paragraph.split('.') if s.strip()]
+        self.store_sentences = store_sentences
+        self.store_words = store_words
 
-    def store_sentences(self):
-        pass
+        if self.store_sentences:
+            raw_sentences = sent_tokenize(paragraph)
+            self.sentences = [SentenceAttr(s.strip(), store_words=self.store_words) for s in raw_sentences if s.strip()]
 
     def to_dict(self):
         dt = {
@@ -63,19 +64,26 @@ class ParagraphAttr(Attr):
             "HIV4": self.HIV4
         }
         if self.sentences:
-            dt["sentences"] = [sent.to_dict() for sent in self.sentences]
+            dt["sentences"] = [s.to_dict() for s in self.sentences]
         return dt
-    
+
 class DocumentAttr(Attr):
-    def __init__(self, document: str = "", store_paragraphs: bool = False):
-        """
-        Constructor for DocumentAttr.
-        """
+    def __init__(self, document: str = "", store_paragraphs: bool = False, store_sentences: bool = False, store_words: bool = False):
         super().__init__(document)
         self.paragraphs = None
-        if store_paragraphs:
-            # split by \n newline
-            self.paragraphs = [ParagraphAttr(p.strip()) for p in document.split('\n\n') if p.strip()]
+        self.store_paragraphs = store_paragraphs
+        self.store_sentences = store_sentences
+        self.store_words = store_words
+
+        if self.store_paragraphs:
+            raw_paragraphs = document.split('\n\n')
+            self.paragraphs = [
+                ParagraphAttr(p.strip(), store_sentences=self.store_sentences, store_words=self.store_words)
+                for p in raw_paragraphs if p.strip()
+            ]
+
+    def get_paragraph_texts(self):
+        return [p.text for p in self.paragraphs] if self.paragraphs else []
 
     def to_dict(self):
         dt = {
@@ -86,5 +94,5 @@ class DocumentAttr(Attr):
             "HIV4": self.HIV4
         }
         if self.paragraphs:
-            dt["paragraphs"] = [par.to_dict() for par in self.paragraphs]
+            dt["paragraphs"] = [p.to_dict() for p in self.paragraphs]
         return dt
