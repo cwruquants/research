@@ -39,11 +39,71 @@ class ExposureResults:
         else:
             self.keyword_matches = keyword_matches
 
-    def load():
+    @classmethod
+    def load_json(cls, file_path: str):
         """
-            Loads json (need to do a check whether or not it is a valid ExposureResults json export) from past export to do analysis on it.
+        Loads an ExposureResults object from a JSON file created by the export method.
+
+        Args:
+            file_path (str): The path to the JSON file.
+
+        Returns:
+            ExposureResults: An instance of the ExposureResults class.
         """
-        pass
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            print(f"Error: The file at {file_path} was not found.")
+            raise
+        except json.JSONDecodeError:
+            print(f"Error: Could not decode JSON from the file at {file_path}.")
+            raise
+
+        try:
+            metadata = data['metadata']
+            cosine_threshold = metadata.get('cosine_threshold')
+
+            keyword_matches_data = data['matches']
+            keyword_matches_obj = {}
+
+            for keyword, matches in keyword_matches_data.items():
+                direct_matches = [
+                    MatchInstance(
+                        keyword=keyword,
+                        matched_text=m['matched_text'],
+                        context=m['context'],
+                        position=m.get('position')
+                    ) for m in matches.get('direct_matches', [])
+                ]
+                cosine_matches = [
+                    MatchInstance(
+                        keyword=keyword,
+                        matched_text=m['matched_text'],
+                        context=m['context'],
+                        position=m.get('position'),
+                        similarity_score=m.get('similarity_score')
+                    ) for m in matches.get('cosine_matches', [])
+                ]
+                keyword_matches_obj[keyword] = KeywordMatches(
+                    keyword=keyword,
+                    direct_matches=direct_matches,
+                    cosine_matches=cosine_matches
+                )
+
+            instance = cls(
+                keyword_doc=None,
+                earnings_call=None,
+                keyword_matches=keyword_matches_obj,
+                cosine_threshold=cosine_threshold
+            )
+
+            instance.total_keywords_searched = metadata.get('total_keywords_searched', len(keyword_matches_obj))
+
+            return instance
+        except KeyError as e:
+            print(f"Error: The JSON file is missing a required key: {e}")
+            raise
 
     def add_keyword_matches(self, keyword: str, direct_match_list: List[MatchInstance],
                             cosine_match_list: List[MatchInstance]):
@@ -175,7 +235,7 @@ class ExposureResults:
         }
             
 
-    def export(self, path: str = ""):
+    def export_to_json(self, path: str = ""):
         """
             Calling export will export the result dictionary to a JSON file at the path of choice.
         """
