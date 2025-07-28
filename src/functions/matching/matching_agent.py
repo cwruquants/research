@@ -4,12 +4,12 @@ import os, csv
 from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
 from typing import List
-from src.functions.decompose_text import document_to_word, document_to_sentence, document_to_bigram
+from src.functions.decompose_text import document_to_word, document_to_sentence, document_to_bigram, is_bigram
 from nltk.tokenize import RegexpTokenizer
 import torch
 
 class MatchingAgent:
-    def __init__(self, keywords_file: str | None = None, document: DocumentAttr | None = None, cos_threshold: float = 0.7):
+    def __init__(self, keywords_file: str | None = None, document: DocumentAttr | None = None, cos_threshold: float = 0.7, find_keyword_variations: bool = False):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
@@ -21,13 +21,15 @@ class MatchingAgent:
         self.document = document
         self.keywords_list = []
         self.cos_threshold = cos_threshold
+        self.find_keyword_variations = find_keyword_variations
         self.model = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
 
         if keywords_file:
             self.load_keywords(keywords_file)
-            # self.load_keyword_variations(self.keywords_list)
+            if self.find_keyword_variations:
+                self.load_keyword_variations(self.keywords_list)
 
     def _get_model(self):
         if self.model is None:
@@ -147,6 +149,7 @@ class MatchingAgent:
                 if keyword.lower() == word.lower():
                     context = self._get_context(i, sentences)
                     match_instance = MatchInstance(
+                        keyword=keyword,
                         matched_text=word,
                         context=context,
                         position=i
@@ -156,12 +159,13 @@ class MatchingAgent:
             results.add_direct_matches(keyword, direct_matches)
         return results
 
-    def cos_similarity(self, match_type: str = "word", threshold: float | None = None) -> ExposureResults:
+    def cos_similarity(self, match_type: str = "word", threshold: float | None = None, exclude_duplicates: bool = True) -> ExposureResults:
         """
         Calculate cosine similarity between keywords and document text.
         Args:
             match_type (str): Type of matching ("word", "bigram", or "hybrid")
             threshold (float, optional): Override default similarity threshold
+            exclude_duplicates (bool): Exclude duplicate matches (matches with same position)
         Returns:
             ExposureResults: Object containing cosine similarity match results
         """
@@ -206,13 +210,16 @@ class MatchingAgent:
                             
                             if hit['score'] > 0.99:
                                 match_instance = MatchInstance(
+                                    keyword=keyword,
                                     matched_text=original_word,
                                     context=context,
-                                    position=word_idx
+                                    position=word_idx,
+                                    similarity_score=1.0
                                 )
                                 direct_matches.append(match_instance)
                             else:
                                 match_instance = MatchInstance(
+                                    keyword=keyword,
                                     matched_text=original_word,
                                     context=context,
                                     similarity_score=float(hit['score']),
@@ -258,13 +265,16 @@ class MatchingAgent:
                             
                             if hit['score'] > 0.99:
                                 match_instance = MatchInstance(
+                                    keyword=keyword,
                                     matched_text=original_bigram,
                                     context=context,
-                                    position=bigram_idx
+                                    position=bigram_idx,
+                                    similarity_score=1.0
                                 )
                                 direct_matches.append(match_instance)
                             else:
                                 match_instance = MatchInstance(
+                                    keyword=keyword,
                                     matched_text=original_bigram,
                                     context=context,
                                     similarity_score=float(hit['score']),
@@ -323,17 +333,20 @@ class MatchingAgent:
                             
                             if hit['score'] > 0.99:
                                 match_instance = MatchInstance(
+                                    keyword=keyword,
                                     matched_text=original_text,
                                     context=context,
-                                    position=word_idx
+                                    position=word_idx,
+                                    similarity_score=1.0
                                 )
                                 direct_matches.append(match_instance)
                             else:
                                 match_instance = MatchInstance(
+                                    keyword=keyword,
                                     matched_text=original_text,
                                     context=context,
+                                    position=word_idx,
                                     similarity_score=float(hit['score']),
-                                    position=word_idx
                                 )
                                 cosine_matches.append(match_instance)
                 
@@ -349,5 +362,63 @@ class MatchingAgent:
                     results.add_cosine_matches(keyword, cosine_matches)
         else:
             raise ValueError(f"Unsupported match_type: {match_type}. Use 'word', 'bigram', or 'hybrid'.")
+
+        if exclude_duplicates:
+            # Separate word and bigram matches
+            word_matches = {}  # position -> match_instance
+            bigram_matches = {}  # position -> match_instance
+            
+            # Collect all matches and separate by type
+            for keyword, km in results.keyword_matches.items():
+                # TODO: for cosine bigram matches, check if the setnence is already in the direct matches first.
+                # Direct matches
+                for match in km.direct_matches:
+                    if match.position is not None:
+                        if is_bigram(match.matched_text):
+                            if match.position not in bigram_matches or 1.0 > bigram_matches[match.position].similarity_score:
+                                bigram_matches[match.position] = match
+                        else:
+                            if match.position not in word_matches or 1.0 > word_matches[match.position].similarity_score:
+                                word_matches[match.position] = match
+                
+                # Cosine matches
+                for match in km.cosine_matches:
+                    if match.position is not None and match.similarity_score is not None:
+                        score = match.similarity_score
+                        if is_bigram(match.matched_text):
+                            if match.position not in bigram_matches or score > bigram_matches[match.position].similarity_score:
+                                bigram_matches[match.position] = match
+                        else:
+                            if match.position not in word_matches or score > word_matches[match.position].similarity_score:
+                                word_matches[match.position] = match
+
+            # Filter out bigrams that are within ±1 of word matches
+            filtered_bigram_matches = {}
+            for bigram_pos, bigram_match in bigram_matches.items():
+                should_exclude = False
+                for word_pos in word_matches.keys():
+                    if abs(bigram_pos - word_pos) <= 1:
+                        should_exclude = True
+                        break
+                if not should_exclude:
+                    filtered_bigram_matches[bigram_pos] = bigram_match
+
+            # Combine word matches and filtered bigram matches
+            final_matches = {**word_matches, **filtered_bigram_matches}
+
+            filtered_results = ExposureResults( 
+                keyword_doc=self.keywords_list,
+                earnings_call=self.document,
+                cosine_threshold=threshold
+            )
+
+            for position, match in final_matches.items():
+                if match.similarity_score and match.similarity_score > 0.99:
+                    filtered_results.add_direct_matches(match.keyword, [match])
+                else:
+                    filtered_results.add_cosine_matches(match.keyword, [match])
+            
+            return filtered_results
+
 
         return results

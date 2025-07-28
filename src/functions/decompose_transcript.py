@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 import re
+from src.abstract_classes.attribute import DocumentAttr
 
 __all__ = [
     "extract_presentation_section",
@@ -12,8 +13,9 @@ def extract_presentation_section(xml_path):
     root = tree.getroot()
     
     # Extract the full transcript body
-    body = root.find(".//Body").text
-    lines = body.splitlines()
+    body_elem = root.find(".//Body")
+    body = body_elem.text if body_elem is not None else None
+    lines = body.splitlines() if body is not None else []
 
     # Flags and buffers
     in_presentation = False
@@ -36,8 +38,9 @@ def extract_qa_section(xml_path):
     root = tree.getroot()
 
     # Extract the full transcript body
-    body = root.find(".//Body").text
-    lines = body.splitlines()
+    body_elem = root.find(".//Body")
+    body = body_elem.text if body_elem is not None else None
+    lines = body.splitlines() if body is not None else []
 
     in_qa = False
     qa_lines = []
@@ -79,3 +82,26 @@ def clean_spoken_content(raw_text: str) -> str:
         i += 1
 
     return "\n".join(cleaned_lines).strip()
+
+
+def load_sample_document(file_path: str) -> DocumentAttr:
+    """
+    Load a sample XML earnings call transcript and extract its text content
+    using the decompose_transcript functions.
+    Returns a DocumentAttr object with the text.
+    """
+    try:
+        # Extract presentation and Q&A sections
+        presentation_text = extract_presentation_section(file_path)
+        qa_text = extract_qa_section(file_path)
+        
+        # Combine sections
+        full_text = presentation_text + "\n\n" + qa_text
+        
+        # Clean spoken content to remove speaker tags and separators
+        cleaned_text = clean_spoken_content(full_text)
+        
+        return DocumentAttr(document=cleaned_text)
+    except Exception as e:
+        print(f"Error loading document: {e}")
+        return DocumentAttr(document="")
