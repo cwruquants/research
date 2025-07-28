@@ -28,6 +28,12 @@ class KeywordMatches:
 
 class ExposureResults:
     def __init__(self, keyword_doc, earnings_call, keyword_matches: Dict[str, KeywordMatches] | None = None, cosine_threshold: float | None = None):
+        """
+            TODO: Add proper docstring here that lists all of the properties of the ExposureResults object.
+            # What variables does it have? What functionality does it have? etc.
+
+            Also, what order do the methods go in the class? We're switching between functions, properties, etc. 
+        """
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
         self.cosine_threshold = cosine_threshold
@@ -235,15 +241,19 @@ class ExposureResults:
         }
             
 
-    def export_to_json(self, path: str = ""):
+    def export_to_json(self, path: str = ""): # TODO: default should be the results directory
         """
             Calling export will export the result dictionary to a JSON file at the path of choice.
         """
-        if not path:
+        # TODO: This is only true if path is None right? But we default to an empty string. So will this ever be true unless the user explicitly sets it to None?
+        # TODO: add proper metadata. Each exposure_results object should be associated with a keyword set, and an earnings call document
+        if not path: 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_dir = "output"
             os.makedirs(output_dir, exist_ok=True)
             path = os.path.join(output_dir, f"exposure_results_{timestamp}.json")
 
         with open(path, "w", encoding="utf-8") as f:
+            # TODO: we want the timestamp to be a permanent thing for the file name. We don't want to give the user permission to change this.
+            ## So ideally, the export path should be always be a timestamp.
             json.dump(self.export_to_dict(), f, indent=4)
