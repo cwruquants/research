@@ -7,10 +7,11 @@ from typing import List, Dict
 @dataclass
 class MatchInstance:
     """Represents a single match occurrence"""
-    matched_text: str
-    context: str
-    similarity_score: float | None = None
-    position: int | None = None  # character position in document
+    keyword: str # The keyword that is being searched for
+    matched_text: str # The word that was found
+    context: str # Sentence where match was found
+    position: int | None = None # Word index in the text
+    similarity_score: float | None = None # Cosine similarity score (0-1)
 
 
 @dataclass
@@ -30,11 +31,79 @@ class ExposureResults:
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
         self.cosine_threshold = cosine_threshold
+        # Store the total number of keywords searched
+        self.total_keywords_searched = len(keyword_doc) if keyword_doc else 0
 
         if keyword_matches is None:
             self.keyword_matches: Dict[str, KeywordMatches] = {}
         else:
             self.keyword_matches = keyword_matches
+
+    @classmethod
+    def load_json(cls, file_path: str):
+        """
+        Loads an ExposureResults object from a JSON file created by the export method.
+
+        Args:
+            file_path (str): The path to the JSON file.
+
+        Returns:
+            ExposureResults: An instance of the ExposureResults class.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            print(f"Error: The file at {file_path} was not found.")
+            raise
+        except json.JSONDecodeError:
+            print(f"Error: Could not decode JSON from the file at {file_path}.")
+            raise
+
+        try:
+            metadata = data['metadata']
+            cosine_threshold = metadata.get('cosine_threshold')
+
+            keyword_matches_data = data['matches']
+            keyword_matches_obj = {}
+
+            for keyword, matches in keyword_matches_data.items():
+                direct_matches = [
+                    MatchInstance(
+                        keyword=keyword,
+                        matched_text=m['matched_text'],
+                        context=m['context'],
+                        position=m.get('position')
+                    ) for m in matches.get('direct_matches', [])
+                ]
+                cosine_matches = [
+                    MatchInstance(
+                        keyword=keyword,
+                        matched_text=m['matched_text'],
+                        context=m['context'],
+                        position=m.get('position'),
+                        similarity_score=m.get('similarity_score')
+                    ) for m in matches.get('cosine_matches', [])
+                ]
+                keyword_matches_obj[keyword] = KeywordMatches(
+                    keyword=keyword,
+                    direct_matches=direct_matches,
+                    cosine_matches=cosine_matches
+                )
+
+            instance = cls(
+                keyword_doc=None,
+                earnings_call=None,
+                keyword_matches=keyword_matches_obj,
+                cosine_threshold=cosine_threshold
+            )
+
+            instance.total_keywords_searched = metadata.get('total_keywords_searched', len(keyword_matches_obj))
+
+            return instance
+        except KeyError as e:
+            print(f"Error: The JSON file is missing a required key: {e}")
+            raise
 
     def add_keyword_matches(self, keyword: str, direct_match_list: List[MatchInstance],
                             cosine_match_list: List[MatchInstance]):
@@ -99,12 +168,12 @@ class ExposureResults:
             lines.append(f"Cosine Similarity Threshold: {self.cosine_threshold}")
 
         lines.append("\n" + "-" * 20 + " Summary " + "-" * 20)
-        lines.append(f"Total keywords searched: {len(self.keyword_matches)}")
+        lines.append(f"Total keywords searched: {self.total_keywords_searched}")
         lines.append(f"Total keywords with matches: {self.total_keywords_with_matches}")
         lines.append(f"Total direct matches: {self.total_direct_matches}")
         lines.append(f"Total cosine matches: {self.total_cosine_matches}")
         lines.append(f"Total unique matches: {len(self.get_unique_matches())}")
-        lines.append(f"Unique matches: {self.get_unique_matches()}")
+        lines.append(f"Unique matches: {self.get_unique_matches()}") #TODO: make this a parameter for whether or not we want to include unique matches
 
         if not self.keyword_matches:
             lines.append("\nNo matches found.")
@@ -139,7 +208,7 @@ class ExposureResults:
         return {
             'metadata': {
                 'cosine_threshold': self.cosine_threshold,
-                'total_keywords_searched': len(self.keyword_matches),
+                'total_keywords_searched': self.total_keywords_searched,
                 'total_keywords_with_matches': self.total_keywords_with_matches,
                 'total_direct_matches': self.total_direct_matches,
                 'total_cosine_matches': self.total_cosine_matches
@@ -166,7 +235,7 @@ class ExposureResults:
         }
             
 
-    def export(self, path: str = ""):
+    def export_to_json(self, path: str = ""):
         """
             Calling export will export the result dictionary to a JSON file at the path of choice.
         """
@@ -178,4 +247,3 @@ class ExposureResults:
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.export_to_dict(), f, indent=4)
-
