@@ -240,13 +240,15 @@ class ExposureResults:
         Export the result dictionary to a JSON file in the specified directory.
         The file name will always be in the format: exposure_results_YYYYMMDD_HHMMSS.json
         """
-        # TODO: This is only true if path is None right? But we default to an empty string. So will this ever be true unless the user explicitly sets it to None?
         # TODO: add proper metadata. Each exposure_results object should be associated with a keyword set, and an earnings call document
-        if not path: 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = "output"
-            os.makedirs(output_dir, exist_ok=True)
-            path = os.path.join(output_dir, f"exposure_results_{timestamp}.json")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create the output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Create the full file path
+        filename = f"exposure_results_{timestamp}.json"
+        file_path = os.path.join(output_dir, filename)
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.export_to_dict(), f, indent=4)
