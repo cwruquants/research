@@ -28,12 +28,6 @@ class KeywordMatches:
 
 class ExposureResults:
     def __init__(self, keyword_doc, earnings_call, keyword_matches: Dict[str, KeywordMatches] | None = None, cosine_threshold: float | None = None):
-        """
-            TODO: Add proper docstring here that lists all of the properties of the ExposureResults object.
-            # What variables does it have? What functionality does it have? etc.
-
-            Also, what order do the methods go in the class? We're switching between functions, properties, etc. 
-        """
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
         self.cosine_threshold = cosine_threshold
@@ -241,9 +235,10 @@ class ExposureResults:
         }
             
 
-    def export_to_json(self, path: str = ""): # TODO: default should be the results directory
+    def export_to_json(self, output_dir: str = "results"):
         """
-            Calling export will export the result dictionary to a JSON file at the path of choice.
+        Export the result dictionary to a JSON file in the specified directory.
+        The file name will always be in the format: exposure_results_YYYYMMDD_HHMMSS.json
         """
         # TODO: This is only true if path is None right? But we default to an empty string. So will this ever be true unless the user explicitly sets it to None?
         # TODO: add proper metadata. Each exposure_results object should be associated with a keyword set, and an earnings call document
@@ -253,7 +248,5 @@ class ExposureResults:
             os.makedirs(output_dir, exist_ok=True)
             path = os.path.join(output_dir, f"exposure_results_{timestamp}.json")
 
-        with open(path, "w", encoding="utf-8") as f:
-            # TODO: we want the timestamp to be a permanent thing for the file name. We don't want to give the user permission to change this.
-            ## So ideally, the export path should be always be a timestamp.
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.export_to_dict(), f, indent=4)
