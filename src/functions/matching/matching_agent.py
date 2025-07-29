@@ -132,6 +132,9 @@ class MatchingAgent:
         if not self.document or not self.document.text:
             raise ValueError("No document provided for matching")
 
+        import time
+        start_time = time.time()
+
         document_words = document_to_word(self.document)
         sentences = document_to_sentence(self.document)
         results = ExposureResults(
@@ -157,6 +160,9 @@ class MatchingAgent:
                     direct_matches.append(match_instance)
 
             results.add_direct_matches(keyword, direct_matches)
+        
+        end_time = time.time()
+        results.runtime_seconds = end_time - start_time
         return results
 
     def cos_similarity(self, match_type: str = "word", threshold: float | None = None, exclude_duplicates: bool = True) -> ExposureResults:
@@ -171,6 +177,9 @@ class MatchingAgent:
         """
         if not self.document or not self.document.text:
             raise ValueError("No document provided for matching")
+
+        import time
+        start_time = time.time()
 
         model = self._get_model()
         
@@ -418,7 +427,11 @@ class MatchingAgent:
                 else:
                     filtered_results.add_cosine_matches(match.keyword, [match])
             
+            end_time = time.time()
+            filtered_results.runtime_seconds = end_time - start_time
             return filtered_results
 
 
+        end_time = time.time()
+        results.runtime_seconds = end_time - start_time
         return results

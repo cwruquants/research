@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime
 from dataclasses import dataclass
 from typing import List, Dict
@@ -27,10 +28,11 @@ class KeywordMatches:
 
 
 class ExposureResults:
-    def __init__(self, keyword_doc, earnings_call, keyword_matches: Dict[str, KeywordMatches] | None = None, cosine_threshold: float | None = None):
+    def __init__(self, keyword_doc, earnings_call, keyword_matches: Dict[str, KeywordMatches] | None = None, cosine_threshold: float | None = None, runtime_seconds: float | None = None):
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
         self.cosine_threshold = cosine_threshold
+        self.runtime_seconds = runtime_seconds
         # Store the total number of keywords searched
         self.total_keywords_searched = len(keyword_doc) if keyword_doc else 0
 
@@ -63,6 +65,7 @@ class ExposureResults:
         try:
             metadata = data['metadata']
             cosine_threshold = metadata.get('cosine_threshold')
+            runtime_seconds = metadata.get('runtime_seconds')
 
             keyword_matches_data = data['matches']
             keyword_matches_obj = {}
@@ -95,7 +98,8 @@ class ExposureResults:
                 keyword_doc=None,
                 earnings_call=None,
                 keyword_matches=keyword_matches_obj,
-                cosine_threshold=cosine_threshold
+                cosine_threshold=cosine_threshold,
+                runtime_seconds=runtime_seconds
             )
 
             instance.total_keywords_searched = metadata.get('total_keywords_searched', len(keyword_matches_obj))
@@ -166,6 +170,8 @@ class ExposureResults:
         lines.append("=" * 25 + " Exposure Analysis Results " + "=" * 25)
         if self.cosine_threshold is not None:
             lines.append(f"Cosine Similarity Threshold: {self.cosine_threshold}")
+        if self.runtime_seconds is not None:
+            lines.append(f"Runtime: {self.runtime_seconds:.2f} seconds")
 
         lines.append("\n" + "-" * 20 + " Summary " + "-" * 20)
         lines.append(f"Total keywords searched: {self.total_keywords_searched}")
@@ -208,6 +214,7 @@ class ExposureResults:
         return {
             'metadata': {
                 'cosine_threshold': self.cosine_threshold,
+                'runtime_seconds': self.runtime_seconds,
                 'total_keywords_searched': self.total_keywords_searched,
                 'total_keywords_with_matches': self.total_keywords_with_matches,
                 'total_direct_matches': self.total_direct_matches,
