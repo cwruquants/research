@@ -5,13 +5,14 @@ from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
 from typing import List
 from src.functions.decompose_text import document_to_word, document_to_sentence, document_to_bigram, is_bigram
+from src.functions.decompose_transcript import load_sample_document
 from nltk.tokenize import RegexpTokenizer
 import torch
 import time
 from typing import List, Tuple, Dict, Any
 
 class MatchingAgent:
-    def __init__(self, keywords_file: str | None = None, document: DocumentAttr | None = None, cos_threshold: float = 0.7, find_keyword_variations: bool = False):
+    def __init__(self, keywords_path: str, document_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
@@ -20,18 +21,18 @@ class MatchingAgent:
             keywords_file (str, optional): Path to CSV file containing exposure words
             cos_threshold (float): Similarity threshold for matching (default: 0.7)
         """
-        self.document = document
-        self.keywords_list = []
+        self.load_keywords(keywords_path)
+        if find_keyword_variations:
+            self.load_keyword_variations(self.keywords_list)
+        self.document = load_sample_document(document_path)
+        self.keyword_doc_name = os.path.basename(keywords_path)
+        self.document_name = os.path.basename(document_path)
         self.cos_threshold = cos_threshold
         self.find_keyword_variations = find_keyword_variations
         self.model = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
 
-        if keywords_file:
-            self.load_keywords(keywords_file)
-            if self.find_keyword_variations:
-                self.load_keyword_variations(self.keywords_list)
 
     def _get_model(self):
         if self.model is None:
@@ -39,19 +40,19 @@ class MatchingAgent:
             self.model.to(self.device)
         return self.model
 
-    def load_keywords(self, keywords_file: str) -> None:
+    def load_keywords(self, keywords_path: str) -> None:
         """
         Load and process exposure words from a CSV file.
         Args:
             keywords_file (str): Path to the CSV file containing exposure words
         """
-        if not os.path.exists(keywords_file):
-            raise FileNotFoundError(f"Keywords file not found: {keywords_file}")
+        if not os.path.exists(keywords_path):
+            raise FileNotFoundError(f"Keywords file not found: {keywords_path}")
 
         self.keywords_list = []
 
         try:
-            with open(keywords_file, 'r', encoding='utf-8') as file:
+            with open(keywords_path, 'r', encoding='utf-8') as file:
                 csv_reader = csv.reader(file)
                 for row in csv_reader:
                     for cell in row:
@@ -139,9 +140,14 @@ class MatchingAgent:
 
         document_words = document_to_word(self.document)
         sentences = document_to_sentence(self.document)
+        total_sentences = len(sentences)
+
         results = ExposureResults(
             keyword_doc=self.keywords_list,
+            keyword_doc_name=self.keyword_doc_name,
             earnings_call=self.document,
+            earnings_call_name=self.document_name,
+            total_sentences_in_document=total_sentences,
             cosine_threshold=None
         )
 
@@ -240,16 +246,21 @@ class MatchingAgent:
         model = self._get_model()
         
         final_threshold = threshold if threshold is not None else self.cos_threshold
+        
+        sentences = document_to_sentence(self.document)
+        total_sentences = len(sentences)
 
         results = ExposureResults(
             keyword_doc=self.keywords_list,
+            keyword_doc_name=self.keyword_doc_name,
             earnings_call=self.document,
+            earnings_call_name=self.document_name,
+            total_sentences_in_document=total_sentences,
             cosine_threshold=final_threshold
         )
 
         corpus, num_words = self._prepare_corpus(match_type)
-        sentences = document_to_sentence(self.document)
-
+        
         if not corpus:
             return results
 
@@ -302,7 +313,10 @@ class MatchingAgent:
 
             filtered_results = ExposureResults( 
                 keyword_doc=self.keywords_list,
+                keyword_doc_name=self.keyword_doc_name,
                 earnings_call=self.document,
+                earnings_call_name=self.document_name,
+                total_sentences_in_document=total_sentences,
                 cosine_threshold=final_threshold
             )
 
