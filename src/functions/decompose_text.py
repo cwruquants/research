@@ -1,6 +1,12 @@
 from src.abstract_classes.attribute import SentenceAttr, ParagraphAttr, DocumentAttr
 import nltk
-nltk.download('punkt')
+
+# Only download punkt if it's not already available
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
 from nltk.tokenize import sent_tokenize, RegexpTokenizer
 from nltk.util import bigrams
 
