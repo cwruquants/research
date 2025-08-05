@@ -1,0 +1,52 @@
+{
+    "metadata": {
+        "file1_name": "results/exposure_results_20250804_195223.json",
+        "file2_name": "results/exposure_results_20250804_195226.json",
+        "sentences_with_matches_file1": 11,
+        "sentences_with_matches_file2": 31,
+        "union_sentences_with_matches": 40,
+        "common_sentences_with_matches": 2,
+        "pct_common_over_union": 5.0,
+        "pct_file1_sentences_overlapped": 18.1818,
+        "pct_file2_sentences_overlapped": 6.4516
+    },
+    "by_sentence": {
+        "In addition, however, we are forecasting a negative $0.24 impact from higher tax rate, increased share count, and impacts from foreign exchange.": {
+            "file1": {
+                "keywords": [
+                    "taxes"
+                ],
+                "matched_texts": [
+                    "tax"
+                ]
+            },
+            "file2": {
+                "keywords": [
+                    "impact"
+                ],
+                "matched_texts": [
+                    "impact",
+                    "impacts"
+                ]
+            }
+        },
+        "This improvement is despite a $0.24 negative impact a from higher tax rate, share count, and negative foreign exchange.": {
+            "file1": {
+                "keywords": [
+                    "taxes"
+                ],
+                "matched_texts": [
+                    "tax"
+                ]
+            },
+            "file2": {
+                "keywords": [
+                    "impact"
+                ],
+                "matched_texts": [
+                    "impact"
+                ]
+            }
+        }
+    }
+}

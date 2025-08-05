@@ -1,0 +1,152 @@
+{
+    "metadata": {
+        "keyword_doc_name": "politics.csv",
+        "earnings_call_name": "ex1.xml",
+        "cosine_threshold": 0.7,
+        "runtime_seconds": 9.082267045974731,
+        "total_keywords_searched": 5,
+        "total_keywords_with_matches": 3,
+        "total_direct_matches": 0,
+        "total_cosine_matches": 13,
+        "total_sentences_in_document": 597,
+        "total_sentences_with_match": 11,
+        "percent_sentences_with_match": 1.8425460636515913
+    },
+    "matches_by_sentence": {
+        "And I guess to that point, given the confidence, given the fact that you have been through a number of cycles, you personally, and the company obviously, and you've seen this before, kind of extending the anti-dilutive share repurchases could generate cash this year, why not be more aggressive as it relates to buybacks, given where the stock is trading relative to history on various valuation metrics?": {
+            "matches": [
+                {
+                    "keyword": "trade",
+                    "matched_text": "trading",
+                    "type": "cosine",
+                    "position": 4636,
+                    "score": 0.7527319192886353
+                }
+            ]
+        },
+        "Earnings before tax and FMS increased 1%.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 1217,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "Excluding pension costs and other items, the comparable tax rate was 32.1%, below the prior year's rate of 34.4%, reflecting a $2 million Canadian income tax settlement.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 610,
+                    "score": 0.9513092041015625
+                },
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 630,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "Segment earnings before tax as a percent of operating revenue were 5.9%, down 60 basis points from the prior year.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 1323,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "SCS earnings before tax were up 5% due to operating revenue growth, improved operating performance, and overhead cost improvements, partially offset by a large medical claim of $2.2 million in the quarter.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 1417,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "Finally, we're forecasting an EPS headwind due to a higher tax rate, resulting from increased earnings in higher tax jurisdictions.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 2859,
+                    "score": 0.9513092041015625
+                },
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 2867,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "Segment earnings before tax as a percent of operating revenue were 7.4% for the quarter, up 10 basis points from the prior year.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 1450,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "We project a comparable tax rate of 36.3%, up from last year's rate of 35.3%.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 2968,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "In addition, however, we are forecasting a negative $0.24 impact from higher tax rate, increased share count, and impacts from foreign exchange.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 3559,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "This improvement is despite a $0.24 negative impact a from higher tax rate, share count, and negative foreign exchange.": {
+            "matches": [
+                {
+                    "keyword": "taxes",
+                    "matched_text": "tax",
+                    "type": "cosine",
+                    "position": 4084,
+                    "score": 0.9513092041015625
+                }
+            ]
+        },
+        "Actual results may differ materially from these expectations due to changes in economic, business, competitive, market, political and regulatory factors.": {
+            "matches": [
+                {
+                    "keyword": "politics",
+                    "matched_text": "political",
+                    "type": "cosine",
+                    "position": 137,
+                    "score": 0.921734094619751
+                }
+            ]
+        }
+    }
+}

@@ -328,3 +328,4 @@ class ExposureResults:
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.export_to_dict(format=export_format), f, indent=4)
+            print(f"File saved to: ", file_path)
