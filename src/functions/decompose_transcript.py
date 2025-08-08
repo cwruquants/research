@@ -84,7 +84,7 @@ def clean_spoken_content(raw_text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 
-def load_sample_document(file_path: str) -> DocumentAttr:
+def load_document(file_path: str) -> DocumentAttr:
     """
     Load a sample XML earnings call transcript and extract its text content
     using the decompose_transcript functions.
