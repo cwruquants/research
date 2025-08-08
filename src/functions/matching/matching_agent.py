@@ -5,28 +5,31 @@ from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
 from typing import List
 from src.functions.decompose_text import document_to_word, document_to_sentence, document_to_bigram, is_bigram
-from src.functions.decompose_transcript import load_sample_document
+from src.functions.decompose_transcript import load_document
 from nltk.tokenize import RegexpTokenizer
+from tqdm import tqdm
 import torch
 import time
 from typing import List, Tuple, Dict, Any
 
 class MatchingAgent:
-    def __init__(self, keywords_path: str, document_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False):
+    def __init__(self, keywords_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
         Args:
-            document (DocumentAttr): Document containing the text to match against
             keywords_file (str, optional): Path to CSV file containing exposure words
             cos_threshold (float): Similarity threshold for matching (default: 0.7)
         """
-        self.load_keywords(keywords_path)
+        self.keywords_path = keywords_path
+        self._load_keywords(keywords_path)
         if find_keyword_variations:
-            self.load_keyword_variations(self.keywords_list)
-        self.document = load_sample_document(document_path)
+            self._load_keyword_variations(self.keywords_list)
+        # Document is provided later to processing methods and may be overwritten per call
+        self.document_path = None
+        self.document = None
         self.keyword_doc_name = os.path.basename(keywords_path)
-        self.document_name = os.path.basename(document_path)
+        self.document_name = None
         self.cos_threshold = cos_threshold
         self.find_keyword_variations = find_keyword_variations
         self.model = None
@@ -40,7 +43,7 @@ class MatchingAgent:
             self.model.to(self.device)
         return self.model
 
-    def load_keywords(self, keywords_path: str) -> None:
+    def _load_keywords(self, keywords_path: str) -> None:
         """
         Load and process exposure words from a CSV file.
         Args:
@@ -67,7 +70,7 @@ class MatchingAgent:
         self.keywords_list = [keyword for keyword in self.keywords_list
                               if keyword.lower() not in seen and not seen.add(keyword.lower())]
 
-    def load_keyword_variations(self, keywords: list) -> None:
+    def _load_keyword_variations(self, keywords: list) -> None:
         """
         Loads keyword variations for all keywords in a list.
 
@@ -126,7 +129,7 @@ class MatchingAgent:
         
         return " ".join(context_sentences).strip()
 
-    def direct_match(self) -> ExposureResults:
+    def _direct_match(self, show_progress: bool = False) -> ExposureResults:
         """
         Find exact matches between keywords and document text.
         Returns:
@@ -229,7 +232,7 @@ class MatchingAgent:
         
         return direct_matches, cosine_matches
 
-    def cos_similarity(self, match_type: str = "word", threshold: float | None = None, exclude_duplicates: bool = True) -> ExposureResults:
+    def _cos_similarity(self, match_type: str = "word", threshold: float | None = None, exclude_duplicates: bool = True, show_progress: bool = False) -> ExposureResults:
         """
         Calculate cosine similarity between keywords and document text.
         Args:
@@ -331,3 +334,137 @@ class MatchingAgent:
 
         results.runtime_seconds = time.time() - start_time
         return results
+
+    def single_processing(
+        self,
+        document_path: str,
+        matching_function: str = "cosine",
+        match_type: str = "word",
+        threshold: float | None = None,
+        exclude_duplicates: bool = True,
+        print_results: bool = False,
+        save_json: bool = False,
+        export_format: str = "word",
+        output_dir: str = "results",
+        show_progress: bool = False,
+    ) -> ExposureResults:
+        """
+        Process a single earnings call (the agent's current document) using either
+        direct matching or cosine similarity, with options to print and/or save results.
+
+        Args:
+            document_path (str): Path to the earnings call XML to process.
+            matching_function (str): "cosine" for cosine similarity or "direct" for exact matching.
+            match_type (str): "word", "bigram", or "hybrid" (used only for cosine matching).
+            threshold (float | None): Cosine threshold override (used only for cosine matching).
+            exclude_duplicates (bool): Exclude duplicates for cosine matching.
+            print_results (bool): Print results to stdout.
+            save_json (bool): Save JSON to the results directory.
+            export_format (str): "word" or "sentence" JSON structure.
+            output_dir (str): Directory to save JSON into.
+
+        Returns:
+            ExposureResults
+        """
+        # Load the document for this call; this overwrites any prior document state
+        self.document_path = document_path
+        self.document = load_document(document_path)
+        self.document_name = os.path.basename(document_path)
+
+        if matching_function == "cosine":
+            results = self._cos_similarity(match_type=match_type, threshold=threshold, exclude_duplicates=exclude_duplicates, show_progress=show_progress)
+        elif matching_function == "direct":
+            results = self._direct_match(show_progress=show_progress)
+        else:
+            raise ValueError(f"Unsupported matching_function: {matching_function}. Use 'direct' or 'cosine'.")
+
+        if print_results:
+            try:
+                tqdm.write(str(results))
+            except Exception:
+                print(results)
+
+        if save_json:
+            # Name file with document base name for easier identification
+            base_name = os.path.splitext(self.document_name)[0]
+            filename = f"{base_name}.json"
+            results.export_to_json(output_dir=output_dir, export_format=export_format, filename=filename)
+
+        return results
+
+    def batch_processing(
+        self,
+        folder_path: str,
+        matching_function: str = "cosine",
+        match_type: str = "word",
+        threshold: float | None = None,
+        exclude_duplicates: bool = True,
+        print_results: bool = False,
+        save_json: bool = False,
+        export_format: str = "word",
+        output_root_dir: str = "results",
+        show_progress: bool = False,
+    ) -> dict[str, ExposureResults]:
+        """
+        Process a folder of earnings calls with the same agent configuration.
+
+        Args:
+            folder_path (str): Path to a folder containing earnings call XML files.
+            matching_function (str): "cosine" for cosine similarity or "direct" for exact matching.
+            match_type (str): "word", "bigram", or "hybrid" (used only for cosine matching).
+            threshold (float | None): Cosine threshold override (used only for cosine matching).
+            exclude_duplicates (bool): Exclude duplicates for cosine matching.
+            print_results (bool): Print results for every document.
+            save_json (bool): Save per-document JSONs into a timestamped subfolder of output_root_dir.
+            export_format (str): "word" or "sentence" JSON structure.
+            output_root_dir (str): Root directory under which a timestamped batch folder is created.
+
+        Returns:
+            dict[str, ExposureResults]: Mapping of document filename to results.
+        """
+        if not os.path.isdir(folder_path):
+            raise NotADirectoryError(f"Provided folder_path is not a directory: {folder_path}")
+
+        # Prepare batch output directory if saving
+        batch_output_dir = None
+        if save_json:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            batch_output_dir = os.path.join(output_root_dir, f"exposure_run_{timestamp}")
+            os.makedirs(batch_output_dir, exist_ok=True)
+
+        results_by_file: dict[str, ExposureResults] = {}
+
+        # List XML files in the directory (non-recursive)
+        entries = [e for e in sorted(os.listdir(folder_path)) if e.lower().endswith(".xml") and os.path.isfile(os.path.join(folder_path, e))]
+
+        # Progress bar for files
+        for entry in tqdm(entries, desc="Batch files", unit="file"):
+            file_path = os.path.join(folder_path, entry)
+
+            # Load/overwrite current document context for each file
+            self.document_path = file_path
+            self.document = load_document(file_path)
+            self.document_name = os.path.basename(file_path)
+
+            if matching_function == "cosine":
+                # Disable per-keyword progress in batch to avoid nested bars
+                res = self._cos_similarity(match_type=match_type, threshold=threshold, exclude_duplicates=exclude_duplicates, show_progress=show_progress)
+            elif matching_function == "direct":
+                res = self._direct_match(show_progress=show_progress)
+            else:
+                raise ValueError(f"Unsupported matching_function: {matching_function}. Use 'direct' or 'cosine'.")
+
+            if print_results:
+                try:
+                    tqdm.write(str(res))
+                except Exception:
+                    print(res)
+
+            if save_json and batch_output_dir:
+                base_name = os.path.splitext(self.document_name)[0]
+                filename = f"{base_name}.json"
+                res.export_to_json(output_dir=batch_output_dir, export_format=export_format, filename=filename)
+
+            results_by_file[self.document_name] = res
+
+        return results_by_file

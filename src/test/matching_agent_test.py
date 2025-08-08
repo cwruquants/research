@@ -1,37 +1,23 @@
 from src.functions.matching.matching_agent import MatchingAgent
-from src.abstract_classes.attribute import DocumentAttr
-from src.functions.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 
-def test_matching_agent():
+def test_matching_agent_batch_processing():
     agent = MatchingAgent(
-        keywords_file="src/functions/matching/test_keywords.csv",
-        document=load_sample_document("data/earnings_calls/ex1.xml")
+        keywords_path="src/test/test_keywords.csv",
+        cos_threshold=0.7,
     )
 
-    matches = agent.cos_similarity(match_type="word")
-    print(matches)
+    results_by_file = agent.batch_processing(
+        folder_path="data/earnings_calls/2016",
+        matching_function="cosine",  # use "direct" for exact matching
+        match_type="word",           # used only when matching_function="cosine"
+        print_results=False,        # set True to print each result
+        save_json=True,             # saves under results/exposure_run_<timestamp>/
+        export_format="word",       # "word" or "sentence" export format
+        output_root_dir="results",  # output directory
+    )
 
-def load_sample_document(file_path: str) -> DocumentAttr:
-    """
-    Load a sample XML earnings call transcript and extract its text content
-    using the decompose_transcript functions.
-    Returns a DocumentAttr object with the text.
-    """
-    try:
-        # Extract presentation and Q&A sections
-        presentation_text = extract_presentation_section(file_path)
-        qa_text = extract_qa_section(file_path)
-        
-        # Combine sections
-        full_text = presentation_text + "\n\n" + qa_text
-        
-        # Clean spoken content to remove speaker tags and separators
-        cleaned_text = clean_spoken_content(full_text)
-        
-        return DocumentAttr(document=cleaned_text)
-    except Exception as e:
-        print(f"Error loading document: {e}")
-        return DocumentAttr(document="")
+    print(f"Processed {len(results_by_file)} files from data/earnings_calls/2016")
+
 
 if __name__ == "__main__":
-    test_matching_agent()
+    test_matching_agent_batch_processing()
