@@ -315,17 +315,22 @@ class ExposureResults:
             raise ValueError("Invalid format specified. Choose 'word' or 'sentence'.")
             
 
-    def export_to_json(self, output_dir: str = "results", export_format: str = "word"):
+    def export_to_json(self, output_dir: str = "results", export_format: str = "word", filename: str | None = None):
         """
         Export the result dictionary to a JSON file in the specified directory.
+
+        Args:
+            output_dir (str): Directory where the JSON will be saved.
+            export_format (str): "word" or "sentence" format for JSON content.
+            filename (str | None): Optional filename to use. If not provided, a timestamped name is generated.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         os.makedirs(output_dir, exist_ok=True)
-        
-        filename = f"exposure_results_{timestamp}.json"
-        file_path = os.path.join(output_dir, filename)
+
+        resolved_filename = filename if filename else f"exposure_results_{timestamp}.json"
+        file_path = os.path.join(output_dir, resolved_filename)
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.export_to_dict(format=export_format), f, indent=4)
-            print(f"File saved to: ", file_path)
+            # print(f"File saved to: ", file_path)
