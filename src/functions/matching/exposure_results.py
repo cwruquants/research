@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime
 from dataclasses import dataclass
 from typing import List, Dict
@@ -27,16 +28,16 @@ class KeywordMatches:
 
 
 class ExposureResults:
-    def __init__(self, keyword_doc, earnings_call, keyword_matches: Dict[str, KeywordMatches] | None = None, cosine_threshold: float | None = None):
-        """
-            TODO: Add proper docstring here that lists all of the properties of the ExposureResults object.
-            # What variables does it have? What functionality does it have? etc.
-
-            Also, what order do the methods go in the class? We're switching between functions, properties, etc. 
-        """
+    def __init__(self, keyword_doc, earnings_call, keyword_doc_name: str | None = None, earnings_call_name: str | None = None,
+                 total_sentences_in_document: int | None = None, keyword_matches: Dict[str, KeywordMatches] | None = None,
+                 cosine_threshold: float | None = None, runtime_seconds: float | None = None):
         self.keyword_doc = keyword_doc
         self.earnings_call = earnings_call
+        self.keyword_doc_name = keyword_doc_name
+        self.earnings_call_name = earnings_call_name
+        self.total_sentences_in_document = total_sentences_in_document
         self.cosine_threshold = cosine_threshold
+        self.runtime_seconds = runtime_seconds
         # Store the total number of keywords searched
         self.total_keywords_searched = len(keyword_doc) if keyword_doc else 0
 
@@ -68,9 +69,14 @@ class ExposureResults:
 
         try:
             metadata = data['metadata']
+            keyword_doc_name = metadata.get('keyword_doc_name')
+            earnings_call_name = metadata.get('earnings_call_name')
             cosine_threshold = metadata.get('cosine_threshold')
+            runtime_seconds = metadata.get('runtime_seconds')
+            total_sentences_in_document = metadata.get('total_sentences_in_document')
 
-            keyword_matches_data = data['matches']
+            # Assumes 'matches' key exists for word-format JSON
+            keyword_matches_data = data.get('matches', {})
             keyword_matches_obj = {}
 
             for keyword, matches in keyword_matches_data.items():
@@ -100,8 +106,12 @@ class ExposureResults:
             instance = cls(
                 keyword_doc=None,
                 earnings_call=None,
+                keyword_doc_name=keyword_doc_name,
+                earnings_call_name=earnings_call_name,
+                total_sentences_in_document=total_sentences_in_document,
                 keyword_matches=keyword_matches_obj,
-                cosine_threshold=cosine_threshold
+                cosine_threshold=cosine_threshold,
+                runtime_seconds=runtime_seconds
             )
 
             instance.total_keywords_searched = metadata.get('total_keywords_searched', len(keyword_matches_obj))
@@ -144,19 +154,29 @@ class ExposureResults:
     def total_keywords_with_matches(self) -> int:
         return sum(1 for km in self.keyword_matches.values() if km.total_matches > 0)
 
+    @property
+    def total_sentences_with_match(self) -> int:
+        """Calculates the number of unique sentences that contain a match."""
+        unique_sentences = set()
+        for km in self.keyword_matches.values():
+            for match in km.direct_matches + km.cosine_matches:
+                if match.context:
+                    unique_sentences.add(match.context)
+        return len(unique_sentences)
+
+    @property
+    def percent_sentences_with_match(self) -> float:
+        """Calculates the percentage of sentences that contain a match."""
+        if not self.total_sentences_in_document or self.total_sentences_in_document == 0:
+            return 0.0
+        return (self.total_sentences_with_match / self.total_sentences_in_document) * 100
+
     def get_matches_by_keyword(self, keyword: str) -> KeywordMatches | None:
         return self.keyword_matches.get(keyword)
 
     def get_unique_matches(self) -> List[str]:
         """
         Get a list of unique words that were matched.
-
-        This method aggregates all matched text from both direct and cosine
-        similarity matches, and returns a list of unique, case-insensitive words.
-        If "risk" and "Risk" are matched, they are considered the same.
-
-        Returns:
-            List[str]: A list of unique matched words.
         """
         unique_matches = set()
         for km in self.keyword_matches.values():
@@ -170,16 +190,24 @@ class ExposureResults:
     def __str__(self) -> str:
         lines = []
         lines.append("=" * 25 + " Exposure Analysis Results " + "=" * 25)
+        if self.keyword_doc_name:
+            lines.append(f"Keyword Document: {self.keyword_doc_name}")
+        if self.earnings_call_name:
+            lines.append(f"Earnings Call: {self.earnings_call_name}")
         if self.cosine_threshold is not None:
             lines.append(f"Cosine Similarity Threshold: {self.cosine_threshold}")
+        if self.runtime_seconds is not None:
+            lines.append(f"Runtime: {self.runtime_seconds:.2f} seconds")
 
         lines.append("\n" + "-" * 20 + " Summary " + "-" * 20)
         lines.append(f"Total keywords searched: {self.total_keywords_searched}")
         lines.append(f"Total keywords with matches: {self.total_keywords_with_matches}")
         lines.append(f"Total direct matches: {self.total_direct_matches}")
         lines.append(f"Total cosine matches: {self.total_cosine_matches}")
+        if self.total_sentences_in_document:
+             lines.append(f"Sentences with matches: {self.total_sentences_with_match} / {self.total_sentences_in_document} ({self.percent_sentences_with_match:.2f}%)")
         lines.append(f"Total unique matches: {len(self.get_unique_matches())}")
-        lines.append(f"Unique matches: {self.get_unique_matches()}") #TODO: make this a parameter for whether or not we want to include unique matches
+        lines.append(f"Unique matches: {self.get_unique_matches()}") 
 
         if not self.keyword_matches:
             lines.append("\nNo matches found.")
@@ -209,51 +237,100 @@ class ExposureResults:
         
         return "\n".join(lines)
 
-    def export_to_dict(self) -> Dict:
-        """Convert to dictionary format when needed for serialization"""
-        return {
-            'metadata': {
-                'cosine_threshold': self.cosine_threshold,
-                'total_keywords_searched': self.total_keywords_searched,
-                'total_keywords_with_matches': self.total_keywords_with_matches,
-                'total_direct_matches': self.total_direct_matches,
-                'total_cosine_matches': self.total_cosine_matches
-            },
-            'matches': {
-                keyword: {
-                    'direct_matches': [
-                        {
-                            'matched_text': m.matched_text,
-                            'context': m.context,
-                            'position': m.position
-                        } for m in km.direct_matches
-                    ],
-                    'cosine_matches': [
-                        {
-                            'matched_text': m.matched_text,
-                            'context': m.context,
-                            'similarity_score': m.similarity_score,
-                            'position': m.position
-                        } for m in km.cosine_matches
-                    ]
-                } for keyword, km in self.keyword_matches.items()
-            }
+    def export_to_dict(self, format: str = "word") -> Dict:
+        """
+        Convert to dictionary format for serialization.
+        """
+        metadata = {
+            'keyword_doc_name': self.keyword_doc_name,
+            'earnings_call_name': self.earnings_call_name,
+            'cosine_threshold': self.cosine_threshold,
+            'runtime_seconds': self.runtime_seconds,
+            'total_keywords_searched': self.total_keywords_searched,
+            'total_keywords_with_matches': self.total_keywords_with_matches,
+            'total_direct_matches': self.total_direct_matches,
+            'total_cosine_matches': self.total_cosine_matches,
+            'total_sentences_in_document': self.total_sentences_in_document,
+            'total_sentences_with_match': self.total_sentences_with_match,
+            'percent_sentences_with_match': self.percent_sentences_with_match
         }
+
+        if format == "word":
+            return {
+                'metadata': metadata,
+                'matches': {
+                    keyword: {
+                        'direct_matches': [
+                            {
+                                'matched_text': m.matched_text,
+                                'context': m.context,
+                                'position': m.position
+                            } for m in km.direct_matches
+                        ],
+                        'cosine_matches': [
+                            {
+                                'matched_text': m.matched_text,
+                                'context': m.context,
+                                'similarity_score': m.similarity_score,
+                                'position': m.position
+                            } for m in km.cosine_matches
+                        ]
+                    } for keyword, km in self.keyword_matches.items()
+                }
+            }
+        
+        elif format == "sentence":
+            matches_by_sentence = {}
+            for km in self.keyword_matches.values():
+                # Process direct matches
+                for match in km.direct_matches:
+                    if not match.context: continue
+                    sentence_entry = matches_by_sentence.setdefault(match.context, {'matches': []})
+                    sentence_entry['matches'].append({
+                        'keyword': match.keyword,
+                        'matched_text': match.matched_text,
+                        'type': 'direct',
+                        'position': match.position,
+                        'score': 1.0
+                    })
+                
+                # Process cosine matches
+                for match in km.cosine_matches:
+                    if not match.context: continue
+                    sentence_entry = matches_by_sentence.setdefault(match.context, {'matches': []})
+                    sentence_entry['matches'].append({
+                        'keyword': match.keyword,
+                        'matched_text': match.matched_text,
+                        'type': 'cosine',
+                        'position': match.position,
+                        'score': match.similarity_score
+                    })
+            
+            return {
+                'metadata': metadata,
+                'matches_by_sentence': matches_by_sentence
+            }
+
+        else:
+            raise ValueError("Invalid format specified. Choose 'word' or 'sentence'.")
             
 
-    def export_to_json(self, path: str = ""): # TODO: default should be the results directory
+    def export_to_json(self, output_dir: str = "results", export_format: str = "word", filename: str | None = None):
         """
-            Calling export will export the result dictionary to a JSON file at the path of choice.
-        """
-        # TODO: This is only true if path is None right? But we default to an empty string. So will this ever be true unless the user explicitly sets it to None?
-        # TODO: add proper metadata. Each exposure_results object should be associated with a keyword set, and an earnings call document
-        if not path: 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = "output"
-            os.makedirs(output_dir, exist_ok=True)
-            path = os.path.join(output_dir, f"exposure_results_{timestamp}.json")
+        Export the result dictionary to a JSON file in the specified directory.
 
-        with open(path, "w", encoding="utf-8") as f:
-            # TODO: we want the timestamp to be a permanent thing for the file name. We don't want to give the user permission to change this.
-            ## So ideally, the export path should be always be a timestamp.
-            json.dump(self.export_to_dict(), f, indent=4)
+        Args:
+            output_dir (str): Directory where the JSON will be saved.
+            export_format (str): "word" or "sentence" format for JSON content.
+            filename (str | None): Optional filename to use. If not provided, a timestamped name is generated.
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        resolved_filename = filename if filename else f"exposure_results_{timestamp}.json"
+        file_path = os.path.join(output_dir, resolved_filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(self.export_to_dict(format=export_format), f, indent=4)
+            # print(f"File saved to: ", file_path)
