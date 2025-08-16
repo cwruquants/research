@@ -1,0 +1,365 @@
+{
+    "metadata": {
+        "keyword_doc_name": "risk.csv",
+        "earnings_call_name": "ex1.xml",
+        "cosine_threshold": 0.7,
+        "runtime_seconds": 9.274179220199585,
+        "total_keywords_searched": 4,
+        "total_keywords_with_matches": 2,
+        "total_direct_matches": 19,
+        "total_cosine_matches": 13,
+        "total_sentences_in_document": 597,
+        "total_sentences_with_match": 31,
+        "percent_sentences_with_match": 5.192629815745393
+    },
+    "matches_by_sentence": {
+        "There's a lot more uncertainty.": {
+            "matches": [
+                {
+                    "keyword": "uncertainty",
+                    "matched_text": "uncertainty",
+                    "type": "direct",
+                    "position": 5948,
+                    "score": 1.0
+                }
+            ]
+        },
+        "And just given the uncertainty, could you talk about the month-to-month trends that you saw in rental?": {
+            "matches": [
+                {
+                    "keyword": "uncertainty",
+                    "matched_text": "uncertainty",
+                    "type": "direct",
+                    "position": 6696,
+                    "score": 1.0
+                }
+            ]
+        },
+        "These statements are based on Management's current expectations and are subject to uncertainty and changes in circumstances.": {
+            "matches": [
+                {
+                    "keyword": "uncertainty",
+                    "matched_text": "uncertainty",
+                    "type": "direct",
+                    "position": 116,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Although commercial rental delivered solid growth, due to a high level of uncertainty regarding the macro environment and somewhat less robust demand conditions with rental tractors, we made a decision to downsize our fleet during the quarter in order to more conservatively position our fleet for 2016.": {
+            "matches": [
+                {
+                    "keyword": "uncertainty",
+                    "matched_text": "uncertainty",
+                    "type": "direct",
+                    "position": 1093,
+                    "score": 1.0
+                }
+            ]
+        },
+        "As I mentioned earlier, we took actions during the fourth quarter to more conservatively position our fleet in light of a softer and uncertain market condition.": {
+            "matches": [
+                {
+                    "keyword": "uncertainty",
+                    "matched_text": "uncertain",
+                    "type": "cosine",
+                    "position": 2534,
+                    "score": 0.8309969305992126
+                }
+            ]
+        },
+        "As you know, the economic and freight environments are highly uncertain at the moment, which makes forecasting challenging.": {
+            "matches": [
+                {
+                    "keyword": "uncertainty",
+                    "matched_text": "uncertain",
+                    "type": "cosine",
+                    "position": 2207,
+                    "score": 0.8309969305992126
+                }
+            ]
+        },
+        "SCS operating revenue grew 7%, including the impact of foreign exchange.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 1384,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Despite this modest increase in share -- despite this, a modest increase in share count will negatively impact earnings since repurchases have been paused since early 2015.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 2838,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Excluding the impact of foreign exchange, FMS operating revenue was up by 9%.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 746,
+                    "score": 1.0
+                }
+            ]
+        },
+        "FX is expected to negatively impact revenue growth by 2 percentage points.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3085,
+                    "score": 1.0
+                }
+            ]
+        },
+        "The lease fleet grew organically by 6,800 vehicles year-over-year, excluding the impact from planned reductions of UK trailers.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 799,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Weaker market conditions in used vehicle sales are expected to impact earnings by $0.62.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3246,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Higher compensation expenses is expected to impact earnings by $0.25 per share this year.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3331,
+                    "score": 1.0
+                }
+            ]
+        },
+        "The net impact of the operational items I've mentioned so far will result in an EPS of $6.54.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3528,
+                    "score": 1.0
+                }
+            ]
+        },
+        "In addition, however, we are forecasting a negative $0.24 impact from higher tax rate, increased share count, and impacts from foreign exchange.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3556,
+                    "score": 1.0
+                },
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacts",
+                    "type": "cosine",
+                    "position": 3565,
+                    "score": 0.9164186716079712
+                }
+            ]
+        },
+        "Excluding the impact of foreign exchange, operating revenue grew by 9%.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 450,
+                    "score": 1.0
+                }
+            ]
+        },
+        "We've talked in recent years about the impact that higher growth capital spending has on the business.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3856,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Page 24 highlights the amount of growth capital spending we've had by year, driven from both fleet growth and higher vehicle investment costs per unit, and its impact on cash flow.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 3894,
+                    "score": 1.0
+                }
+            ]
+        },
+        "This improvement is despite a $0.24 negative impact a from higher tax rate, share count, and negative foreign exchange.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 4080,
+                    "score": 1.0
+                }
+            ]
+        },
+        "Our approach to the forecast was to assume a significant negative impact in used vehicle sales and a weaker commercial rental environment, as well as some headwinds in new lease sales.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 2226,
+                    "score": 1.0
+                }
+            ]
+        },
+        "We're assuming foreign exchange rates remain stable at their current levels, which will result in a negative year-over-year impact to both revenue and earnings.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impact",
+                    "type": "direct",
+                    "position": 2347,
+                    "score": 1.0
+                }
+            ]
+        },
+        "The restructuring costs during the quarter are related to workforce reductions impacting approximately 250 employees, and to a lesser extent, the pending divestiture of a small logistics operation in Canada.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacting",
+                    "type": "cosine",
+                    "position": 386,
+                    "score": 0.93525230884552
+                }
+            ]
+        },
+        "In supply chain, we expect revenue growth driven by new sales, partially offset by foreign exchange impacts.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacts",
+                    "type": "cosine",
+                    "position": 2768,
+                    "score": 0.9164186716079712
+                }
+            ]
+        },
+        "Comparable results were below our forecast range of $1.72 to $1.82, but were impacted by $0.06 of unusual insurance-related items.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 326,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "The bankruptcy charge negatively impacted EBT margins by approximately 80 basis points.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 1345,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "The large medical claim negatively impacted EBT percent by nearly 70 basis points.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 1476,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "Total revenue increased by 1% and was impacted by lower fuel costs passed through to customers, and foreign exchange.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 466,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "So first, make sure that you're working off the dry revenue number, because the total revenue number is impacted by fuel changes and the price of fuel is down 30%.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 7939,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "Free cash flow is favorably impacted by reduced capital expenditures, demonstrating the counter-cyclical nature of our business model.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 3978,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "So that's what impacted fourth quarter, if you look at the sales in the prior fleet conversions we saw during the quarter.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 8004,
+                    "score": 0.7448868155479431
+                }
+            ]
+        },
+        "Used vehicle results were negatively impacted primarily by lower pricing on tractors.": {
+            "matches": [
+                {
+                    "keyword": "impact",
+                    "matched_text": "impacted",
+                    "type": "cosine",
+                    "position": 1147,
+                    "score": 0.7448868155479431
+                }
+            ]
+        }
+    }
+}
