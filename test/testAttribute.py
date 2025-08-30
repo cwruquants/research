@@ -1,8 +1,8 @@
 from typing import Dict, Any
-from ..functions.decompose_text import par_to_sentence, sentence_to_word, sentence_to_bigram
+from ..src.document.decompose_text import par_to_sentence, sentence_to_word, sentence_to_bigram
 
 
-from ..abstract_classes.attribute import Attr, WordAttr, SentenceAttr, BigramAttr, ParagraphAttr, DocumentAttr
+from ..src.document.abstract_classes.attribute import Attr, WordAttr, SentenceAttr, BigramAttr, ParagraphAttr, DocumentAttr
 
 def test_attr_basic():
     print("Testing Attr...")
