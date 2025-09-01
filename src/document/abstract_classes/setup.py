@@ -1,13 +1,12 @@
-from typing import List, Dict, Any, Optional
-from transformers import pipeline, Pipeline
-from attribute import Attr
+from typing import List, Dict, Any, Optional 
+from transformers import pipeline
 import numpy as np
 import pandas as pd
 import re
-from attribute import DocumentAttr
-
-from transformers import pipeline
+import json
 import pysentiment2 as ps
+from attribute import Attr, ParagraphAttr, SentenceAttr, DocumentAttr
+
 
 class Setup:
     def __init__(
@@ -30,34 +29,25 @@ class Setup:
         self.ml_words_negative = self.ExceltoList(file_path, sheet_name_negative)
 
     def fit(self, attr_obj: Attr):
-        """
-        Inspect attr_obj for .word or .text, then compute and set:
-        - attr_obj.sentiment   (float)
-        - attr_obj.LM          (int)
-        - attr_obj.HIV4        (int)
-        - attr_obj.ML          (int)
-        Returns the mutated attr_obj.
-        """
-        text = getattr(attr_obj, "text", None) # grab text
+        text = getattr(attr_obj, "text", None)
         if text is None:
             raise ValueError("Attr object does not have a text")
 
-        hf_res = self.transformer(text)[0] # get sentiment
+        # Only apply HuggingFace model to short text (SentenceAttr)
+        if isinstance(attr_obj, SentenceAttr):
+            hf_res = self.transformer(text[:512])[0]
+            if hf_res["label"] == "neutral":
+                score = 0.0
+            else:
+                score = hf_res["score"] if hf_res["label"].lower() == "positive" else -hf_res["score"]
+            attr_obj.sentiment = float(score)
 
-        if hf_res["label"] == "neutral": # 0 if neutral
-            score = 0.0
-        else: 
-            score = hf_res["score"] if hf_res["label"].lower() == "positive" else -hf_res["score"]
-
-
-        attr_obj.sentiment = np.float32(score)
-
-        # lm sentiment
+        # LM sentiment
         lm_tokens = self.lm.tokenize(text)
         lm_scores = self.lm.get_score(lm_tokens)
         attr_obj.LM = lm_scores["Positive"] - lm_scores["Negative"]
 
-        # hiv4 sentiment
+        # HIV4 sentiment
         hiv4_tokens = self.hiv4.tokenize(text)
         hiv4_scores = self.hiv4.get_score(hiv4_tokens)
         attr_obj.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
@@ -65,32 +55,86 @@ class Setup:
         # ML sentiment
         ml_tokens = re.findall(r'\b\w+\b', text.lower())
         attr_obj.ML = 0
-    
         for i in range(len(ml_tokens) - 1):
             if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
                 attr_obj.ML -= 1
             if ml_tokens[i] in self.ml_words_positive and ml_tokens[i + 1] in self.ml_words_positive:
                 attr_obj.ML += 1
-        # Iterate through the words and count positive unigrams
-        
 
         return attr_obj
-    
+
+    def fit_all(self, attr_obj: Attr):
+        if hasattr(attr_obj, "paragraphs") and attr_obj.paragraphs:
+            for paragraph in attr_obj.paragraphs:
+                self.fit_all(paragraph)
+
+            # Average sentiment
+            sentiments = [p.sentiment for p in attr_obj.paragraphs if p.sentiment is not None]
+            attr_obj.sentiment = float(np.mean(sentiments)) if sentiments else 0.0
+
+            # Sum custom scores
+            for score in ["HIV4", "ML", "LM"]:
+                total = sum(getattr(p, score, 0.0) for p in attr_obj.paragraphs)
+                setattr(attr_obj, score, float(total))
+
+        elif hasattr(attr_obj, "sentences") and attr_obj.sentences:
+            for sentence in attr_obj.sentences:
+                self.fit_all(sentence)
+
+            sentiments = [s.sentiment for s in attr_obj.sentences if s.sentiment is not None]
+            attr_obj.sentiment = float(np.mean(sentiments)) if sentiments else 0.0
+
+            for score in ["HIV4", "ML", "LM"]:
+                total = sum(getattr(s, score, 0.0) for s in attr_obj.sentences)
+                setattr(attr_obj, score, float(total))
+
+        else:
+            # Leaf node (sentence)
+            self.fit(attr_obj)
+
+        return attr_obj
+
+
+
+
+
+
+    def export_to_json(self, attr_obj, filepath):
+        def serialize(attr_obj: Attr) -> dict:
+            result = {
+                "text": attr_obj.text,
+                "sentiment": float(attr_obj.sentiment) if attr_obj.sentiment is not None else 0.0,
+                "HIV4": float(getattr(attr_obj, "HIV4", 0.0)),
+                "ML": float(getattr(attr_obj, "ML", 0.0)),
+                "LM": float(getattr(attr_obj, "LM", 0.0)),
+            }
+
+            if hasattr(attr_obj, "paragraphs"):
+                result["paragraphs"] = [serialize(p) for p in attr_obj.paragraphs]
+            elif hasattr(attr_obj, "sentences"):
+                result["sentences"] = [serialize(s) for s in attr_obj.sentences]
+
+            return result
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(serialize(attr_obj), f, indent=2, ensure_ascii=False)
+
+
+
+
+
+
 
     def ExceltoList(self, file_path, sheet_name) -> list:
-
-        # Read the Excel file
-        df = pd.read_excel(file_path,sheet_name=sheet_name ,header=None)
+        df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
         values = df[0].tolist()
-
-        # Normalize the strings in the list, skipping empty entries
         normalized_list = []
         for val in values:
             if pd.isna(val) or str(val).strip() == '':
-                continue  # Skip empty or whitespace-only entries
+                continue
             normalized_list.append(str(val).replace('_', ' ').lower())
-        # Normalize by replacing underscores with spaces and converting to lowercase
         return normalized_list
+
     
     #TODO: Diliya
     def findWeight(corpus: DocumentAttr = None):
