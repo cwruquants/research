@@ -18,6 +18,17 @@ class Attr:
             "LM": self.LM,
             "HIV4": self.HIV4
         }
+    
+    def __str__(self):
+        return str(self.to_dict())
+
+    def get_sentiment(self):
+        return {
+            "sentiment": self.sentiment,
+            "ML": self.ML,
+            "LM": self.LM,
+            "HIV4": self.HIV4
+        }
 
 class WordAttr(Attr):
     def __init__(self, word: str = ""):
@@ -70,6 +81,31 @@ class ParagraphAttr(Attr):
             data["sentences"] = [s.to_dict() for s in self.sentences]
         return data
 
+# class DocumentAttr(Attr):
+#     def __init__(self, document: str = "", store_paragraphs: bool = False, store_sentences: bool = False, store_words: bool = False):
+#         super().__init__(document)
+#         self.paragraphs = []
+#         self.store_paragraphs = store_paragraphs
+#         self.store_sentences = store_sentences
+#         self.store_words = store_words
+
+#         if self.store_paragraphs:
+#             raw_paragraphs = document.split('\n\n')
+#             self.paragraphs = [
+#                 ParagraphAttr(p.strip(), store_sentences=self.store_sentences, store_words=self.store_words)
+#                 for p in raw_paragraphs if p.strip()
+#             ]
+
+#     def get_paragraph_texts(self):
+#         return [p.text for p in self.paragraphs] if self.paragraphs else []
+
+#     def to_dict(self):
+#         data = super().to_dict()
+#         if self.paragraphs:
+#             data["paragraphs"] = [p.to_dict() for p in self.paragraphs]
+#         return data
+    
+
 class DocumentAttr(Attr):
     def __init__(self, document: str = "", store_paragraphs: bool = False, store_sentences: bool = False, store_words: bool = False):
         super().__init__(document)
@@ -78,18 +114,44 @@ class DocumentAttr(Attr):
         self.store_sentences = store_sentences
         self.store_words = store_words
 
+        # Stats
+        self.num_paragraphs = 0
+        self.num_sentences = 0
+        self.num_words = 0
+
         if self.store_paragraphs:
             raw_paragraphs = document.split('\n\n')
             self.paragraphs = [
-                ParagraphAttr(p.strip(), store_sentences=self.store_sentences, store_words=self.store_words)
+                ParagraphAttr(
+                    p.strip(),
+                    store_sentences=self.store_sentences,
+                    store_words=self.store_words
+                )
                 for p in raw_paragraphs if p.strip()
             ]
+            self.num_paragraphs = len(self.paragraphs)
 
-    def get_paragraph_texts(self):
-        return [p.text for p in self.paragraphs] if self.paragraphs else []
+            for para in self.paragraphs:
+                if para.sentences:
+                    self.num_sentences += len(para.sentences)
+                    for sent in para.sentences:
+                        if sent.words:
+                            self.num_words += len(sent.words)
+                        else:
+                            self.num_words += len(sent.text.split())
+
+                else:
+                    self.num_words += len(para.text.split())
 
     def to_dict(self):
         data = super().to_dict()
+        data.update({
+            "num_paragraphs": self.num_paragraphs,
+            "num_sentences": self.num_sentences,
+            "num_words": self.num_words
+        })
         if self.paragraphs:
             data["paragraphs"] = [p.to_dict() for p in self.paragraphs]
         return data
+    
+
