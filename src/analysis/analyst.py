@@ -1,6 +1,8 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
+import xml.etree.ElementTree as ET
+import re
 
 from ..document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from ..document.abstract_classes.attribute import DocumentAttr
@@ -69,6 +71,9 @@ class Analyst:
 
         qa_doc, pres_doc = self._make_doc_attr(qa_clean), self._make_doc_attr(pres_clean)
 
+        num_sentences = qa_doc.num_sentences+pres_doc.num_sentences
+        num_words = qa_doc.num_words+pres_doc.num_words
+
         # make sure setup exists
         setup_obj = self.setup or self._build_setup_from_dict(setup_dict or {})
         # fit
@@ -77,7 +82,7 @@ class Analyst:
         # self.qa = qa_fit.get_sentiment()
         # self.pres = pres_fit.get_sentiment()
 
-        return qa_fit, pres_fit
+        return qa_fit, pres_fit, num_sentences, num_words
     
     def _fit_matching(
         self,
@@ -95,6 +100,27 @@ class Analyst:
             )
         else: 
             raise ValueError(f"Matching method invalid: {similarity}")
+        
+    def _get_company_attr(self, earnings_call_path):
+        tree = ET.parse(earnings_call_path)
+        root = tree.getroot()
+        
+        event_title = root.findtext("eventTitle", "")
+        
+        match = re.search(r"(Q[1-4])\s+(\d{4})", event_title)
+        quarter, year = (match.group(1), match.group(2)) if match else (None, None)
+        
+        data = {
+            "eventTitle": event_title,
+            "city": root.findtext("city"),
+            "companyName": root.findtext("companyName"),
+            "companyTicker": root.findtext("companyTicker"),
+            "startDate": root.findtext("startDate"),
+            "quarter": quarter,
+            "year": year,
+        }
+        
+        return data
     
     def fit_single_document(
         self,
@@ -105,7 +131,7 @@ class Analyst:
         """
             Calls fit_sentiment and fit_matching.
         """
-        qa_fit, pres_fit = self._fit_sentiment(
+        qa_fit, pres_fit, num_sentences, num_words = self._fit_sentiment(
             earnings_call_path=earnings_call_path,
             setup_dict=setup_dict
         )
@@ -114,7 +140,7 @@ class Analyst:
             similarity=similarity=
         )#.export_to_dict()
         # need to format to toml
-        
+
 
 
 
