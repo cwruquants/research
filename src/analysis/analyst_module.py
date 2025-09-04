@@ -7,7 +7,7 @@ import re
 from ..document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from ..document.abstract_classes.attribute import DocumentAttr
 from ..document.abstract_classes.setup_module import Setup
-from match_extraction.matching_agent import MatchingAgent
+from ..analysis.match_extraction.matching_agent import MatchingAgent
 
 class Analyst:
     def __init__(self, setup: Optional["Setup"] = None, keyword_path = None):
@@ -125,8 +125,8 @@ class Analyst:
     def fit_single_document(
         self,
         earnings_call_path,
-        setup_dict,
-        similarity              
+        setup_dict = None,
+        similarity = ""             
     ):
         """
             Calls fit_sentiment and fit_matching.
@@ -136,11 +136,13 @@ class Analyst:
             setup_dict=setup_dict
         )
         exposure_results = self._fit_matching(
-            earnings_call_path=earnings_call_path
-            similarity=similarity=
+            earnings_call_path=earnings_call_path,
+            similarity=similarity
         )#.export_to_dict()
         # need to format to toml
-
+        print(qa_fit)
+        print(pres_fit)
+        print(exposure_results.export_to_dict)
 
 
 

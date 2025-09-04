@@ -5,7 +5,7 @@ import pandas as pd
 import re
 import json
 import pysentiment2 as ps
-from abstract_classes.attribute import Attr, ParagraphAttr, SentenceAttr, DocumentAttr
+from src.document.abstract_classes.attribute import Attr, ParagraphAttr, SentenceAttr, DocumentAttr
 
 
 class Setup:
