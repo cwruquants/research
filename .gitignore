@@ -51,4 +51,3 @@ venv.bak/
 
 # Project-specific ignores
 results/README.md
-*.ipynb

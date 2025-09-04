@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 import re
-from abstract_classes.attribute import DocumentAttr
+from src.document.abstract_classes.attribute import DocumentAttr
 
 __all__ = [
     "extract_presentation_section",
