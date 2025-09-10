@@ -4,8 +4,8 @@ import os, csv
 from word_forms.word_forms import get_word_forms
 from sentence_transformers import SentenceTransformer, util
 from typing import List
-from document.decompose_text import document_to_word, document_to_sentence, document_to_bigram, is_bigram
-from document.decompose_transcript import load_document
+from src.document.decompose_text import document_to_word, document_to_sentence, document_to_bigram, is_bigram
+from src.document.decompose_transcript import load_document
 from nltk.tokenize import RegexpTokenizer
 from tqdm import tqdm
 import torch
