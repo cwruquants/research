@@ -56,9 +56,9 @@ class Setup:
         ml_tokens = re.findall(r'\b\w+\b', text.lower())
         attr_obj.ML = 0
         for i in range(len(ml_tokens) - 1):
-            if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
+            if ml_tokens[i] in self.ml_words_negative:
                 attr_obj.ML -= 1
-            if ml_tokens[i] in self.ml_words_positive and ml_tokens[i + 1] in self.ml_words_positive:
+            if ml_tokens[i] in self.ml_words_positive:
                 attr_obj.ML += 1
 
         return attr_obj

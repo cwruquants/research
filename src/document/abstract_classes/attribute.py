@@ -1,6 +1,7 @@
 import nltk
 nltk.download('punkt')
 from nltk.tokenize import sent_tokenize
+from nltk.tokenize import word_tokenize
 
 class Attr:
     def __init__(self, text: str):
@@ -40,7 +41,7 @@ class SentenceAttr(Attr):
         self.words = []
 
         if self.store_words:
-            tokens = sentence.split()  # You can later switch to a tokenizer
+            tokens = word_tokenize(sentence)  # You can later switch to a tokenizer
             self.words = [WordAttr(w) for w in tokens]
 
     def to_dict(self):
