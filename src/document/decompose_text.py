@@ -1,4 +1,4 @@
-from src.abstract_classes.attribute import SentenceAttr, ParagraphAttr, DocumentAttr
+from src.document.abstract_classes.attribute import SentenceAttr, ParagraphAttr, DocumentAttr
 import nltk
 
 # Only download punkt if it's not already available
