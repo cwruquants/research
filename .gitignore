@@ -25,6 +25,8 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cach
+.cpython-313
 
 # Unit test / coverage reports
 htmlcov/
@@ -41,6 +43,7 @@ coverage.xml
 .env
 .venv
 env/
+results/
 venv/
 ENV/
 env.bak/
