@@ -11,9 +11,9 @@ from src.document.abstract_classes.attribute import Attr, ParagraphAttr, Sentenc
 class Setup:
     def __init__(
         self,
-        sheet_name_positive: str,
-        sheet_name_negative: str,
-        file_path: str,
+        sheet_name_positive: str = "ML_positive_unigram",
+        sheet_name_negative: str = "ML_negative_unigram",
+        file_path: str = "data/word_sets/Garcia_MLWords.xlsx",
         hf_model: str = "cardiffnlp/twitter-roberta-base-sentiment-latest",
         device: int = -1,
     ):

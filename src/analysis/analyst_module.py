@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
 import xml.etree.ElementTree as ET
+import csv
 import re
 import os
 import toml
@@ -226,6 +227,159 @@ class Analyst:
             "qa_fit": qa_fit,
             "pres_fit": pres_fit,
             "exposure_results": exposure_results
+        }
+    
+    @staticmethod
+    def _flatten_analysis_toml(toml_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Flatten the analysis_metadata.toml structure into a single dict suitable for CSV.
+        Keeps stable column names across files.
+        """
+        doc = toml_data.get("document", {})
+        meta = toml_data.get("metadata_matching", {})
+        da = toml_data.get("document_attr", {})
+        qa = (da or {}).get("qa_section", {}) or {}
+        pres = (da or {}).get("presentation_section", {}) or {}
+
+        flat = {
+            # document (top-level identifiers)
+            "file_name": doc.get("file_name"),
+            "file_path": doc.get("file_path"),
+            "company_name": doc.get("company_name"),
+            "company_ticker": doc.get("company_ticker"),
+            "start_date": doc.get("start_date"),
+            "quarter": doc.get("quarter"),
+            "year": doc.get("year"),
+            "city": doc.get("city"),
+            "event_title": doc.get("event_title"),
+
+            # matching metadata
+            "exposure_results_path": meta.get("exposure_results_path"),
+            "keyword_path": meta.get("keyword_path"),
+
+            # QA section
+            "qa_sentiment": qa.get("sentiment"),
+            "qa_ML": qa.get("ML"),
+            "qa_LM": qa.get("LM"),
+            "qa_HIV4": qa.get("HIV4"),
+            "qa_num_sentences": qa.get("num_sentences"),
+            "qa_num_words": qa.get("num_words"),
+
+            # Presentation section
+            "pres_sentiment": pres.get("sentiment"),
+            "pres_ML": pres.get("ML"),
+            "pres_LM": pres.get("LM"),
+            "pres_HIV4": pres.get("HIV4"),
+            "pres_num_sentences": pres.get("num_sentences"),
+            "pres_num_words": pres.get("num_words"),
+
+            # totals
+            "total_sentences": da.get("total_sentences"),
+            "total_words": da.get("total_words"),
+        }
+        return flat
+
+    def fit_directory(
+        self,
+        input_dir: Union[str, Path],
+        output_dir: Union[str, Path] = "results",
+        setup_dict: Optional[Dict[str, Any]] = None,
+        similarity: str = "cosine",
+        pattern: str = "*.xml",
+        recursive: bool = False,
+        csv_name: str = "batch_summary.csv",
+        skip_on_error: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Process all earnings-call XMLs in a folder:
+          - Creates a batch output folder under `output_dir`
+          - For each XML, runs `fit_single_document(...)` which creates its own subfolder
+          - Builds a CSV with all information stored in analysis_metadata.toml per file
+
+        Args:
+            input_dir: folder containing earnings-call XML files
+            output_dir: base folder for batch outputs
+            setup_dict: optional setup config dict (passed through)
+            similarity: "cosine" or "direct" (passed through)
+            pattern: glob pattern for files (default: *.xml)
+            recursive: whether to recurse into subdirs
+            csv_name: name of the overall CSV in the batch folder
+            skip_on_error: continue on per-file errors if True
+
+        Returns:
+            dict with paths and per-file results
+        """
+        input_dir = Path(input_dir)
+        if not input_dir.exists() or not input_dir.is_dir():
+            raise NotADirectoryError(f"Input directory not found or not a directory: {input_dir}")
+
+        # Create a single batch folder to hold all per-call outputs
+        batch_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        batch_dir = Path(output_dir) / f"batch_{batch_stamp}"
+        batch_dir.mkdir(parents=True, exist_ok=True)
+
+        # Discover files
+        files = (
+            list(input_dir.rglob(pattern)) if recursive
+            else list(input_dir.glob(pattern))
+        )
+        files = [p for p in files if p.is_file()]
+        if not files:
+            raise FileNotFoundError(f"No files matched pattern '{pattern}' in {input_dir} (recursive={recursive}).")
+
+        rows = []
+        results = []
+
+        for fpath in sorted(files):
+            try:
+                # Each call will create its own subdirectory inside `batch_dir`
+                res = self.fit_single_document(
+                    earnings_call_path=fpath,
+                    setup_dict=setup_dict,
+                    similarity=similarity,
+                    output_dir=str(batch_dir),
+                )
+                results.append(res)
+
+                # Load the TOML we just wrote so the CSV is guaranteed to match file output
+                toml_path = Path(res["toml_path"])
+                with open(toml_path, "r", encoding="utf-8") as tf:
+                    tdata = toml.load(tf)
+
+                row = self._flatten_analysis_toml(tdata)
+                rows.append(row)
+
+            except Exception as e:
+                if skip_on_error:
+                    # Record an error row with minimal info so you can see what failed
+                    rows.append({
+                        "file_name": fpath.name,
+                        "file_path": str(fpath),
+                        "error": str(e),
+                    })
+                    continue
+                else:
+                    raise
+
+        # Write overall CSV
+        csv_path = batch_dir / csv_name
+        # union of keys across all rows to avoid missing columns
+        all_keys = set()
+        for r in rows:
+            all_keys.update(r.keys())
+        fieldnames = sorted(all_keys)
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+            writer = csv.DictWriter(cf, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow({k: r.get(k) for k in fieldnames})
+
+        return {
+            "batch_directory": str(batch_dir),
+            "csv_path": str(csv_path),
+            "num_files_processed": len(files),
+            "results": results,  # list of per-file return dicts from fit_single_document
         }
 
 
