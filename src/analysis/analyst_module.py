@@ -7,6 +7,8 @@ import re
 import os
 import toml
 from datetime import datetime
+from dateutil import parser as date_parser
+import pytz
 
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
@@ -57,11 +59,11 @@ class Analyst:
     ):
         """
         Pipeline:
-          1) Extract Q&A and Presentation sections from an earnings-call XML.
+          1) Extract entire Body section from XML.
           2) Clean the text.
-          3) Convert both sections into DocumentAttr.
+          3) Convert into DocumentAttr.
           4) Ensure we have a Setup (use self.setup or build from setup_dict).
-          5) Fit/score each section.
+          5) Fit/score the document.
 
         Returns:
             DocAttr properly fitted
@@ -70,23 +72,27 @@ class Analyst:
         if not earnings_call_path.exists():
             raise FileNotFoundError(f"Earnings call not found: {earnings_call_path}")
 
-        qa_clean = clean_spoken_content(extract_qa_section(str(earnings_call_path)))
-        pres_clean = clean_spoken_content(extract_presentation_section(str(earnings_call_path)))
+        # Extract entire body text from XML
+        tree = ET.parse(earnings_call_path)
+        root = tree.getroot()
+        body_elem = root.find(".//Body")
+        body_text = body_elem.text if body_elem is not None else ""
 
-        qa_doc, pres_doc = self._make_doc_attr(qa_clean), self._make_doc_attr(pres_clean)
+        # Clean the text
+        text_clean = clean_spoken_content(body_text)
 
-        num_sentences = qa_doc.num_sentences+pres_doc.num_sentences
-        num_words = qa_doc.num_words+pres_doc.num_words
+        # Create document attribute
+        doc = self._make_doc_attr(text_clean)
+
+        num_sentences = doc.num_sentences
+        num_words = doc.num_words
 
         # make sure setup exists
         setup_obj = self.setup or self._build_setup_from_dict(setup_dict or {})
         # fit
-        qa_fit, pres_fit = setup_obj.fit_all(qa_doc), setup_obj.fit_all(pres_doc)
+        doc_fit = setup_obj.fit_all(doc)
 
-        # self.qa = qa_fit.get_sentiment()
-        # self.pres = pres_fit.get_sentiment()
-
-        return qa_fit, pres_fit, num_sentences, num_words
+        return doc_fit, num_sentences, num_words
     
     def _fit_matching(
         self,
@@ -108,22 +114,41 @@ class Analyst:
     def _get_company_attr(self, earnings_call_path):
         tree = ET.parse(earnings_call_path)
         root = tree.getroot()
-        
+
         event_title = root.findtext("eventTitle", "")
-        
+
         match = re.search(r"(Q[1-4])\s+(\d{4})", event_title)
         quarter, year = (match.group(1), match.group(2)) if match else (None, None)
-        
+
+        # Parse and standardize startDate to GMT
+        start_date_raw = root.findtext("startDate")
+        start_date_gmt = None
+        if start_date_raw:
+            try:
+                # Parse the date string with timezone info
+                dt = date_parser.parse(start_date_raw)
+                # Convert to GMT/UTC
+                if dt.tzinfo is None:
+                    # If no timezone, assume GMT
+                    dt = pytz.UTC.localize(dt)
+                else:
+                    dt = dt.astimezone(pytz.UTC)
+                # Format as standard GMT string
+                start_date_gmt = dt.strftime("%d-%b-%y %I:%M%p GMT")
+            except Exception:
+                # If parsing fails, keep original
+                start_date_gmt = start_date_raw
+
         data = {
             "eventTitle": event_title,
             "city": root.findtext("city"),
             "companyName": root.findtext("companyName"),
             "companyTicker": root.findtext("companyTicker"),
-            "startDate": root.findtext("startDate"),
+            "startDate": start_date_gmt,
             "quarter": quarter,
             "year": year,
         }
-        
+
         return data
     
     def fit_single_document(
@@ -144,13 +169,13 @@ class Analyst:
         """
         # Get company attributes from the earnings call
         company_attr = self._get_company_attr(earnings_call_path)
-        
+
         # Run sentiment analysis
-        qa_fit, pres_fit, num_sentences, num_words = self._fit_sentiment(
+        doc_fit, num_sentences, num_words = self._fit_sentiment(
             earnings_call_path=earnings_call_path,
             setup_dict=setup_dict
         )
-        
+
         # Run matching analysis
         exposure_results = self._fit_matching(
             earnings_call_path=earnings_call_path,
@@ -160,8 +185,7 @@ class Analyst:
         # Create timestamped directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         company_name = company_attr.get("companyName", "unknown").replace(" ", "_").replace("/", "_")
-        quarter_year = f"{company_attr.get('quarter', 'Q?')}_{company_attr.get('year', 'YYYY')}"
-        dir_name = f"{company_name}_{quarter_year}_{timestamp}"
+        dir_name = f"{company_name}_{timestamp}"
         output_path = Path(output_dir) / dir_name
         output_path.mkdir(parents=True, exist_ok=True)
         
@@ -183,24 +207,12 @@ class Analyst:
                 "keyword_path": str(self.keyword_path) if self.keyword_path else None
             },
             "document_attr": {
-                "qa_section": {
-                    "sentiment": float(qa_fit.sentiment) if qa_fit.sentiment is not None else 0.0,
-                    "ML": float(qa_fit.ML),
-                    "LM": float(qa_fit.LM),
-                    "HIV4": float(qa_fit.HIV4),
-                    "num_sentences": qa_fit.num_sentences,
-                    "num_words": qa_fit.num_words
-                },
-                "presentation_section": {
-                    "sentiment": float(pres_fit.sentiment) if pres_fit.sentiment is not None else 0.0,
-                    "ML": float(pres_fit.ML),
-                    "LM": float(pres_fit.LM),
-                    "HIV4": float(pres_fit.HIV4),
-                    "num_sentences": pres_fit.num_sentences,
-                    "num_words": pres_fit.num_words
-                },
-                "total_sentences": num_sentences,
-                "total_words": num_words
+                "sentiment": float(doc_fit.sentiment) if doc_fit.sentiment is not None else 0.0,
+                "ML": float(doc_fit.ML),
+                "LM": float(doc_fit.LM),
+                "HIV4": float(doc_fit.HIV4),
+                "num_sentences": num_sentences,
+                "num_words": num_words
             }
         }
         
@@ -224,8 +236,7 @@ class Analyst:
             "output_directory": str(output_path),
             "toml_path": str(toml_path),
             "exposure_results_path": str(output_path / "exposure_results.json"),
-            "qa_fit": qa_fit,
-            "pres_fit": pres_fit,
+            "doc_fit": doc_fit,
             "exposure_results": exposure_results
         }
     
@@ -238,8 +249,6 @@ class Analyst:
         doc = toml_data.get("document", {})
         meta = toml_data.get("metadata_matching", {})
         da = toml_data.get("document_attr", {})
-        qa = (da or {}).get("qa_section", {}) or {}
-        pres = (da or {}).get("presentation_section", {}) or {}
 
         flat = {
             # document (top-level identifiers)
@@ -257,25 +266,13 @@ class Analyst:
             "exposure_results_path": meta.get("exposure_results_path"),
             "keyword_path": meta.get("keyword_path"),
 
-            # QA section
-            "qa_sentiment": qa.get("sentiment"),
-            "qa_ML": qa.get("ML"),
-            "qa_LM": qa.get("LM"),
-            "qa_HIV4": qa.get("HIV4"),
-            "qa_num_sentences": qa.get("num_sentences"),
-            "qa_num_words": qa.get("num_words"),
-
-            # Presentation section
-            "pres_sentiment": pres.get("sentiment"),
-            "pres_ML": pres.get("ML"),
-            "pres_LM": pres.get("LM"),
-            "pres_HIV4": pres.get("HIV4"),
-            "pres_num_sentences": pres.get("num_sentences"),
-            "pres_num_words": pres.get("num_words"),
-
-            # totals
-            "total_sentences": da.get("total_sentences"),
-            "total_words": da.get("total_words"),
+            # document attributes
+            "sentiment": da.get("sentiment"),
+            "ML": da.get("ML"),
+            "LM": da.get("LM"),
+            "HIV4": da.get("HIV4"),
+            "num_sentences": da.get("num_sentences"),
+            "num_words": da.get("num_words"),
         }
         return flat
 
