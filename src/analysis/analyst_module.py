@@ -13,7 +13,6 @@ import pytz
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
 from src.document.abstract_classes.setup_module import Setup
-from src.analysis.match_extraction.matching_agent import MatchingAgent
 
 class Analyst:
     def __init__(self, setup: Optional["Setup"] = None, keyword_path = None):
@@ -21,9 +20,11 @@ class Analyst:
         # If we want to do a different SetUp or keyword doc, we should create another analyst
         self.setup = setup
         self.keyword_path = keyword_path
-        self.matching_agent = MatchingAgent(
-            keywords_path=keyword_path,
-        )
+        # Lazy import to avoid loading heavy dependencies unless needed
+        self.matching_agent = None
+        if keyword_path:
+            from src.analysis.match_extraction.matching_agent import MatchingAgent
+            self.matching_agent = MatchingAgent(keywords_path=keyword_path)
 
     @staticmethod
     def _build_setup_from_dict(setup_dict: Dict[str, Any]) -> "Setup":
@@ -150,95 +151,144 @@ class Analyst:
         }
 
         return data
-    
-    def fit_single_document(
-        self,
-        earnings_call_path,
-        setup_dict = None,
-        similarity = "",
-        output_dir = "results"
-    ):
-        """
-            Calls fit_sentiment and fit_matching, then saves results to a new directory.
-            
-            Args:
-                earnings_call_path: Path to the earnings call XML file
-                setup_dict: Optional setup configuration dictionary
-                similarity: Matching method ("cosine" or "direct")
-                output_dir: Base directory for output (default: "results")
-        """
-        # Get company attributes from the earnings call
-        company_attr = self._get_company_attr(earnings_call_path)
 
-        # Run sentiment analysis
+    def get_document_attributes(
+        self,
+        earnings_call_path: Union[str, Path],
+        setup_dict: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Extract document metadata and perform sentiment analysis.
+
+        Args:
+            earnings_call_path: Path to the earnings call XML file
+            setup_dict: Optional setup configuration dictionary
+
+        Returns:
+            dict with 'document', 'document_attr', and 'doc_fit' keys
+        """
+        earnings_call_path = Path(earnings_call_path)
+
+        # Get company metadata
+        company_data = self._get_company_attr(earnings_call_path)
+
+        # Perform sentiment analysis
         doc_fit, num_sentences, num_words = self._fit_sentiment(
             earnings_call_path=earnings_call_path,
             setup_dict=setup_dict
         )
 
-        # Run matching analysis
-        exposure_results = self._fit_matching(
+        # Build document metadata
+        document_metadata = {
+            "file_name": earnings_call_path.name,
+            "file_path": str(earnings_call_path),
+            "company_name": company_data.get("companyName"),
+            "company_ticker": company_data.get("companyTicker"),
+            "start_date": company_data.get("startDate"),
+            "quarter": company_data.get("quarter"),
+            "year": company_data.get("year"),
+            "city": company_data.get("city"),
+            "event_title": company_data.get("eventTitle"),
+        }
+
+        # Build document attribute data (sentiment scores)
+        document_attr_data = {
+            "sentiment": float(doc_fit.sentiment) if doc_fit.sentiment is not None else 0.0,
+            "ML": float(doc_fit.ML) if doc_fit.ML is not None else 0.0,
+            "LM": float(doc_fit.LM) if doc_fit.LM is not None else 0.0,
+            "HIV4": float(doc_fit.HIV4) if doc_fit.HIV4 is not None else 0.0,
+            "num_sentences": num_sentences,
+            "num_words": num_words,
+        }
+
+        return {
+            "document": document_metadata,
+            "document_attr": document_attr_data,
+            "doc_fit": doc_fit,
+        }
+    
+    def fit_single_document(
+        self,
+        earnings_call_path,
+        setup_dict = None,
+        similarity = None,
+        output_dir = "results",
+        run_matching = True,
+    ):
+        """
+        Analyze a single earnings call document with optional keyword matching.
+
+        Args:
+            earnings_call_path: Path to the earnings call XML file
+            setup_dict: Optional setup configuration dictionary
+            similarity: Matching method ("cosine" or "direct"), required if run_matching=True
+            output_dir: Base directory for output (default: "results")
+            run_matching: Whether to run keyword matching (default: True)
+
+        Returns:
+            dict with analysis results and file paths
+        """
+        # Get document attributes (always runs sentiment analysis)
+        doc_attrs = self.get_document_attributes(
             earnings_call_path=earnings_call_path,
-            similarity=similarity
+            setup_dict=setup_dict
         )
-        
+
         # Create timestamped directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        company_name = company_attr.get("companyName", "unknown").replace(" ", "_").replace("/", "_")
+        company_name = doc_attrs["document"].get("company_name", "unknown").replace(" ", "_").replace("/", "_")
         dir_name = f"{company_name}_{timestamp}"
         output_path = Path(output_dir) / dir_name
         output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Create TOML file with document metadata and analysis results
+
+        # Create TOML file with document metadata
         toml_data = {
-            "document": {
-                "file_name": Path(earnings_call_path).name,
-                "file_path": str(earnings_call_path),
-                "company_name": company_attr.get("companyName"),
-                "company_ticker": company_attr.get("companyTicker"),
-                "start_date": company_attr.get("startDate"),
-                "quarter": company_attr.get("quarter"),
-                "year": company_attr.get("year"),
-                "city": company_attr.get("city"),
-                "event_title": company_attr.get("eventTitle")
-            },
-            "metadata_matching": {
+            "document": doc_attrs["document"],
+            "document_attr": doc_attrs["document_attr"]
+        }
+
+        # Optionally run matching analysis
+        exposure_results = None
+        if run_matching:
+            if not self.matching_agent:
+                raise ValueError("Cannot run matching: no keyword_path provided to Analyst")
+            if not similarity:
+                raise ValueError("similarity parameter required when run_matching=True")
+
+            exposure_results = self._fit_matching(
+                earnings_call_path=earnings_call_path,
+                similarity=similarity
+            )
+
+            # Add matching metadata to TOML
+            toml_data["metadata_matching"] = {
                 "exposure_results_path": str(output_path / "exposure_results.json"),
                 "keyword_path": str(self.keyword_path) if self.keyword_path else None
-            },
-            "document_attr": {
-                "sentiment": float(doc_fit.sentiment) if doc_fit.sentiment is not None else 0.0,
-                "ML": float(doc_fit.ML),
-                "LM": float(doc_fit.LM),
-                "HIV4": float(doc_fit.HIV4),
-                "num_sentences": num_sentences,
-                "num_words": num_words
             }
-        }
-        
+
+            # Save matching agent results
+            exposure_results.export_to_json(
+                output_dir=str(output_path),
+                export_format="word",
+                filename="exposure_results.json"
+            )
+
         # Save TOML file
         toml_path = output_path / "analysis_metadata.toml"
         with open(toml_path, 'w', encoding='utf-8') as f:
             toml.dump(toml_data, f)
-        
-        # Save matching agent results
-        exposure_results.export_to_json(
-            output_dir=str(output_path),
-            export_format="word",
-            filename="exposure_results.json"
-        )
-        
-        # print(f"Analysis complete. Results saved to: {output_path}")
-        # print(f"TOML metadata: {toml_path}")
-        # print(f"Exposure results: {output_path / 'exposure_results.json'}")
-        
-        return {
+
+        result = {
             "output_directory": str(output_path),
             "toml_path": str(toml_path),
-            "exposure_results_path": str(output_path / "exposure_results.json"),
-            "doc_fit": doc_fit,
-            "exposure_results": exposure_results
+            "doc_fit": doc_attrs["doc_fit"],
         }
+
+        if run_matching:
+            result["exposure_results_path"] = str(output_path / "exposure_results.json")
+            result["exposure_results"] = exposure_results
+
+        return result
     
     @staticmethod
     def _flatten_analysis_toml(toml_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -281,27 +331,26 @@ class Analyst:
         input_dir: Union[str, Path],
         output_dir: Union[str, Path] = "results",
         setup_dict: Optional[Dict[str, Any]] = None,
-        similarity: str = "cosine",
+        similarity: Optional[str] = None,
         pattern: str = "*.xml",
         recursive: bool = False,
         csv_name: str = "batch_summary.csv",
         skip_on_error: bool = True,
+        run_matching: bool = False,
     ) -> Dict[str, Any]:
         """
-        Process all earnings-call XMLs in a folder:
-          - Creates a batch output folder under `output_dir`
-          - For each XML, runs `fit_single_document(...)` which creates its own subfolder
-          - Builds a CSV with all information stored in analysis_metadata.toml per file
+        Process all earnings-call XMLs in a folder (sentiment analysis only by default).
 
         Args:
             input_dir: folder containing earnings-call XML files
             output_dir: base folder for batch outputs
             setup_dict: optional setup config dict (passed through)
-            similarity: "cosine" or "direct" (passed through)
+            similarity: "cosine" or "direct" (required if run_matching=True)
             pattern: glob pattern for files (default: *.xml)
             recursive: whether to recurse into subdirs
             csv_name: name of the overall CSV in the batch folder
             skip_on_error: continue on per-file errors if True
+            run_matching: whether to run keyword matching (default: False)
 
         Returns:
             dict with paths and per-file results
@@ -309,6 +358,9 @@ class Analyst:
         input_dir = Path(input_dir)
         if not input_dir.exists() or not input_dir.is_dir():
             raise NotADirectoryError(f"Input directory not found or not a directory: {input_dir}")
+
+        if run_matching and not similarity:
+            raise ValueError("similarity parameter required when run_matching=True")
 
         # Create a single batch folder to hold all per-call outputs
         batch_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -335,6 +387,7 @@ class Analyst:
                     setup_dict=setup_dict,
                     similarity=similarity,
                     output_dir=str(batch_dir),
+                    run_matching=run_matching,
                 )
                 results.append(res)
 
@@ -377,6 +430,162 @@ class Analyst:
             "csv_path": str(csv_path),
             "num_files_processed": len(files),
             "results": results,  # list of per-file return dicts from fit_single_document
+        }
+
+    def match_existing_batch(
+        self,
+        batch_dir: Union[str, Path],
+        keyword_path: str,
+        similarity: str = "cosine",
+        skip_on_error: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Run keyword matching on an existing batch directory created by fit_directory.
+
+        Args:
+            batch_dir: Path to existing batch directory
+            keyword_path: Path to keywords CSV file
+            similarity: Matching method ("cosine" or "direct")
+            skip_on_error: Continue on per-file errors if True
+
+        Returns:
+            dict with paths to exposure results and summary CSV
+        """
+        batch_dir = Path(batch_dir)
+        if not batch_dir.exists() or not batch_dir.is_dir():
+            raise NotADirectoryError(f"Batch directory not found: {batch_dir}")
+
+        # Create a matching agent for this keyword set
+        from src.analysis.match_extraction.matching_agent import MatchingAgent
+        matching_agent = MatchingAgent(keywords_path=keyword_path)
+
+        # Generate unique identifier for this matching run
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        keyword_name = Path(keyword_path).stem
+        match_id = f"{keyword_name}_{timestamp}"
+
+        # Find all subdirectories (each represents an earnings call)
+        subdirs = [d for d in batch_dir.iterdir() if d.is_dir()]
+
+        if not subdirs:
+            raise FileNotFoundError(f"No subdirectories found in {batch_dir}")
+
+        results = []
+        exposure_rows = []
+
+        for subdir in sorted(subdirs):
+            toml_path = subdir / "analysis_metadata.toml"
+
+            if not toml_path.exists():
+                if skip_on_error:
+                    continue
+                else:
+                    raise FileNotFoundError(f"analysis_metadata.toml not found in {subdir}")
+
+            try:
+                # Load existing TOML to get earnings call path
+                with open(toml_path, "r", encoding="utf-8") as f:
+                    toml_data = toml.load(f)
+
+                earnings_call_path = toml_data.get("document", {}).get("file_path")
+                if not earnings_call_path or not Path(earnings_call_path).exists():
+                    if skip_on_error:
+                        continue
+                    else:
+                        raise FileNotFoundError(f"Earnings call not found: {earnings_call_path}")
+
+                # Run matching
+                exposure_results = matching_agent.single_processing(
+                    document_path=earnings_call_path,
+                    matching_function=similarity
+                )
+
+                # Save exposure results with unique name
+                exposure_filename = f"exposure_results_{match_id}.json"
+                exposure_path = subdir / exposure_filename
+                exposure_results.export_to_json(
+                    output_dir=str(subdir),
+                    export_format="word",
+                    filename=exposure_filename
+                )
+
+                # Update TOML with this matching run metadata
+                if "metadata_matching_runs" not in toml_data:
+                    toml_data["metadata_matching_runs"] = []
+
+                toml_data["metadata_matching_runs"].append({
+                    "match_id": match_id,
+                    "keyword_path": keyword_path,
+                    "keyword_name": keyword_name,
+                    "similarity": similarity,
+                    "timestamp": timestamp,
+                    "exposure_results_path": str(exposure_path),
+                })
+
+                # Save updated TOML
+                with open(toml_path, 'w', encoding='utf-8') as f:
+                    toml.dump(toml_data, f)
+
+                results.append({
+                    "subdir": str(subdir),
+                    "exposure_results_path": str(exposure_path),
+                    "exposure_results": exposure_results,
+                })
+
+                # Build row for exposure summary CSV
+                doc_metadata = toml_data.get("document", {})
+                exposure_row = {
+                    "file_name": doc_metadata.get("file_name"),
+                    "file_path": doc_metadata.get("file_path"),
+                    "company_name": doc_metadata.get("company_name"),
+                    "company_ticker": doc_metadata.get("company_ticker"),
+                    "start_date": doc_metadata.get("start_date"),
+                    "quarter": doc_metadata.get("quarter"),
+                    "year": doc_metadata.get("year"),
+                    "match_id": match_id,
+                    "keyword_path": keyword_path,
+                    "keyword_name": keyword_name,
+                    "similarity": similarity,
+                    "total_keywords_searched": exposure_results.total_keywords_searched,
+                    "total_keywords_with_matches": exposure_results.total_keywords_with_matches,
+                    "total_direct_matches": exposure_results.total_direct_matches,
+                    "total_cosine_matches": exposure_results.total_cosine_matches,
+                    "total_matches": exposure_results.total_direct_matches + exposure_results.total_cosine_matches,
+                    "exposure_results_path": str(exposure_path),
+                }
+                exposure_rows.append(exposure_row)
+
+            except Exception as e:
+                if skip_on_error:
+                    exposure_rows.append({
+                        "file_name": subdir.name,
+                        "error": str(e),
+                    })
+                    continue
+                else:
+                    raise
+
+        # Write exposure summary CSV
+        csv_filename = f"exposure_summary_{match_id}.csv"
+        csv_path = batch_dir / csv_filename
+
+        all_keys = set()
+        for r in exposure_rows:
+            all_keys.update(r.keys())
+        fieldnames = sorted(all_keys)
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+            writer = csv.DictWriter(cf, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in exposure_rows:
+                writer.writerow({k: r.get(k) for k in fieldnames})
+
+        return {
+            "batch_directory": str(batch_dir),
+            "match_id": match_id,
+            "exposure_summary_csv": str(csv_path),
+            "num_files_processed": len(results),
+            "results": results,
         }
 
 
