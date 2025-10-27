@@ -9,6 +9,7 @@ import toml
 from datetime import datetime
 from dateutil import parser as date_parser
 import pytz
+import textstat
 
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
@@ -93,7 +94,7 @@ class Analyst:
         # fit
         doc_fit = setup_obj.fit_all(doc)
 
-        return doc_fit, num_sentences, num_words
+        return doc_fit, num_sentences, num_words, text_clean
     
     def _fit_matching(
         self,
@@ -173,7 +174,7 @@ class Analyst:
         company_data = self._get_company_attr(earnings_call_path)
 
         # Perform sentiment analysis
-        doc_fit, num_sentences, num_words = self._fit_sentiment(
+        doc_fit, num_sentences, num_words, text_clean = self._fit_sentiment(
             earnings_call_path=earnings_call_path,
             setup_dict=setup_dict
         )
@@ -199,6 +200,16 @@ class Analyst:
             "HIV4": float(doc_fit.HIV4) if doc_fit.HIV4 is not None else 0.0,
             "num_sentences": num_sentences,
             "num_words": num_words,
+            "flesch_reading_ease": textstat.flesch_reading_ease(text_clean),
+            "flesch_kincaid_grade": textstat.flesch_kincaid_grade(text_clean),
+            "smog_index": textstat.smog_index(text_clean),
+            "coleman_liau_index": textstat.coleman_liau_index(text_clean),
+            "automated_readability_index": textstat.automated_readability_index(text_clean),
+            "dale_chall_readability_score": textstat.dale_chall_readability_score(text_clean),
+            "difficult_words": textstat.difficult_words(text_clean),
+            "linsear_write_formula": textstat.linsear_write_formula(text_clean),
+            "gunning_fog": textstat.gunning_fog(text_clean),
+            "text_standard": textstat.text_standard(text_clean),
         }
 
         return {
@@ -300,21 +311,30 @@ class Analyst:
         meta = toml_data.get("metadata_matching", {})
         da = toml_data.get("document_attr", {})
 
+        start_date_str = doc.get("start_date")
+        date_val, time_val = None, None
+        if start_date_str:
+            try:
+                # The format is set in _get_company_attr
+                dt = datetime.strptime(start_date_str, "%d-%b-%y %I:%M%p GMT")
+                date_val = dt.strftime("%Y-%m-%d")
+                time_val = dt.strftime("%H:%M:%S")
+            except (ValueError, TypeError):
+                # Fallback for unexpected format
+                parts = start_date_str.split(" ", 1)
+                date_val = parts[0]
+                time_val = parts[1] if len(parts) > 1 else ""
+
         flat = {
             # document (top-level identifiers)
             "file_name": doc.get("file_name"),
-            "file_path": doc.get("file_path"),
             "company_name": doc.get("company_name"),
             "company_ticker": doc.get("company_ticker"),
-            "start_date": doc.get("start_date"),
+            "date": date_val,
+            "time": time_val,
             "quarter": doc.get("quarter"),
-            "year": doc.get("year"),
             "city": doc.get("city"),
             "event_title": doc.get("event_title"),
-
-            # matching metadata
-            "exposure_results_path": meta.get("exposure_results_path"),
-            "keyword_path": meta.get("keyword_path"),
 
             # document attributes
             "sentiment": da.get("sentiment"),
@@ -323,6 +343,16 @@ class Analyst:
             "HIV4": da.get("HIV4"),
             "num_sentences": da.get("num_sentences"),
             "num_words": da.get("num_words"),
+            "flesch_reading_ease": da.get("flesch_reading_ease"),
+            "flesch_kincaid_grade": da.get("flesch_kincaid_grade"),
+            "smog_index": da.get("smog_index"),
+            "coleman_liau_index": da.get("coleman_liau_index"),
+            "automated_readability_index": da.get("automated_readability_index"),
+            "dale_chall_readability_score": da.get("dale_chall_readability_score"),
+            "difficult_words": da.get("difficult_words"),
+            "linsear_write_formula": da.get("linsear_write_formula"),
+            "gunning_fog": da.get("gunning_fog"),
+            "text_standard": da.get("text_standard"),
         }
         return flat
 
@@ -534,16 +564,29 @@ class Analyst:
 
                 # Build row for exposure summary CSV
                 doc_metadata = toml_data.get("document", {})
+
+                start_date_str = doc_metadata.get("start_date")
+                date_val, time_val = None, None
+                if start_date_str:
+                    try:
+                        # The format is set in _get_company_attr
+                        dt = datetime.strptime(start_date_str, "%d-%b-%y %I:%M%p GMT")
+                        date_val = dt.strftime("%Y-%m-%d")
+                        time_val = dt.strftime("%H:%M:%S")
+                    except (ValueError, TypeError):
+                        # Fallback for unexpected format
+                        parts = start_date_str.split(" ", 1)
+                        date_val = parts[0]
+                        time_val = parts[1] if len(parts) > 1 else ""
+
                 exposure_row = {
                     "file_name": doc_metadata.get("file_name"),
-                    "file_path": doc_metadata.get("file_path"),
                     "company_name": doc_metadata.get("company_name"),
                     "company_ticker": doc_metadata.get("company_ticker"),
-                    "start_date": doc_metadata.get("start_date"),
+                    "date": date_val,
+                    "time": time_val,
                     "quarter": doc_metadata.get("quarter"),
-                    "year": doc_metadata.get("year"),
                     "match_id": match_id,
-                    "keyword_path": keyword_path,
                     "keyword_name": keyword_name,
                     "similarity": similarity,
                     "total_keywords_searched": exposure_results.total_keywords_searched,
@@ -551,7 +594,6 @@ class Analyst:
                     "total_direct_matches": exposure_results.total_direct_matches,
                     "total_cosine_matches": exposure_results.total_cosine_matches,
                     "total_matches": exposure_results.total_direct_matches + exposure_results.total_cosine_matches,
-                    "exposure_results_path": str(exposure_path),
                 }
                 exposure_rows.append(exposure_row)
 
