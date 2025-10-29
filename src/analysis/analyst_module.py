@@ -10,6 +10,7 @@ from datetime import datetime
 from dateutil import parser as date_parser
 import pytz
 import textstat
+from tqdm.auto import tqdm
 
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
@@ -409,7 +410,8 @@ class Analyst:
         rows = []
         results = []
 
-        for fpath in sorted(files):
+        files_sorted = sorted(files)
+        for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing files", unit="file", dynamic_ncols=True):
             try:
                 # Each call will create its own subdirectory inside `batch_dir`
                 res = self.fit_single_document(
@@ -503,7 +505,7 @@ class Analyst:
         results = []
         exposure_rows = []
 
-        for subdir in sorted(subdirs):
+        for subdir in tqdm(sorted(subdirs), total=len(subdirs), desc="Matching keywords", unit="file", dynamic_ncols=True):
             toml_path = subdir / "analysis_metadata.toml"
 
             if not toml_path.exists():
