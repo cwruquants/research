@@ -78,14 +78,48 @@ class Setup:
                 setattr(attr_obj, score, float(total))
 
         elif hasattr(attr_obj, "sentences") and attr_obj.sentences:
-            for sentence in attr_obj.sentences:
-                self.fit_all(sentence)
+            # Batch Hugging Face inference over all sentences to avoid sequential GPU calls
+            sentence_objs = list(attr_obj.sentences)
+            texts = [getattr(s, "text", "")[:512] for s in sentence_objs]
+            # Run transformer in batch (no-op on CPU, efficient on GPU)
+            hf_results = self.transformer(texts, batch_size=32, truncation=True)
 
-            sentiments = [s.sentiment for s in attr_obj.sentences if s.sentiment is not None]
+            # Assign HF sentiment and compute lexicon-based scores per sentence
+            for s, hf_res in zip(sentence_objs, hf_results):
+                # HF sentiment
+                if isinstance(hf_res, list):
+                    hf_res = hf_res[0]
+                if hf_res["label"].lower() == "neutral":
+                    s.sentiment = 0.0
+                else:
+                    score = hf_res["score"] if hf_res["label"].lower() == "positive" else -hf_res["score"]
+                    s.sentiment = float(score)
+
+                # LM sentiment
+                lm_tokens = self.lm.tokenize(s.text)
+                lm_scores = self.lm.get_score(lm_tokens)
+                s.LM = lm_scores["Positive"] - lm_scores["Negative"]
+
+                # HIV4 sentiment
+                hiv4_tokens = self.hiv4.tokenize(s.text)
+                hiv4_scores = self.hiv4.get_score(hiv4_tokens)
+                s.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
+
+                # ML sentiment (custom bigram-based)
+                ml_tokens = re.findall(r'\b\w+\b', s.text.lower())
+                s.ML = 0
+                for i in range(len(ml_tokens) - 1):
+                    if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
+                        s.ML -= 1
+                    if ml_tokens[i] in self.ml_words_positive and ml_tokens[i + 1] in self.ml_words_positive:
+                        s.ML += 1
+
+            # Aggregate to parent
+            sentiments = [s.sentiment for s in sentence_objs if s.sentiment is not None]
             attr_obj.sentiment = float(np.mean(sentiments)) if sentiments else 0.0
 
             for score in ["HIV4", "ML", "LM"]:
-                total = sum(getattr(s, score, 0.0) for s in attr_obj.sentences)
+                total = sum(getattr(s, score, 0.0) for s in sentence_objs)
                 setattr(attr_obj, score, float(total))
 
         else:
