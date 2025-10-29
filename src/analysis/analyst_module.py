@@ -10,7 +10,7 @@ from datetime import datetime
 from dateutil import parser as date_parser
 import pytz
 import textstat
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
