@@ -17,15 +17,19 @@ class Setup:
         hf_model: str = "cardiffnlp/twitter-roberta-base-sentiment-latest",
         device: int = -1,
         batch_size: int = 32,
+        max_length: int = 512,
     ):
         self.transformer = pipeline(
             "sentiment-analysis",
             model=hf_model,
-            device=device
+            device=device,
+            truncation=True,
+            max_length=max_length,
         )
         self.lm = ps.LM()
         self.hiv4 = ps.HIV4()
         self.batch_size = batch_size
+        self.max_length = max_length
         
         self.ml_words_positive = self.ExceltoList(file_path, sheet_name_positive)
         self.ml_words_negative = self.ExceltoList(file_path, sheet_name_negative)
@@ -37,7 +41,7 @@ class Setup:
 
         # Only apply HuggingFace model to short text (SentenceAttr)
         if isinstance(attr_obj, SentenceAttr):
-            hf_res = self.transformer(text[:512])[0]
+            hf_res = self.transformer(text)[0]
             if hf_res["label"] == "neutral":
                 score = 0.0
             else:
@@ -82,9 +86,9 @@ class Setup:
         elif hasattr(attr_obj, "sentences") and attr_obj.sentences:
             # Batch Hugging Face inference over all sentences to avoid sequential GPU calls
             sentence_objs = list(attr_obj.sentences)
-            texts = [getattr(s, "text", "")[:512] for s in sentence_objs]
+            texts = [getattr(s, "text", "") for s in sentence_objs]
             # Run transformer in batch (no-op on CPU, efficient on GPU)
-            hf_results = self.transformer(texts, batch_size=self.batch_size, truncation=True)
+            hf_results = self.transformer(texts, batch_size=self.batch_size)
 
             # Assign HF sentiment and compute lexicon-based scores per sentence
             for s, hf_res in zip(sentence_objs, hf_results):
