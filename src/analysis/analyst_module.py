@@ -36,6 +36,8 @@ class Analyst:
             "file_path": "data/word_sets/Garcia_MLWords.xlsx",
             "hf_model": "cardiffnlp/twitter-roberta-base-sentiment-latest",
             "device": -1,
+            "batch_size": 32,
+            "max_length": 512,
         }
         cfg = {**defaults, **(setup_dict or {})}
         return Setup(
@@ -44,6 +46,8 @@ class Analyst:
             file_path=cfg["file_path"],
             hf_model=cfg["hf_model"],
             device=cfg["device"],
+            batch_size=cfg["batch_size"],
+            max_length=cfg["max_length"],
         )
 
     @staticmethod
