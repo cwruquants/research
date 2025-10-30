@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional 
+from typing import List, Dict, Any, Optional
 from transformers import pipeline
 import numpy as np
 import pandas as pd
@@ -6,6 +6,13 @@ import re
 import json
 import pysentiment2 as ps
 from src.document.abstract_classes.attribute import Attr, ParagraphAttr, SentenceAttr, DocumentAttr
+
+try:
+    from datasets import Dataset
+    from transformers.pipelines.pt_utils import KeyDataset
+except ImportError:  # pragma: no cover - optional dependency
+    Dataset = None
+    KeyDataset = None
 
 
 class Setup:
@@ -34,6 +41,20 @@ class Setup:
         self.ml_words_positive = self.ExceltoList(file_path, sheet_name_positive)
         self.ml_words_negative = self.ExceltoList(file_path, sheet_name_negative)
 
+    def _hf_infer(self, texts: List[str]):
+        if not texts:
+            return []
+
+        pipeline_device = getattr(getattr(self.transformer, "device", None), "type", None)
+        can_stream = Dataset is not None and KeyDataset is not None
+
+        if can_stream and pipeline_device == "cuda":
+            dataset = Dataset.from_dict({"text": texts})
+            iterator = self.transformer(KeyDataset(dataset, "text"), batch_size=self.batch_size)
+            return list(iterator)
+
+        return self.transformer(texts, batch_size=self.batch_size)
+
     def fit(self, attr_obj: Attr):
         text = getattr(attr_obj, "text", None)
         if text is None:
@@ -41,11 +62,17 @@ class Setup:
 
         # Only apply HuggingFace model to short text (SentenceAttr)
         if isinstance(attr_obj, SentenceAttr):
-            hf_res = self.transformer(text)[0]
-            if hf_res["label"] == "neutral":
+            hf_results = self._hf_infer([text])
+            hf_res = hf_results[0] if hf_results else {"label": "neutral", "score": 0.0}
+            if isinstance(hf_res, list):
+                hf_res = hf_res[0]
+
+            label = hf_res.get("label", "neutral").lower()
+            score_val = hf_res.get("score", 0.0)
+            if label == "neutral":
                 score = 0.0
             else:
-                score = hf_res["score"] if hf_res["label"].lower() == "positive" else -hf_res["score"]
+                score = score_val if label == "positive" else -score_val
             attr_obj.sentiment = float(score)
 
         # LM sentiment
@@ -88,7 +115,7 @@ class Setup:
             sentence_objs = list(attr_obj.sentences)
             texts = [getattr(s, "text", "") for s in sentence_objs]
             # Run transformer in batch (no-op on CPU, efficient on GPU)
-            hf_results = self.transformer(texts, batch_size=self.batch_size)
+            hf_results = self._hf_infer(texts)
 
             # Assign HF sentiment and compute lexicon-based scores per sentence
             for s, hf_res in zip(sentence_objs, hf_results):
