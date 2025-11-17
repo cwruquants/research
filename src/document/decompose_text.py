@@ -5,7 +5,7 @@ import nltk
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
-    nltk.download('punkt')
+    nltk.download('punkt', quiet=True)
 
 from nltk.tokenize import sent_tokenize, RegexpTokenizer
 from nltk.util import bigrams

@@ -750,6 +750,302 @@ class Analyst:
             "results": results,
         }
 
+    def check_integrity(
+        self,
+        earnings_calls_dir: Union[str, Path],
+        results_dir: Union[str, Path],
+        *,
+        metadata_filename: str = "analysis_metadata.toml",
+    ) -> Dict[str, Any]:
+        """
+        Compare result metadata files against the available earnings call transcripts.
+
+        Args:
+            earnings_calls_dir: Directory containing earnings call XML files.
+            results_dir: Directory containing per-call analysis subdirectories with
+                metadata TOML files (default name: ``analysis_metadata.toml``).
+            metadata_filename: Name of the metadata file to inspect inside each result
+                directory. Defaults to ``analysis_metadata.toml``.
+
+        Returns:
+            Dictionary with counts and details::
+
+                {
+                    "present": <int>,  # transcripts that already have metadata
+                    "missing": <int>,  # transcripts without metadata (i.e., need analysis)
+                    "total_transcripts": <int>,
+                    "total_metadata_files": <int>,
+                    "missing_details": [
+                        {
+                            "file_name": "<name>",
+                            "file_path": "<path>",
+                        },
+                        ...
+                    ],
+                    "metadata_issues": [
+                        {
+                            "file_name": "<name or None>",
+                            "metadata_path": "<path>",
+                            "reason": "<explanation>"
+                        },
+                        ...
+                    ],
+                    "earnings_calls_dir": "<resolved earnings dir>",
+                    "results_dir": "<resolved results dir>",
+                    "metadata_sample_path": "<path to one metadata file>",
+                }
+        """
+        earnings_dir = Path(earnings_calls_dir).expanduser()
+        results_dir = Path(results_dir).expanduser()
+
+        if not earnings_dir.exists() or not earnings_dir.is_dir():
+            raise NotADirectoryError(f"Earnings calls directory not found: {earnings_dir}")
+
+        if not results_dir.exists() or not results_dir.is_dir():
+            raise NotADirectoryError(f"Results directory not found: {results_dir}")
+
+        transcript_lookup: Dict[str, Path] = {}
+        for xml_file in earnings_dir.rglob("*.xml"):
+            if not xml_file.is_file():
+                continue
+            transcript_lookup.setdefault(xml_file.name, xml_file)
+
+        if not transcript_lookup:
+            raise FileNotFoundError(f"No XML files found in {earnings_dir}")
+
+        metadata_paths = [
+            path for path in results_dir.rglob(metadata_filename)
+            if path.is_file()
+        ]
+
+        if not metadata_paths:
+            raise FileNotFoundError(
+                f"No '{metadata_filename}' files found in {results_dir}"
+            )
+
+        analyzed_files: set[str] = set()
+        metadata_issues = []
+
+        for metadata_path in tqdm(metadata_paths, total=len(metadata_paths), desc="Checking integrity", unit="file", dynamic_ncols=True):
+            try:
+                toml_data = toml.load(metadata_path)
+            except (OSError, toml.TomlDecodeError) as exc:
+                metadata_issues.append({
+                    "file_name": None,
+                    "metadata_path": str(metadata_path),
+                    "reason": f"TOML error: {exc}",
+                })
+                continue
+
+            document_section = toml_data.get("document") or {}
+            file_name = document_section.get("file_name")
+
+            if not file_name:
+                metadata_issues.append({
+                    "file_name": None,
+                    "metadata_path": str(metadata_path),
+                    "reason": "Missing document.file_name",
+                })
+                continue
+
+            if file_name not in transcript_lookup:
+                metadata_issues.append({
+                    "file_name": file_name,
+                    "metadata_path": str(metadata_path),
+                    "reason": "File not found in earnings_calls_dir",
+                })
+                continue
+
+            analyzed_files.add(file_name)
+
+        missing_details = [
+            {
+                "file_name": name,
+                "file_path": str(path),
+            }
+            for name, path in sorted(transcript_lookup.items())
+            if name not in analyzed_files
+        ]
+
+        sample_metadata = str(metadata_paths[0]) if metadata_paths else None
+
+        return {
+            "present": len(analyzed_files),
+            "missing": len(missing_details),
+            "total_transcripts": len(transcript_lookup),
+            "total_metadata_files": len(metadata_paths),
+            "missing_details": missing_details,
+            "metadata_issues": metadata_issues,
+            "earnings_calls_dir": str(earnings_dir),
+            "results_dir": str(results_dir),
+            "metadata_sample_path": sample_metadata,
+        }
+
+    def repair_directory(
+        self,
+        earnings_calls_dir: Union[str, Path],
+        results_dir: Union[str, Path],
+        *,
+        integrity_snapshot: Optional[Dict[str, Any]] = None,
+        metadata_filename: str = "analysis_metadata.toml",
+        setup_dict: Optional[Dict[str, Any]] = None,
+        run_sentiment: bool = False,
+        matching_method: Optional[str] = None,
+        csv_name: str = "batch_summary.csv",
+        skip_on_error: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Re-run analysis for earnings calls that are missing from a results directory.
+
+        This function relies on :meth:`check_integrity` to determine which transcripts
+        still need to be processed, then reuses :meth:`process_single_document` to
+        append new result folders (and batch summary rows) to the existing results
+        directory.
+
+        Args:
+            earnings_calls_dir: Directory containing earnings call XML files.
+            results_dir: Directory containing previously generated analysis folders.
+            metadata_filename: Name of the metadata file created per analysis run.
+            setup_dict: Optional sentiment setup overrides (see ``process_directory``).
+            run_sentiment: Whether to run sentiment analysis for repaired calls.
+            matching_method: Optional matching mode ("direct" or "cosine").
+            csv_name: Batch summary filename to update (default: ``batch_summary.csv``).
+            skip_on_error: Continue processing other files if one fails.
+
+        Returns:
+            Dictionary summarizing the repair operation, including counts and the
+            updated integrity snapshot.
+        """
+        earnings_dir = Path(earnings_calls_dir).expanduser()
+        results_dir = Path(results_dir).expanduser()
+
+        # If an integrity snapshot from a previous check_integrity call is provided,
+        # reuse it to avoid recomputing integrity. Otherwise, compute it now.
+        if integrity_snapshot is not None:
+            integrity_before = integrity_snapshot
+        else:
+            integrity_before = self.check_integrity(
+                earnings_calls_dir=earnings_dir,
+                results_dir=results_dir,
+                metadata_filename=metadata_filename,
+            )
+
+        missing_calls = integrity_before.get("missing_details") or []
+
+        def _infer_analysis_root(base_dir: Path, sample_metadata: Optional[str]) -> Path:
+            if not sample_metadata:
+                return base_dir
+
+            metadata_path = Path(sample_metadata)
+
+            try:
+                relative = metadata_path.relative_to(base_dir)
+            except ValueError:
+                parent = metadata_path.parent
+                grandparent = parent.parent if parent != base_dir else parent
+                return grandparent if grandparent in metadata_path.parents else parent
+
+            parts = relative.parts
+            if len(parts) >= 3:
+                return base_dir / parts[0]
+            if len(parts) >= 2:
+                return base_dir
+            return metadata_path.parent
+
+        analysis_root = _infer_analysis_root(results_dir, integrity_before.get("metadata_sample_path"))
+        analysis_root.mkdir(parents=True, exist_ok=True)
+
+        processed_entries = []
+        csv_rows = []
+        errors = []
+
+        if missing_calls:
+            for detail in tqdm(missing_calls, desc="Repairing missing calls", unit="file", dynamic_ncols=True):
+                file_path_str = detail.get("file_path")
+                if not file_path_str:
+                    errors.append({
+                        "file_name": detail.get("file_name"),
+                        "reason": "Missing file_path in integrity results",
+                    })
+                    if skip_on_error:
+                        continue
+                    raise ValueError(f"Missing file_path for {detail}")
+
+                transcript_path = Path(file_path_str)
+                if not transcript_path.exists():
+                    errors.append({
+                        "file_name": detail.get("file_name"),
+                        "reason": f"Transcript not found: {transcript_path}",
+                    })
+                    if skip_on_error:
+                        continue
+                    raise FileNotFoundError(f"Transcript not found: {transcript_path}")
+
+                try:
+                    result = self.process_single_document(
+                        earnings_call_path=str(transcript_path),
+                        setup_dict=setup_dict,
+                        run_sentiment=run_sentiment,
+                        matching_method=matching_method,
+                        output_dir=str(analysis_root),
+                    )
+                except Exception as exc:
+                    errors.append({
+                        "file_name": detail.get("file_name"),
+                        "reason": str(exc),
+                    })
+                    if skip_on_error:
+                        continue
+                    raise
+
+                processed_entries.append({
+                    "file_name": transcript_path.name,
+                    "output_directory": result["output_directory"],
+                    "toml_path": result["toml_path"],
+                })
+
+                toml_path = Path(result["toml_path"])
+                with open(toml_path, "r", encoding="utf-8") as tf:
+                    tdata = toml.load(tf)
+                csv_rows.append(self._flatten_analysis_toml(tdata))
+
+        csv_path = analysis_root / csv_name
+        if csv_rows:
+            existing_rows = []
+            if csv_path.exists():
+                with open(csv_path, "r", encoding="utf-8") as cf:
+                    reader = csv.DictReader(cf)
+                    for row in reader:
+                        existing_rows.append(dict(row))
+
+            combined_rows = existing_rows + csv_rows
+            all_keys = set()
+            for row in combined_rows:
+                all_keys.update(row.keys())
+            fieldnames = sorted(all_keys)
+
+            with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+                writer = csv.DictWriter(cf, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in combined_rows:
+                    writer.writerow({k: row.get(k) for k in fieldnames})
+
+        integrity_after = self.check_integrity(
+            earnings_calls_dir=earnings_dir,
+            results_dir=results_dir,
+            metadata_filename=metadata_filename,
+        )
+
+        return {
+            "processed": len(processed_entries),
+            "errors": errors,
+            "csv_path": str(csv_path),
+            "analysis_root": str(analysis_root),
+            "integrity_before": integrity_before,
+            "integrity_after": integrity_after,
+            "processed_entries": processed_entries,
+        }
+
 
 
 
