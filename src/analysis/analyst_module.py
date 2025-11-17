@@ -11,18 +11,7 @@ from dateutil import parser as date_parser
 import pytz
 import textstat
 
-# Try to use notebook tqdm if in Jupyter, fallback to regular tqdm
-try:
-    from IPython import get_ipython
-    if get_ipython() is not None and 'IPKernelApp' in get_ipython().config:
-        try:
-            from tqdm.notebook import tqdm
-        except (ImportError, Exception):
-            from tqdm import tqdm
-    else:
-        from tqdm import tqdm
-except (ImportError, Exception):
-    from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
