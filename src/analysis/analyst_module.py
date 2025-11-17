@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union, Sequence
 import xml.etree.ElementTree as ET
 import csv
+import json
 import re
 import os
 import toml
@@ -756,6 +757,8 @@ class Analyst:
         results_dir: Union[str, Path],
         *,
         metadata_filename: str = "analysis_metadata.toml",
+        save_results: bool = False,
+        save_path: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Any]:
         """
         Compare result metadata files against the available earnings call transcripts.
@@ -869,7 +872,7 @@ class Analyst:
 
         sample_metadata = str(metadata_paths[0]) if metadata_paths else None
 
-        return {
+        result: Dict[str, Any] = {
             "present": len(analyzed_files),
             "missing": len(missing_details),
             "total_transcripts": len(transcript_lookup),
@@ -881,12 +884,31 @@ class Analyst:
             "metadata_sample_path": sample_metadata,
         }
 
+        if save_results:
+            # Determine output path for the snapshot
+            if save_path is not None:
+                out_path = Path(save_path).expanduser()
+            else:
+                out_path = results_dir / "integrity_snapshot.json"
+
+            try:
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                with out_path.open("w", encoding="utf-8") as f:
+                    json.dump(result, f, indent=2)
+                result["saved_to"] = str(out_path)
+            except Exception as exc:
+                # Don't fail integrity checking just because saving failed
+                result["save_error"] = str(exc)
+
+        return result
+
     def repair_directory(
         self,
         earnings_calls_dir: Union[str, Path],
         results_dir: Union[str, Path],
         *,
         integrity_snapshot: Optional[Dict[str, Any]] = None,
+        integrity_snapshot_path: Optional[Union[str, Path]] = None,
         metadata_filename: str = "analysis_metadata.toml",
         setup_dict: Optional[Dict[str, Any]] = None,
         run_sentiment: bool = False,
@@ -919,10 +941,15 @@ class Analyst:
         earnings_dir = Path(earnings_calls_dir).expanduser()
         results_dir = Path(results_dir).expanduser()
 
-        # If an integrity snapshot from a previous check_integrity call is provided,
-        # reuse it to avoid recomputing integrity. Otherwise, compute it now.
+        # If an integrity snapshot (dict) from a previous check_integrity call is
+        # provided, or a path to a saved snapshot, reuse it to avoid recomputing
+        # integrity. Otherwise, compute it now.
         if integrity_snapshot is not None:
             integrity_before = integrity_snapshot
+        elif integrity_snapshot_path is not None:
+            snapshot_path = Path(integrity_snapshot_path).expanduser()
+            with snapshot_path.open("r", encoding="utf-8") as f:
+                integrity_before = json.load(f)
         else:
             integrity_before = self.check_integrity(
                 earnings_calls_dir=earnings_dir,
