@@ -25,12 +25,28 @@ class SentimentSetup:
         self,
         sheet_name_positive: str = "ML_positive_unigram",
         sheet_name_negative: str = "ML_negative_unigram",
-        file_path: str = "data/word_sets/Garcia_MLWords.xlsx",
+        ml_wordlist_path: str = "data/word_sets/Garcia_MLWords.xlsx",
         hf_model: str = "cardiffnlp/twitter-roberta-base-sentiment-latest",
         device: int = -1,
         batch_size: Union[int, str] = "auto",
-        max_length: int = 512,
+        max_length: int = 512
     ):
+        """
+        Args:
+            sheet_name_positive (str): Excel sheet name for list of positive unigrams (for ML sentiment). 
+                Default is "ML_positive_unigram".
+            sheet_name_negative (str): Excel sheet name for list of negative unigrams (for ML sentiment). 
+                Default is "ML_negative_unigram".
+            ml_wordlist_path (str): Path to Excel wordlist file (MLWords). 
+                Default is "data/word_sets/Garcia_MLWords.xlsx".
+            hf_model (str): Huggingface model name for transformer-based sentiment analysis. 
+                Default is "cardiffnlp/twitter-roberta-base-sentiment-latest".
+            device (int): Device for transformer inference. -1 for CPU, 0 for first CUDA GPU, etc. 
+                Default is -1 (CPU).
+            batch_size (Union[int, str]): Batch size for transformer model. Set "auto" to determine dynamically. 
+                Default is "auto".
+            max_length (int): Maximum sequence length for transformer inputs. Default is 512.
+        """
         self.transformer = pipeline(
             "sentiment-analysis",
             model=hf_model,
@@ -43,8 +59,8 @@ class SentimentSetup:
         self.batch_size = batch_size
         self.max_length = max_length
         
-        self.ml_words_positive = self.excel_to_list(file_path, sheet_name_positive)
-        self.ml_words_negative = self.excel_to_list(file_path, sheet_name_negative)
+        self.ml_words_positive = self.excel_to_list(ml_wordlist_path, sheet_name_positive)
+        self.ml_words_negative = self.excel_to_list(ml_wordlist_path, sheet_name_negative)
 
         # Resolve auto batch size after pipeline is initialized (so device info is available)
         if isinstance(self.batch_size, str) and self.batch_size.lower() == "auto":
