@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, Sequence
 import xml.etree.ElementTree as ET
 import csv
 import re
@@ -10,17 +10,34 @@ from datetime import datetime
 from dateutil import parser as date_parser
 import pytz
 import textstat
-from tqdm.notebook import tqdm
+
+# Try to use notebook tqdm if in Jupyter, fallback to regular tqdm
+try:
+    from IPython import get_ipython
+    if get_ipython() is not None and 'IPKernelApp' in get_ipython().config:
+        try:
+            from tqdm.notebook import tqdm
+        except (ImportError, Exception):
+            from tqdm import tqdm
+    else:
+        from tqdm import tqdm
+except (ImportError, Exception):
+    from tqdm import tqdm
 
 from src.document.decompose_transcript import extract_presentation_section, extract_qa_section, clean_spoken_content
 from src.document.abstract_classes.attribute import DocumentAttr
-from src.document.abstract_classes.setup_module import Setup
+from src.document.abstract_classes.setup_module import SentimentSetup
 
 class Analyst:
-    def __init__(self, setup: Optional["Setup"] = None, keyword_path = None):
-        # I want an analyst to specialize in a single Setup, and to specialize in a single keyword doc
-        # If we want to do a different SetUp or keyword doc, we should create another analyst
-        self.setup = setup
+    def __init__(self, setups: Union["SentimentSetup", Sequence["SentimentSetup"], None] = None, keyword_path: Optional[str] = None):
+        if setups is None:
+            self.setups = []
+        elif isinstance(setups, SentimentSetup):
+            self.setups = [setups]
+        else:
+            self.setups = list(setups)
+        
+        self.setup = self.setups[0] if self.setups else None
         self.keyword_path = keyword_path
         # Lazy import to avoid loading heavy dependencies unless needed
         self.matching_agent = None
@@ -29,7 +46,7 @@ class Analyst:
             self.matching_agent = MatchingAgent(keywords_path=keyword_path)
 
     @staticmethod
-    def _build_setup_from_dict(setup_dict: Dict[str, Any]) -> "Setup":
+    def _build_setup_from_dict(setup_dict: Dict[str, Any]) -> "SentimentSetup":
         defaults = {
             "sheet_name_positive": "ML_positive_unigram",
             "sheet_name_negative": "ML_negative_unigram",
@@ -40,7 +57,7 @@ class Analyst:
             "max_length": 512,
         }
         cfg = {**defaults, **(setup_dict or {})}
-        return Setup(
+        return SentimentSetup(
             sheet_name_positive=cfg["sheet_name_positive"],
             sheet_name_negative=cfg["sheet_name_negative"],
             file_path=cfg["file_path"],
@@ -61,62 +78,43 @@ class Analyst:
 
     def _fit_sentiment(
         self,
-        earnings_call_path: Union[str, Path],
+        doc: "DocumentAttr",
         setup_dict: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> DocumentAttr:
         """
-        Pipeline:
-          1) Extract entire Body section from XML.
-          2) Clean the text.
-          3) Convert into DocumentAttr.
-          4) Ensure we have a Setup (use self.setup or build from setup_dict).
-          5) Fit/score the document.
+        Fit/score the document for sentiment.
 
         Returns:
             DocAttr properly fitted
         """
-        earnings_call_path = Path(earnings_call_path)
-        if not earnings_call_path.exists():
-            raise FileNotFoundError(f"Earnings call not found: {earnings_call_path}")
+        setup_obj = self.setup
+        if setup_dict is not None:
+            setup_obj = self._build_setup_from_dict(setup_dict)
 
-        # Extract entire body text from XML
-        tree = ET.parse(earnings_call_path)
-        root = tree.getroot()
-        body_elem = root.find(".//Body")
-        body_text = body_elem.text if body_elem is not None else ""
+        if not setup_obj:
+            raise ValueError("Sentiment analysis requires a SentimentSetup to be loaded or a setup_dict to be provided.")
 
-        # Clean the text
-        text_clean = clean_spoken_content(body_text)
-
-        # Create document attribute
-        doc = self._make_doc_attr(text_clean)
-
-        num_sentences = doc.num_sentences
-        num_words = doc.num_words
-
-        # make sure setup exists
-        setup_obj = self.setup or self._build_setup_from_dict(setup_dict or {})
         # fit
         doc_fit = setup_obj.fit_all(doc)
 
-        return doc_fit, num_sentences, num_words, text_clean
+        return doc_fit
     
     def _fit_matching(
         self,
         earnings_call_path: Union[str, Path],
-        similarity: str = "cosine"
+        matching_method: str
     ):
         earnings_call_path = Path(earnings_call_path)
         if not earnings_call_path.exists():
             raise FileNotFoundError(f"Earnings call not found: {earnings_call_path}")
         
-        if similarity == "cosine" or similarity == "direct":
+        if matching_method in ("cosine", "direct"):
             return self.matching_agent.single_processing(
                 document_path=earnings_call_path,
-                matching_function=similarity
+                matching_function=matching_method
             )
         else: 
-            raise ValueError(f"Matching method invalid: {similarity}")
+            raise ValueError(f"Matching method invalid: {matching_method}")
         
     def _get_company_attr(self, earnings_call_path):
         tree = ET.parse(earnings_call_path)
@@ -162,13 +160,15 @@ class Analyst:
         self,
         earnings_call_path: Union[str, Path],
         setup_dict: Optional[Dict[str, Any]] = None,
+        run_sentiment: bool = False,
     ) -> Dict[str, Any]:
         """
-        Extract document metadata and perform sentiment analysis.
+        Extract document metadata and optionally perform sentiment analysis.
 
         Args:
             earnings_call_path: Path to the earnings call XML file
             setup_dict: Optional setup configuration dictionary
+            run_sentiment: If True, run sentiment analysis. Defaults to False.
 
         Returns:
             dict with 'document', 'document_attr', and 'doc_fit' keys
@@ -178,11 +178,44 @@ class Analyst:
         # Get company metadata
         company_data = self._get_company_attr(earnings_call_path)
 
-        # Perform sentiment analysis
-        doc_fit, num_sentences, num_words, text_clean = self._fit_sentiment(
-            earnings_call_path=earnings_call_path,
-            setup_dict=setup_dict
-        )
+        # Extract and clean text from XML
+        tree = ET.parse(earnings_call_path)
+        root = tree.getroot()
+        body_elem = root.find(".//Body")
+        body_text = body_elem.text if body_elem is not None else ""
+        text_clean = clean_spoken_content(body_text)
+        doc = self._make_doc_attr(text_clean)
+
+        # Initialize with readability scores
+        document_attr_data = {
+            "num_sentences": doc.num_sentences,
+            "num_words": doc.num_words,
+            "flesch_reading_ease": textstat.flesch_reading_ease(text_clean),
+            "flesch_kincaid_grade": textstat.flesch_kincaid_grade(text_clean),
+            "smog_index": textstat.smog_index(text_clean),
+            "coleman_liau_index": textstat.coleman_liau_index(text_clean),
+            "automated_readability_index": textstat.automated_readability_index(text_clean),
+            "dale_chall_readability_score": textstat.dale_chall_readability_score(text_clean),
+            "difficult_words": textstat.difficult_words(text_clean),
+            "linsear_write_formula": textstat.linsear_write_formula(text_clean),
+            "gunning_fog": textstat.gunning_fog(text_clean),
+            "text_standard": textstat.text_standard(text_clean),
+        }
+        doc_fit = None
+
+        if run_sentiment:
+            # Perform sentiment analysis
+            doc_fit = self._fit_sentiment(
+                doc=doc,
+                setup_dict=setup_dict
+            )
+            sentiment_data = {
+                "sentiment": float(doc_fit.sentiment) if doc_fit.sentiment is not None else 0.0,
+                "ML": float(doc_fit.ML) if doc_fit.ML is not None else 0.0,
+                "LM": float(doc_fit.LM) if doc_fit.LM is not None else 0.0,
+                "HIV4": float(doc_fit.HIV4) if doc_fit.HIV4 is not None else 0.0,
+            }
+            document_attr_data.update(sentiment_data)
 
         # Build document metadata
         document_metadata = {
@@ -197,39 +230,19 @@ class Analyst:
             "event_title": company_data.get("eventTitle"),
         }
 
-        # Build document attribute data (sentiment scores)
-        document_attr_data = {
-            "sentiment": float(doc_fit.sentiment) if doc_fit.sentiment is not None else 0.0,
-            "ML": float(doc_fit.ML) if doc_fit.ML is not None else 0.0,
-            "LM": float(doc_fit.LM) if doc_fit.LM is not None else 0.0,
-            "HIV4": float(doc_fit.HIV4) if doc_fit.HIV4 is not None else 0.0,
-            "num_sentences": num_sentences,
-            "num_words": num_words,
-            "flesch_reading_ease": textstat.flesch_reading_ease(text_clean),
-            "flesch_kincaid_grade": textstat.flesch_kincaid_grade(text_clean),
-            "smog_index": textstat.smog_index(text_clean),
-            "coleman_liau_index": textstat.coleman_liau_index(text_clean),
-            "automated_readability_index": textstat.automated_readability_index(text_clean),
-            "dale_chall_readability_score": textstat.dale_chall_readability_score(text_clean),
-            "difficult_words": textstat.difficult_words(text_clean),
-            "linsear_write_formula": textstat.linsear_write_formula(text_clean),
-            "gunning_fog": textstat.gunning_fog(text_clean),
-            "text_standard": textstat.text_standard(text_clean),
-        }
-
         return {
             "document": document_metadata,
             "document_attr": document_attr_data,
             "doc_fit": doc_fit,
         }
     
-    def fit_single_document(
+    def process_single_document(
         self,
         earnings_call_path,
         setup_dict = None,
-        similarity = None,
+        run_sentiment: bool = False,
+        matching_method: Optional[str] = None,
         output_dir = "results",
-        run_matching = True,
     ):
         """
         Analyze a single earnings call document with optional keyword matching.
@@ -237,17 +250,18 @@ class Analyst:
         Args:
             earnings_call_path: Path to the earnings call XML file
             setup_dict: Optional setup configuration dictionary
-            similarity: Matching method ("cosine" or "direct"), required if run_matching=True
+            run_sentiment: If True, run sentiment analysis. Defaults to False.
+            matching_method: None to skip matching (default), or "direct"/"cosine" to run matching
             output_dir: Base directory for output (default: "results")
-            run_matching: Whether to run keyword matching (default: True)
 
         Returns:
             dict with analysis results and file paths
         """
-        # Get document attributes (always runs sentiment analysis)
+        # Get document attributes
         doc_attrs = self.get_document_attributes(
             earnings_call_path=earnings_call_path,
-            setup_dict=setup_dict
+            setup_dict=setup_dict,
+            run_sentiment=run_sentiment
         )
 
         # Create timestamped directory
@@ -263,17 +277,16 @@ class Analyst:
             "document_attr": doc_attrs["document_attr"]
         }
 
-        # Optionally run matching analysis
+        # Optionally run matching analysis based on matching_method
         exposure_results = None
-        if run_matching:
+        should_run_matching = matching_method in ("direct", "cosine")
+        if should_run_matching:
             if not self.matching_agent:
                 raise ValueError("Cannot run matching: no keyword_path provided to Analyst")
-            if not similarity:
-                raise ValueError("similarity parameter required when run_matching=True")
 
             exposure_results = self._fit_matching(
                 earnings_call_path=earnings_call_path,
-                similarity=similarity
+                matching_method=matching_method
             )
 
             # Add matching metadata to TOML
@@ -300,7 +313,7 @@ class Analyst:
             "doc_fit": doc_attrs["doc_fit"],
         }
 
-        if run_matching:
+        if should_run_matching:
             result["exposure_results_path"] = str(output_path / "exposure_results.json")
             result["exposure_results"] = exposure_results
 
@@ -361,31 +374,31 @@ class Analyst:
         }
         return flat
 
-    def fit_directory(
+    def process_directory(
         self,
         input_dir: Union[str, Path],
         output_dir: Union[str, Path] = "results",
         setup_dict: Optional[Dict[str, Any]] = None,
-        similarity: Optional[str] = None,
+        run_sentiment: bool = False,
+        matching_method: Optional[str] = None,
         pattern: str = "*.xml",
         recursive: bool = False,
         csv_name: str = "batch_summary.csv",
         skip_on_error: bool = True,
-        run_matching: bool = False,
     ) -> Dict[str, Any]:
         """
-        Process all earnings-call XMLs in a folder (sentiment analysis only by default).
+        Process all earnings-call XMLs in a folder.
 
         Args:
             input_dir: folder containing earnings-call XML files
             output_dir: base folder for batch outputs
             setup_dict: optional setup config dict (passed through)
-            similarity: "cosine" or "direct" (required if run_matching=True)
+            run_sentiment: If True, run sentiment analysis. Defaults to False.
+            matching_method: None to skip matching (default), or "direct"/"cosine" to run matching
             pattern: glob pattern for files (default: *.xml)
             recursive: whether to recurse into subdirs
             csv_name: name of the overall CSV in the batch folder
             skip_on_error: continue on per-file errors if True
-            run_matching: whether to run keyword matching (default: False)
 
         Returns:
             dict with paths and per-file results
@@ -393,9 +406,6 @@ class Analyst:
         input_dir = Path(input_dir)
         if not input_dir.exists() or not input_dir.is_dir():
             raise NotADirectoryError(f"Input directory not found or not a directory: {input_dir}")
-
-        if run_matching and not similarity:
-            raise ValueError("similarity parameter required when run_matching=True")
 
         # Create a single batch folder to hold all per-call outputs
         batch_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -418,12 +428,12 @@ class Analyst:
         for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing files", unit="file", dynamic_ncols=True):
             try:
                 # Each call will create its own subdirectory inside `batch_dir`
-                res = self.fit_single_document(
+                res = self.process_single_document(
                     earnings_call_path=fpath,
                     setup_dict=setup_dict,
-                    similarity=similarity,
+                    run_sentiment=run_sentiment,
+                    matching_method=matching_method,
                     output_dir=str(batch_dir),
-                    run_matching=run_matching,
                 )
                 results.append(res)
 
@@ -465,31 +475,111 @@ class Analyst:
             "batch_directory": str(batch_dir),
             "csv_path": str(csv_path),
             "num_files_processed": len(files),
-            "results": results,  # list of per-file return dicts from fit_single_document
+            "results": results,  # list of per-file return dicts from process_single_document
         }
 
-    def match_existing_batch(
+    def process_existing_directory(
         self,
         batch_dir: Union[str, Path],
         keyword_path: str,
-        similarity: str = "cosine",
+        matching_method: str,
         skip_on_error: bool = True,
+        transcript_roots: Optional[Union[str, Path, Sequence[Union[str, Path]]]] = None,
+        search_recursive: bool = True,
     ) -> Dict[str, Any]:
         """
-        Run keyword matching on an existing batch directory created by fit_directory.
+        Run keyword matching on an existing directory created by process_directory.
 
         Args:
             batch_dir: Path to existing batch directory
             keyword_path: Path to keywords CSV file
-            similarity: Matching method ("cosine" or "direct")
+            matching_method: Matching method ("cosine" or "direct"). Required parameter.
             skip_on_error: Continue on per-file errors if True
 
         Returns:
             dict with paths to exposure results and summary CSV
+
+        Notes:
+            If the original earnings-call XML paths stored in the batch metadata are not
+            available (for example, the batch was created on a different machine), you
+            can supply one or more `transcript_roots` directories. The function will look
+            for XMLs with matching filenames inside those directories (recursively by
+            default) before giving up on the file.
         """
         batch_dir = Path(batch_dir)
         if not batch_dir.exists() or not batch_dir.is_dir():
             raise NotADirectoryError(f"Batch directory not found: {batch_dir}")
+
+        # Ensure a valid matching method is provided for this operation
+        if matching_method not in ("direct", "cosine"):
+            raise ValueError("matching_method must be 'direct' or 'cosine' for process_existing_directory")
+
+        # Normalise transcript_roots input
+        resolved_roots: list[Path] = []
+        # Try to infer project root by traversing up until we find a data directory
+        current = batch_dir
+        project_root = None
+        for _ in range(6):
+            if (current / "data").exists():
+                project_root = current
+                break
+            current = current.parent
+
+        if transcript_roots is not None:
+            if isinstance(transcript_roots, (str, Path)):
+                transcript_roots = [transcript_roots]
+            for root in transcript_roots:
+                try:
+                    resolved_roots.append(Path(root))
+                except TypeError:
+                    continue
+        # Always append inferred default root (broader search) if available,
+        # even when the caller provided a narrower subfolder like ".../2016".
+        if project_root is not None:
+            inferred_root = project_root / "data" / "earnings_calls"
+            resolved_roots.append(inferred_root)
+
+        # Deduplicate roots while preserving order
+        seen_roots = set()
+        filtered_roots: list[Path] = []
+        for root in resolved_roots:
+            if root in seen_roots:
+                continue
+            seen_roots.add(root)
+            filtered_roots.append(root)
+        resolved_roots = filtered_roots
+
+        # Build a lazy index of transcripts by filename, only when needed
+        transcript_lookup: Dict[str, Path] = {}
+        indexed_roots: set[Path] = set()
+
+        def find_transcript_by_name(file_name: str) -> Optional[Path]:
+            nonlocal transcript_lookup
+            if not file_name:
+                return None
+
+            for root in resolved_roots:
+                if not root.exists():
+                    continue
+
+                if root not in indexed_roots:
+                    if search_recursive:
+                        try:
+                            for candidate in root.rglob("*.xml"):
+                                transcript_lookup.setdefault(candidate.name, candidate)
+                        except (OSError, ValueError):
+                            # If we cannot access the directory, skip it gracefully
+                            pass
+                    else:
+                        for candidate in root.glob("*.xml"):
+                            transcript_lookup.setdefault(candidate.name, candidate)
+                    indexed_roots.add(root)
+
+                candidate_path = transcript_lookup.get(file_name)
+                if candidate_path and candidate_path.exists():
+                    return candidate_path
+
+            return None
 
         # Create a matching agent for this keyword set
         from src.analysis.match_extraction.matching_agent import MatchingAgent
@@ -523,17 +613,41 @@ class Analyst:
                 with open(toml_path, "r", encoding="utf-8") as f:
                     toml_data = toml.load(f)
 
-                earnings_call_path = toml_data.get("document", {}).get("file_path")
-                if not earnings_call_path or not Path(earnings_call_path).exists():
+                document_metadata = toml_data.get("document", {})
+                earnings_call_path = document_metadata.get("file_path")
+                file_name = document_metadata.get("file_name")
+
+                resolved_path: Optional[Path] = None
+                if earnings_call_path:
+                    path_obj = Path(earnings_call_path)
+                    if path_obj.exists():
+                        resolved_path = path_obj
+
+                if resolved_path is None and file_name:
+                    resolved_path = find_transcript_by_name(file_name)
+
+                if resolved_path is None:
+                    message = "Earnings call not found"
+                    details = earnings_call_path or file_name or "<unknown>"
+                    error_msg = f"{message}: {details}"
                     if skip_on_error:
+                        exposure_rows.append({
+                            "file_name": file_name or subdir.name,
+                            "error": error_msg,
+                        })
                         continue
                     else:
-                        raise FileNotFoundError(f"Earnings call not found: {earnings_call_path}")
+                        raise FileNotFoundError(error_msg)
+
+                # Use resolved path and update TOML for future runs
+                earnings_call_path = str(resolved_path)
+                document_metadata["file_path"] = earnings_call_path
+                toml_data["document"] = document_metadata
 
                 # Run matching
                 exposure_results = matching_agent.single_processing(
                     document_path=earnings_call_path,
-                    matching_function=similarity
+                    matching_function=matching_method
                 )
 
                 # Save exposure results with unique name
@@ -553,7 +667,7 @@ class Analyst:
                     "match_id": match_id,
                     "keyword_path": keyword_path,
                     "keyword_name": keyword_name,
-                    "similarity": similarity,
+                    "matching_method": matching_method,
                     "timestamp": timestamp,
                     "exposure_results_path": str(exposure_path),
                 })
@@ -594,7 +708,7 @@ class Analyst:
                     "quarter": doc_metadata.get("quarter"),
                     "match_id": match_id,
                     "keyword_name": keyword_name,
-                    "similarity": similarity,
+                    "matching_method": matching_method,
                     "total_keywords_searched": exposure_results.total_keywords_searched,
                     "total_keywords_with_matches": exposure_results.total_keywords_with_matches,
                     "total_direct_matches": exposure_results.total_direct_matches,

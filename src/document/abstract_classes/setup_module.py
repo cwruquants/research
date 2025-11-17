@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from transformers import pipeline
 import numpy as np
 import pandas as pd
@@ -14,8 +14,13 @@ except ImportError:  # pragma: no cover - optional dependency
     Dataset = None
     KeyDataset = None
 
+try:
+    import torch
+except Exception:  # pragma: no cover - optional dependency
+    torch = None
 
-class Setup:
+
+class SentimentSetup:
     def __init__(
         self,
         sheet_name_positive: str = "ML_positive_unigram",
@@ -23,7 +28,7 @@ class Setup:
         file_path: str = "data/word_sets/Garcia_MLWords.xlsx",
         hf_model: str = "cardiffnlp/twitter-roberta-base-sentiment-latest",
         device: int = -1,
-        batch_size: int = 32,
+        batch_size: Union[int, str] = "auto",
         max_length: int = 512,
     ):
         self.transformer = pipeline(
@@ -38,8 +43,12 @@ class Setup:
         self.batch_size = batch_size
         self.max_length = max_length
         
-        self.ml_words_positive = self.ExceltoList(file_path, sheet_name_positive)
-        self.ml_words_negative = self.ExceltoList(file_path, sheet_name_negative)
+        self.ml_words_positive = self.excel_to_list(file_path, sheet_name_positive)
+        self.ml_words_negative = self.excel_to_list(file_path, sheet_name_negative)
+
+        # Resolve auto batch size after pipeline is initialized (so device info is available)
+        if isinstance(self.batch_size, str) and self.batch_size.lower() == "auto":
+            self.batch_size = self._auto_determine_batch_size()
 
     def _hf_infer(self, texts: List[str]):
         if not texts:
@@ -54,6 +63,83 @@ class Setup:
             return list(iterator)
 
         return self.transformer(texts, batch_size=self.batch_size)
+
+    def _auto_determine_batch_size(self) -> int:
+        """
+        Determine a reasonable maximum batch size based on available GPU memory by probing
+        the pipeline with increasing batch sizes and catching CUDA OOM. Falls back to 32
+        on CPU or if torch is not available.
+        """
+        try:
+            pipeline_device_type = getattr(getattr(self.transformer, "device", None), "type", None)
+            if torch is None or pipeline_device_type != "cuda":
+                return 32
+        except Exception:
+            return 32
+
+        # Heuristic initial estimate based on free memory and sequence length
+        try:
+            free_bytes, _ = torch.cuda.mem_get_info()  # type: ignore[attr-defined]
+            free_gb = free_bytes / (1024 ** 3)
+        except Exception:
+            free_gb = 4.0
+
+        # Base guess roughly scales with memory and inverse with sequence length
+        length_scale = max(1, 256 // max(1, int(self.max_length)))
+        initial_guess = int(max(4, min(128, 16 * free_gb * length_scale)))
+
+        # Probe by doubling until OOM or cap, with a small number of attempts
+        upper_cap = 256
+        best_working = 1
+        candidate = max(1, min(initial_guess, upper_cap))
+        attempts = 0
+        test_text = "ok."
+
+        while attempts < 5:
+            batch_candidate = max(1, min(candidate, upper_cap))
+            sample_inputs = [test_text] * batch_candidate
+            try:
+                if torch is not None:
+                    with torch.inference_mode():
+                        _ = self._hf_probe_infer(sample_inputs)
+                else:
+                    _ = self._hf_probe_infer(sample_inputs)
+                best_working = batch_candidate
+                candidate = batch_candidate * 2
+            except RuntimeError as e:
+                message = str(e).lower()
+                if "out of memory" in message or "cuda" in message:
+                    if torch is not None:
+                        try:
+                            torch.cuda.empty_cache()
+                        except Exception:
+                            pass
+                    # Reduce candidate
+                    if batch_candidate == 1:
+                        break
+                    candidate = max(1, batch_candidate // 2)
+                else:
+                    # Unknown error; stop probing and use last best
+                    break
+            except Exception:
+                # Non-CUDA error; stop probing
+                break
+            attempts += 1
+
+        return int(max(1, min(best_working, upper_cap)))
+
+    def _hf_probe_infer(self, texts: List[str]):
+        """
+        Internal helper to run a minimal forward pass for batch size probing,
+        sharing logic with _hf_infer but avoiding conversion to list for speed.
+        """
+        pipeline_device = getattr(getattr(self.transformer, "device", None), "type", None)
+        can_stream = Dataset is not None and KeyDataset is not None
+
+        if can_stream and pipeline_device == "cuda":
+            dataset = Dataset.from_dict({"text": texts})
+            return self.transformer(KeyDataset(dataset, "text"), batch_size=len(texts))
+        return self.transformer(texts, batch_size=len(texts))
 
     def fit(self, attr_obj: Attr):
         text = getattr(attr_obj, "text", None)
@@ -154,17 +240,11 @@ class Setup:
             for score in ["HIV4", "ML", "LM"]:
                 total = sum(getattr(s, score, 0.0) for s in sentence_objs)
                 setattr(attr_obj, score, float(total))
-
         else:
             # Leaf node (sentence)
             self.fit(attr_obj)
 
         return attr_obj
-
-
-
-
-
 
     def export_to_json(self, attr_obj, filepath):
         def serialize(attr_obj: Attr) -> dict:
@@ -186,13 +266,7 @@ class Setup:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(serialize(attr_obj), f, indent=2, ensure_ascii=False)
 
-
-
-
-
-
-
-    def ExceltoList(self, file_path, sheet_name) -> list:
+    def excel_to_list(self, file_path, sheet_name) -> list:
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
         values = df[0].tolist()
         normalized_list = []
@@ -202,9 +276,8 @@ class Setup:
             normalized_list.append(str(val).replace('_', ' ').lower())
         return normalized_list
 
-    
     #TODO: Diliya
-    def findWeight(corpus: DocumentAttr = None):
+    def find_weight(corpus: DocumentAttr = None):
         pass
 
 
