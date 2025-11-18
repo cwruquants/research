@@ -375,6 +375,7 @@ class Analyst:
         recursive: bool = False,
         csv_name: str = "batch_summary.csv",
         skip_on_error: bool = True,
+        specific_files: Optional[Sequence[Union[str, Path]]] = None,
     ) -> Dict[str, Any]:
         """
         Process all earnings-call XMLs in a folder.
@@ -389,6 +390,8 @@ class Analyst:
             recursive: whether to recurse into subdirs
             csv_name: name of the overall CSV in the batch folder
             skip_on_error: continue on per-file errors if True
+            specific_files: optional explicit list of transcript paths to process.
+                When provided, directory scanning via ``pattern``/``recursive`` is skipped.
 
         Returns:
             dict with paths and per-file results
@@ -402,17 +405,26 @@ class Analyst:
         batch_dir = Path(output_dir) / f"batch_{batch_stamp}"
         batch_dir.mkdir(parents=True, exist_ok=True)
 
-        # Discover files
-        files = (
-            list(input_dir.rglob(pattern)) if recursive
-            else list(input_dir.glob(pattern))
-        )
-        files = [p for p in files if p.is_file()]
+        if specific_files is not None:
+            files = []
+            for path_like in specific_files:
+                candidate = Path(path_like)
+                if not candidate.exists() or not candidate.is_file():
+                    raise FileNotFoundError(f"Specified file not found: {candidate}")
+                files.append(candidate)
+        else:
+            files = (
+                list(input_dir.rglob(pattern)) if recursive
+                else list(input_dir.glob(pattern))
+            )
+            files = [p for p in files if p.is_file()]
+
         if not files:
             raise FileNotFoundError(f"No files matched pattern '{pattern}' in {input_dir} (recursive={recursive}).")
 
         rows = []
         results = []
+        errors = []
 
         files_sorted = sorted(files)
         for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing files", unit="file", dynamic_ncols=True):
@@ -437,11 +449,17 @@ class Analyst:
 
             except Exception as e:
                 if skip_on_error:
+                    error_message = str(e)
                     # Record an error row with minimal info so you can see what failed
                     rows.append({
                         "file_name": fpath.name,
                         "file_path": str(fpath),
-                        "error": str(e),
+                        "error": error_message,
+                    })
+                    errors.append({
+                        "file_name": fpath.name,
+                        "file_path": str(fpath),
+                        "reason": error_message,
                     })
                     continue
                 else:
@@ -466,6 +484,7 @@ class Analyst:
             "csv_path": str(csv_path),
             "num_files_processed": len(files),
             "results": results,  # list of per-file return dicts from process_single_document
+            "errors": errors,
         }
 
     def process_existing_directory(
@@ -975,28 +994,61 @@ class Analyst:
         csv_rows = []
         errors = []
 
-        if missing_calls:
-            for detail in tqdm(missing_calls, desc="Repairing missing calls", unit="file", dynamic_ncols=True):
-                file_path_str = detail.get("file_path")
-                if not file_path_str:
-                    errors.append({
-                        "file_name": detail.get("file_name"),
-                        "reason": "Missing file_path in integrity results",
-                    })
-                    if skip_on_error:
-                        continue
-                    raise ValueError(f"Missing file_path for {detail}")
+        valid_missing_records: list[tuple[Path, Dict[str, Any]]] = []
+        for detail in missing_calls:
+            file_path_str = detail.get("file_path")
+            if not file_path_str:
+                errors.append({
+                    "file_name": detail.get("file_name"),
+                    "reason": "Missing file_path in integrity results",
+                })
+                if skip_on_error:
+                    continue
+                raise ValueError(f"Missing file_path for {detail}")
 
-                transcript_path = Path(file_path_str)
-                if not transcript_path.exists():
-                    errors.append({
-                        "file_name": detail.get("file_name"),
-                        "reason": f"Transcript not found: {transcript_path}",
-                    })
-                    if skip_on_error:
-                        continue
-                    raise FileNotFoundError(f"Transcript not found: {transcript_path}")
+            transcript_path = Path(file_path_str)
+            if not transcript_path.exists():
+                errors.append({
+                    "file_name": detail.get("file_name"),
+                    "reason": f"Transcript not found: {transcript_path}",
+                })
+                if skip_on_error:
+                    continue
+                raise FileNotFoundError(f"Transcript not found: {transcript_path}")
 
+            valid_missing_records.append((transcript_path, detail))
+
+        def _record_success(result: Dict[str, Any]):
+            toml_path = Path(result["toml_path"])
+            with open(toml_path, "r", encoding="utf-8") as tf:
+                tdata = toml.load(tf)
+            csv_rows.append(self._flatten_analysis_toml(tdata))
+            document_metadata = tdata.get("document", {})
+            processed_entries.append({
+                "file_name": document_metadata.get("file_name") or toml_path.stem,
+                "output_directory": result["output_directory"],
+                "toml_path": result["toml_path"],
+            })
+
+        if len(valid_missing_records) > 1:
+            batch_paths = [str(path) for path, _ in valid_missing_records]
+            batch_result = self.process_directory(
+                input_dir=earnings_dir,
+                output_dir=str(analysis_root),
+                setup_dict=setup_dict,
+                run_sentiment=run_sentiment,
+                matching_method=matching_method,
+                pattern="*.xml",
+                recursive=True,
+                csv_name=csv_name,
+                skip_on_error=skip_on_error,
+                specific_files=batch_paths,
+            )
+            for res in batch_result.get("results", []):
+                _record_success(res)
+            errors.extend(batch_result.get("errors") or [])
+        else:
+            for transcript_path, detail in tqdm(valid_missing_records, desc="Repairing missing calls", unit="file", dynamic_ncols=True):
                 try:
                     result = self.process_single_document(
                         earnings_call_path=str(transcript_path),
@@ -1014,16 +1066,7 @@ class Analyst:
                         continue
                     raise
 
-                processed_entries.append({
-                    "file_name": transcript_path.name,
-                    "output_directory": result["output_directory"],
-                    "toml_path": result["toml_path"],
-                })
-
-                toml_path = Path(result["toml_path"])
-                with open(toml_path, "r", encoding="utf-8") as tf:
-                    tdata = toml.load(tf)
-                csv_rows.append(self._flatten_analysis_toml(tdata))
+                _record_success(result)
 
         csv_path = analysis_root / csv_name
         if csv_rows:
