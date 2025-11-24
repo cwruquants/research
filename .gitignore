@@ -54,3 +54,6 @@ venv.bak/
 
 # Project-specific ignores
 results/README.md
+
+# Ignore earnings call XML files
+data/earnings_calls/
