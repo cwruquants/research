@@ -29,7 +29,7 @@ existing_batch_dir = str(project_root / "results" / "batch_20251030_031511-20251
 setup = SentimentSetup(
     sheet_name_positive='ML_positive_unigram',
     sheet_name_negative='ML_negative_unigram',
-    file_path=str(project_root / "data" / "word_sets" / "Garcia_MLWords.xlsx"),
+    ml_wordlist_path=str(project_root / "data" / "word_sets" / "Garcia_MLWords.xlsx"),
     hf_model='cardiffnlp/twitter-roberta-base-sentiment-latest',
     device=-1
 )
