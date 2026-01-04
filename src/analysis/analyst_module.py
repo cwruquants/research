@@ -388,6 +388,7 @@ class Analyst:
         csv_name: str = "batch_summary.csv",
         skip_on_error: bool = True,
         specific_files: Optional[Sequence[Union[str, Path]]] = None,
+        batch_folder_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process all earnings-call XMLs in a folder (batch processing).
@@ -405,6 +406,8 @@ class Analyst:
             skip_on_error (bool): If True, continues processing other files even if one fails. Defaults to True.
             specific_files (Optional[Sequence[Union[str, Path]]]): Optional explicit list of transcript paths to process.
                 When provided, directory scanning via ``pattern``/``recursive`` is skipped.
+            batch_folder_name (Optional[str]): Name of the subdirectory to create within output_dir. 
+                If None, defaults to "batch_YYYYMMDD_HHMMSS".
 
         Returns:
             Dict[str, Any]: A summary dictionary containing:
@@ -429,8 +432,16 @@ class Analyst:
             print(f"Using HuggingFace model for sentiment: {model_name}")
 
         # Create a single batch folder to hold all per-call outputs
-        batch_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        batch_dir = Path(output_dir) / f"batch_{batch_stamp}"
+        if batch_folder_name:
+            base_batch_dir = Path(output_dir) / batch_folder_name
+            batch_dir = base_batch_dir
+            counter = 1
+            while batch_dir.exists():
+                batch_dir = Path(output_dir) / f"{batch_folder_name}_{counter}"
+                counter += 1
+        else:
+            batch_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            batch_dir = Path(output_dir) / f"batch_{batch_stamp}"
         batch_dir.mkdir(parents=True, exist_ok=True)
 
         if specific_files is not None:
