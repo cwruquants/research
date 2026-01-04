@@ -63,8 +63,17 @@ class SentimentSetup:
         if not texts:
             return []
         
-        # Pass list directly to pipeline - efficient and avoids Dataset overhead
-        return self.transformer(texts, batch_size=self.batch_size)
+        try:
+            from datasets import Dataset
+            from transformers.pipelines.pt_utils import KeyDataset
+            
+            # Create a dataset to avoid "using pipelines sequentially on gpu" warning
+            dataset = Dataset.from_dict({"text": texts})
+            # Convert to list to ensure it's consumable/indexable (needed for single-item access in fit())
+            return list(self.transformer(KeyDataset(dataset, "text"), batch_size=self.batch_size))
+        except ImportError:
+            # Fallback if datasets library is missing
+            return self.transformer(texts, batch_size=self.batch_size)
 
     def _auto_determine_batch_size(self) -> int:
         """
