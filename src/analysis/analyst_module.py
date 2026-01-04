@@ -50,7 +50,7 @@ class Analyst:
         return SentimentSetup(
             sheet_name_positive=cfg["sheet_name_positive"],
             sheet_name_negative=cfg["sheet_name_negative"],
-            file_path=cfg["file_path"],
+            ml_wordlist_path=cfg["file_path"],
             hf_model=cfg["hf_model"],
             device=cfg["device"],
             batch_size=cfg["batch_size"],
@@ -63,7 +63,7 @@ class Analyst:
             text,
             store_paragraphs=True,
             store_sentences=True,
-            store_words=True,
+            store_words=False,
         )
 
     def _fit_sentiment(
@@ -437,7 +437,10 @@ class Analyst:
                     matching_method=matching_method,
                     output_dir=str(batch_dir),
                 )
-                results.append(res)
+                
+                # Store lightweight result (exclude heavy doc_fit object)
+                lightweight_res = {k: v for k, v in res.items() if k != "doc_fit"}
+                results.append(lightweight_res)
 
                 # Load the TOML we just wrote so the CSV is guaranteed to match file output
                 toml_path = Path(res["toml_path"])

@@ -8,13 +8,6 @@ import pysentiment2 as ps
 from src.document.abstract_classes.attribute import Attr, ParagraphAttr, SentenceAttr, DocumentAttr
 
 try:
-    from datasets import Dataset
-    from transformers.pipelines.pt_utils import KeyDataset
-except ImportError:  # pragma: no cover - optional dependency
-    Dataset = None
-    KeyDataset = None
-
-try:
     import torch
 except Exception:  # pragma: no cover - optional dependency
     torch = None
@@ -69,15 +62,8 @@ class SentimentSetup:
     def _hf_infer(self, texts: List[str]):
         if not texts:
             return []
-
-        pipeline_device = getattr(getattr(self.transformer, "device", None), "type", None)
-        can_stream = Dataset is not None and KeyDataset is not None
-
-        if can_stream and pipeline_device == "cuda":
-            dataset = Dataset.from_dict({"text": texts})
-            iterator = self.transformer(KeyDataset(dataset, "text"), batch_size=self.batch_size)
-            return list(iterator)
-
+        
+        # Pass list directly to pipeline - efficient and avoids Dataset overhead
         return self.transformer(texts, batch_size=self.batch_size)
 
     def _auto_determine_batch_size(self) -> int:
@@ -117,9 +103,9 @@ class SentimentSetup:
             try:
                 if torch is not None:
                     with torch.inference_mode():
-                        _ = self._hf_probe_infer(sample_inputs)
+                        _ = self.transformer(sample_inputs, batch_size=len(sample_inputs))
                 else:
-                    _ = self._hf_probe_infer(sample_inputs)
+                    _ = self.transformer(sample_inputs, batch_size=len(sample_inputs))
                 best_working = batch_candidate
                 candidate = batch_candidate * 2
             except RuntimeError as e:
@@ -143,19 +129,6 @@ class SentimentSetup:
             attempts += 1
 
         return int(max(1, min(best_working, upper_cap)))
-
-    def _hf_probe_infer(self, texts: List[str]):
-        """
-        Internal helper to run a minimal forward pass for batch size probing,
-        sharing logic with _hf_infer but avoiding conversion to list for speed.
-        """
-        pipeline_device = getattr(getattr(self.transformer, "device", None), "type", None)
-        can_stream = Dataset is not None and KeyDataset is not None
-
-        if can_stream and pipeline_device == "cuda":
-            dataset = Dataset.from_dict({"text": texts})
-            return self.transformer(KeyDataset(dataset, "text"), batch_size=len(texts))
-        return self.transformer(texts, batch_size=len(texts))
 
     def fit(self, attr_obj: Attr):
         text = getattr(attr_obj, "text", None)
