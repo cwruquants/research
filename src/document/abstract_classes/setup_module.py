@@ -19,7 +19,7 @@ class SentimentSetup:
         sheet_name_positive: str = "ML_positive_unigram",
         sheet_name_negative: str = "ML_negative_unigram",
         ml_wordlist_path: str = "data/word_sets/Garcia_MLWords.xlsx",
-        hf_model: str = "cardiffnlp/twitter-roberta-base-sentiment-latest",
+        hf_model: str = "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis",
         device: int = -1,
         batch_size: Union[int, str] = "auto",
         max_length: int = 512
@@ -33,7 +33,7 @@ class SentimentSetup:
             ml_wordlist_path (str): Path to Excel wordlist file (MLWords). 
                 Default is "data/word_sets/Garcia_MLWords.xlsx".
             hf_model (str): Huggingface model name for transformer-based sentiment analysis. 
-                Default is "cardiffnlp/twitter-roberta-base-sentiment-latest".
+                Default is "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis".
             device (int): Device for transformer inference. -1 for CPU, 0 for first CUDA GPU, etc. 
                 Default is -1 (CPU).
             batch_size (Union[int, str]): Batch size for transformer model. Set "auto" to determine dynamically. 

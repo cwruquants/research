@@ -41,7 +41,7 @@ class Analyst:
             "sheet_name_positive": "ML_positive_unigram",
             "sheet_name_negative": "ML_negative_unigram",
             "file_path": "data/word_sets/Garcia_MLWords.xlsx",
-            "hf_model": "cardiffnlp/twitter-roberta-base-sentiment-latest",
+            "hf_model": "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis",
             "device": -1,
             "batch_size": 32,
             "max_length": 512,
