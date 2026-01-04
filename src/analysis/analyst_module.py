@@ -92,12 +92,15 @@ class Analyst:
     def _fit_matching(
         self,
         earnings_call_path: Union[str, Path],
-        matching_method: str
+        matching_method: Optional[str]
     ):
         earnings_call_path = Path(earnings_call_path)
         if not earnings_call_path.exists():
             raise FileNotFoundError(f"Earnings call not found: {earnings_call_path}")
         
+        if matching_method is None:
+            return None
+
         if matching_method in ("cosine", "direct"):
             return self.matching_agent.single_processing(
                 document_path=earnings_call_path,
@@ -156,12 +159,15 @@ class Analyst:
         Extract document metadata and optionally perform sentiment analysis.
 
         Args:
-            earnings_call_path: Path to the earnings call XML file
-            setup_dict: Optional setup configuration dictionary
-            run_sentiment: If True, run sentiment analysis. Defaults to False.
+            earnings_call_path (Union[str, Path]): Path to the earnings call XML file.
+            setup_dict (Optional[Dict[str, Any]]): Optional setup configuration dictionary for sentiment analysis.
+            run_sentiment (bool): If True, run sentiment analysis. Defaults to False.
 
         Returns:
-            dict with 'document', 'document_attr', and 'doc_fit' keys
+            Dict[str, Any]: A dictionary containing:
+                - document: Metadata about the document (company name, date, etc.).
+                - document_attr: Extracted attributes like readability scores and sentiment (if run).
+                - doc_fit: The fitted DocumentAttr object (if sentiment was run), else None.
         """
         earnings_call_path = Path(earnings_call_path)
 
@@ -228,24 +234,30 @@ class Analyst:
     
     def process_single_document(
         self,
-        earnings_call_path,
-        setup_dict = None,
+        earnings_call_path: Union[str, Path],
+        setup_dict: Optional[Dict[str, Any]] = None,
         run_sentiment: bool = False,
         matching_method: Optional[str] = None,
-        output_dir = "results",
-    ):
+        output_dir: Union[str, Path] = "results",
+    ) -> Dict[str, Any]:
         """
         Analyze a single earnings call document with optional keyword matching.
 
         Args:
-            earnings_call_path: Path to the earnings call XML file
-            setup_dict: Optional setup configuration dictionary
-            run_sentiment: If True, run sentiment analysis. Defaults to False.
-            matching_method: None to skip matching (default), or "direct"/"cosine" to run matching
-            output_dir: Base directory for output (default: "results")
+            earnings_call_path (Union[str, Path]): Path to the earnings call XML file.
+            setup_dict (Optional[Dict[str, Any]]): Optional setup configuration dictionary for sentiment analysis.
+            run_sentiment (bool): If True, run sentiment analysis using the configured model. Defaults to False.
+            matching_method (Optional[str]): The method to use for keyword matching ("direct" or "cosine").
+                If None, matching is skipped. Defaults to None.
+            output_dir (Union[str, Path]): Base directory where results will be saved. Defaults to "results".
 
         Returns:
-            dict with analysis results and file paths
+            Dict[str, Any]: A dictionary containing analysis results and file paths:
+                - output_directory: Path to the specific result folder for this call.
+                - toml_path: Path to the generated analysis_metadata.toml file.
+                - doc_fit: The fitted DocumentAttr object (if sentiment was run).
+                - exposure_results_path: Path to the exposure JSON file (if matching was run).
+                - exposure_results: The ExposureResults object (if matching was run).
         """
         # Get document attributes
         doc_attrs = self.get_document_attributes(
@@ -378,27 +390,43 @@ class Analyst:
         specific_files: Optional[Sequence[Union[str, Path]]] = None,
     ) -> Dict[str, Any]:
         """
-        Process all earnings-call XMLs in a folder.
+        Process all earnings-call XMLs in a folder (batch processing).
 
         Args:
-            input_dir: folder containing earnings-call XML files
-            output_dir: base folder for batch outputs
-            setup_dict: optional setup config dict (passed through)
-            run_sentiment: If True, run sentiment analysis. Defaults to False.
-            matching_method: None to skip matching (default), or "direct"/"cosine" to run matching
-            pattern: glob pattern for files (default: *.xml)
-            recursive: whether to recurse into subdirs
-            csv_name: name of the overall CSV in the batch folder
-            skip_on_error: continue on per-file errors if True
-            specific_files: optional explicit list of transcript paths to process.
+            input_dir (Union[str, Path]): Folder containing earnings-call XML files.
+            output_dir (Union[str, Path]): Base folder for batch outputs. Defaults to "results".
+            setup_dict (Optional[Dict[str, Any]]): Optional setup config dict passed to sentiment analysis.
+            run_sentiment (bool): If True, run sentiment analysis. Defaults to False.
+            matching_method (Optional[str]): Method for keyword matching ("direct", "cosine", or None).
+                If None, matching is skipped. Defaults to None.
+            pattern (str): Glob pattern for identifying files to process. Defaults to "*.xml".
+            recursive (bool): Whether to recurse into subdirectories of input_dir. Defaults to False.
+            csv_name (str): Name of the summary CSV file created in the batch folder. Defaults to "batch_summary.csv".
+            skip_on_error (bool): If True, continues processing other files even if one fails. Defaults to True.
+            specific_files (Optional[Sequence[Union[str, Path]]]): Optional explicit list of transcript paths to process.
                 When provided, directory scanning via ``pattern``/``recursive`` is skipped.
 
         Returns:
-            dict with paths and per-file results
+            Dict[str, Any]: A summary dictionary containing:
+                - batch_directory: Path to the created batch output folder.
+                - csv_path: Path to the summary CSV file.
+                - num_files_processed: Total number of files successfully processed.
+                - results: List of dictionaries, each being the return value of process_single_document.
+                - errors: List of dictionaries describing any errors encountered.
         """
         input_dir = Path(input_dir)
         if not input_dir.exists() or not input_dir.is_dir():
             raise NotADirectoryError(f"Input directory not found or not a directory: {input_dir}")
+
+        if run_sentiment:
+            # Determine which model will be used
+            if setup_dict and "hf_model" in setup_dict:
+                model_name = setup_dict["hf_model"]
+            elif self.setup:
+                model_name = getattr(self.setup.transformer.model, "name_or_path", "unknown")
+            else:
+                model_name = "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis"
+            print(f"Using HuggingFace model for sentiment: {model_name}")
 
         # Create a single batch folder to hold all per-call outputs
         batch_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -503,13 +531,21 @@ class Analyst:
         Run keyword matching on an existing directory created by process_directory.
 
         Args:
-            batch_dir: Path to existing batch directory
-            keyword_path: Path to keywords CSV file
-            matching_method: Matching method ("cosine" or "direct"). Required parameter.
-            skip_on_error: Continue on per-file errors if True
+            batch_dir (Union[str, Path]): Path to the existing batch directory containing analysis results.
+            keyword_path (str): Path to the CSV file containing keywords to search for.
+            matching_method (str): The matching method to use ("direct" or "cosine").
+            skip_on_error (bool): If True, continues processing other files even if one fails. Defaults to True.
+            transcript_roots (Optional[Union[str, Path, Sequence[Union[str, Path]]]]): Optional list of directories
+                to search for the original XML transcripts if they are not found at their original paths.
+            search_recursive (bool): If True, searches for transcripts recursively within transcript_roots. Defaults to True.
 
         Returns:
-            dict with paths to exposure results and summary CSV
+            Dict[str, Any]: A dictionary containing:
+                - batch_directory: Path to the batch directory.
+                - match_id: Unique identifier for this matching run.
+                - exposure_summary_csv: Path to the created exposure summary CSV file.
+                - num_files_processed: Number of files successfully matched.
+                - results: List of result dictionaries for each processed file.
 
         Notes:
             If the original earnings-call XML paths stored in the batch metadata are not
@@ -522,7 +558,6 @@ class Analyst:
         if not batch_dir.exists() or not batch_dir.is_dir():
             raise NotADirectoryError(f"Batch directory not found: {batch_dir}")
 
-        # Ensure a valid matching method is provided for this operation
         if matching_method not in ("direct", "cosine"):
             raise ValueError("matching_method must be 'direct' or 'cosine' for process_existing_directory")
 
