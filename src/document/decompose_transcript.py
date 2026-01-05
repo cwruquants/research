@@ -1,12 +1,74 @@
 import xml.etree.ElementTree as ET
 import re
+from typing import Dict, Any, Union, Optional
+from pathlib import Path
+from dateutil import parser as date_parser
+import pytz
+
 from src.document.abstract_classes.attribute import DocumentAttr
 
 __all__ = [
     "extract_presentation_section",
     "extract_qa_section",
-    "clean_spoken_content"
+    "clean_spoken_content",
+    "get_company_metadata",
+    "extract_full_body_text"
 ]
+
+def get_company_metadata(xml_path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Parses company metadata (name, ticker, date, quarter) from the earnings call XML.
+    Standardizes the start date to GMT.
+    """
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    event_title = root.findtext("eventTitle", "")
+
+    match = re.search(r"(Q[1-4])\s+(\d{4})", event_title)
+    quarter, year = (match.group(1), match.group(2)) if match else (None, None)
+
+    # Parse and standardize startDate to GMT
+    start_date_raw = root.findtext("startDate")
+    start_date_gmt = None
+    if start_date_raw:
+        try:
+            # Parse the date string with timezone info
+            dt = date_parser.parse(start_date_raw)
+            # Convert to GMT/UTC
+            if dt.tzinfo is None:
+                # If no timezone, assume GMT
+                dt = pytz.UTC.localize(dt)
+            else:
+                dt = dt.astimezone(pytz.UTC)
+            # Format as standard GMT string
+            start_date_gmt = dt.strftime("%d-%b-%y %I:%M%p GMT")
+        except Exception:
+            # If parsing fails, keep original
+            start_date_gmt = start_date_raw
+
+    data = {
+        "eventTitle": event_title,
+        "city": root.findtext("city"),
+        "companyName": root.findtext("companyName"),
+        "companyTicker": root.findtext("companyTicker"),
+        "startDate": start_date_gmt,
+        "quarter": quarter,
+        "year": year,
+    }
+
+    return data
+
+
+def extract_full_body_text(xml_path: Union[str, Path]) -> str:
+    """
+    Extracts the raw text content from the <Body> tag of the XML.
+    """
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+    body_elem = root.find(".//Body")
+    return body_elem.text if body_elem is not None else ""
+
 
 def extract_presentation_section(xml_path):
     tree = ET.parse(xml_path)
