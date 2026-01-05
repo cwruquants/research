@@ -18,20 +18,23 @@ def run_risk_matching_on_existing_batch():
     """
 
     # 1. Path to the existing results batch you want to process
-    BATCH_DIR = r"H:\My Drive\QUANTS\RESEARCH\RESULTS\2002"
+    BATCH_DIR = r"H:\My Drive\QUANTS\RESEARCH\RESULTS\2004"
 
     # 2. (Optional) Path to search for original XML transcripts if they moved
     # e.g., r"K:\My Drive\EarningsCalls" or None
-    TRANSCRIPT_ROOT = r"H:\My Drive\QUANTS\RESEARCH\EARNINGS_CALLS\2002"
+    TRANSCRIPT_ROOT = r"H:\My Drive\QUANTS\RESEARCH\EARNINGS_CALLS\2004"
 
     # 3. Path to the risk keywords
-    KEYWORDS_PATH = os.path.join(project_root, "data", "word_sets", "activeness.csv")
+    KEYWORDS_PATH = os.path.join(project_root, "data", "word_sets", "risk.csv")
     
     # 4. Matching Method ("cosine" or "direct")
     MATCHING_METHOD = "direct"
 
     # 5. Enable Concurrent I/O (Upload while matching)
     CONCURRENT_IO = True
+
+    # 6. Number of threads for parallel matching
+    # NUM_THREADS = 8
     # =========================================================================
 
     print("=" * 60)
@@ -61,6 +64,7 @@ def run_risk_matching_on_existing_batch():
     if transcript_roots:
         print(f"Search in: {transcript_roots}")
     print(f"Concurrent I/O: {CONCURRENT_IO}")
+    # print(f"Threads:        {NUM_THREADS}")
     print("-" * 60)
 
     try:
@@ -71,7 +75,8 @@ def run_risk_matching_on_existing_batch():
             skip_on_error=True,
             transcript_roots=transcript_roots,
             search_recursive=True,
-            concurrent_io=CONCURRENT_IO
+            concurrent_io=CONCURRENT_IO,
+            # num_threads=NUM_THREADS
         )
 
         print("\n" + "=" * 60)

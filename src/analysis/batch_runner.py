@@ -4,13 +4,15 @@ import json
 import toml
 import queue
 import threading
+import sys
+import os
+import concurrent.futures
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, Union, Sequence, List, TYPE_CHECKING
 from tqdm.auto import tqdm
 
-if TYPE_CHECKING:
-    from src.analysis.analyst_module import Analyst
+from src.analysis.analyst_module import Analyst
 
 class BatchRunner:
     """
@@ -19,6 +21,29 @@ class BatchRunner:
     """
     def __init__(self, analyst: "Analyst"):
         self.analyst = analyst
+
+    def _resolve_num_threads(self, requested_threads: Optional[int]) -> int:
+        """
+        Determines the effective number of threads to use.
+        Checks if GIL is enabled/disabled and limits threads if running in a free-threaded environment.
+        """
+        if not requested_threads or requested_threads < 1:
+            return 1
+
+        # Check if GIL is enabled
+        gil_enabled = True
+        if hasattr(sys, "_is_gil_enabled"):
+            gil_enabled = sys._is_gil_enabled()
+        elif hasattr(sys.flags, "nogil"):
+            gil_enabled = not sys.flags.nogil
+
+        # If GIL is disabled (free-threaded), ensure we don't exceed system threads
+        if not gil_enabled:
+            max_threads = os.cpu_count() or 1
+            if requested_threads > max_threads:
+                return max_threads
+        
+        return requested_threads
 
     @staticmethod
     def _flatten_analysis_toml(toml_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -89,10 +114,31 @@ class BatchRunner:
         specific_files: Optional[Sequence[Union[str, Path]]] = None,
         batch_folder_name: Optional[str] = None,
         concurrent_io: bool = False,
+        num_threads: int = 1,
     ) -> Dict[str, Any]:
         """
-        Process all earnings-call XMLs in a folder (batch processing).
-        Replaces Analyst.process_directory.
+        Process a batch of earnings call transcripts from raw XML files.
+
+        This method orchestrates the analysis of multiple files, supporting parallel processing,
+        sentiment analysis, and result aggregation.
+
+        Args:
+            input_dir (Union[str, Path]): Directory containing the raw XML transcript files.
+            output_dir (Union[str, Path], optional): Base directory where results will be saved. Defaults to "results".
+            setup_dict (Optional[Dict[str, Any]], optional): Configuration dictionary for the analysis models (e.g., sentiment model). Defaults to None.
+            run_sentiment (bool, optional): Whether to perform sentiment analysis on the transcripts. Defaults to False.
+            matching_method (Optional[str], optional): The method to use for keyword matching (e.g., "direct", "cosine"). Defaults to None.
+            pattern (str, optional): Glob pattern to match files within input_dir. Defaults to "*.xml".
+            recursive (bool, optional): Whether to search input_dir recursively. Defaults to False.
+            csv_name (str, optional): Name of the summary CSV file to generate. Defaults to "batch_summary.csv".
+            skip_on_error (bool, optional): If True, continues processing other files if one fails. Defaults to True.
+            specific_files (Optional[Sequence[Union[str, Path]]], optional): List of specific file paths to process, ignoring input_dir scanning. Defaults to None.
+            batch_folder_name (Optional[str], optional): Specific name for the batch output folder. If None, a timestamped folder is created. Defaults to None.
+            concurrent_io (bool, optional): If True, enables concurrent I/O operations (writing results) alongside processing. Defaults to False.
+            num_threads (int, optional): Number of threads to use for parallel processing. Defaults to 1. Only works if running on a free-threaded python build.
+
+        Returns:
+            Dict[str, Any]: A summary dictionary containing paths to the results, counts of processed files, and any errors encountered.
         """
         input_dir = Path(input_dir)
         if not input_dir.exists() or not input_dir.is_dir():
@@ -143,14 +189,18 @@ class BatchRunner:
         results = []
         errors = []
         files_sorted = sorted(files)
+        
+        effective_threads = self._resolve_num_threads(num_threads)
+        use_threading = effective_threads > 1 or concurrent_io
 
-        if concurrent_io:
+        if use_threading:
             # Queue: (analysis_data, output_dir_str, file_path)
             write_queue = queue.Queue(maxsize=50)
             thread_results = []
             thread_errors = []
             
-            print("Concurrent I/O enabled: Matching and Writing will run in parallel.")
+            mode_desc = f"Multi-threaded ({effective_threads} threads)" if effective_threads > 1 else "Concurrent I/O"
+            print(f"{mode_desc} enabled: Matching and Writing will run in parallel.")
             pbar_processing = tqdm(total=len(files_sorted), desc="Processing (CPU)", unit="file", position=0, dynamic_ncols=True)
             pbar_saving = tqdm(total=len(files_sorted), desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True)
             
@@ -175,29 +225,68 @@ class BatchRunner:
             t = threading.Thread(target=writer_worker, daemon=True)
             t.start()
 
-            for fpath in files_sorted:
-                try:
-                    # Assumes Analyst has public `analyze_document_memory`
-                    data = self.analyst.analyze_document_memory(
-                        earnings_call_path=fpath,
+            if effective_threads > 1:
+                # Parallel Processing
+                # Capture needed state for new Analyst instances
+                current_setups = self.analyst.setups
+                current_keyword_path = self.analyst.keyword_path
+
+                def process_worker(f_path: Path):
+                    # Create thread-local analyst to avoid state corruption
+                    # We reuse setups (model) assuming thread-safety of the model/setup, 
+                    # but MatchingAgent (recreated) is safe.
+                    local_analyst = Analyst(setups=current_setups, keyword_path=current_keyword_path)
+                    return local_analyst.analyze_document_memory(
+                        earnings_call_path=f_path,
                         setup_dict=setup_dict,
                         run_sentiment=run_sentiment,
                         matching_method=matching_method,
                     )
-                    write_queue.put((data, str(batch_dir), fpath))
-                except Exception as e:
-                    if skip_on_error:
-                        error_message = str(e)
-                        rows.append({"file_name": fpath.name, "file_path": str(fpath), "error": error_message})
-                        errors.append({"file_name": fpath.name, "file_path": str(fpath), "reason": error_message})
-                        pbar_saving.update(1) 
-                        continue
-                    else:
-                        pbar_processing.close()
-                        pbar_saving.close()
-                        raise
-                finally:
-                    pbar_processing.update(1)
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=effective_threads) as executor:
+                    future_to_file = {executor.submit(process_worker, fp): fp for fp in files_sorted}
+                    
+                    for future in concurrent.futures.as_completed(future_to_file):
+                        fpath = future_to_file[future]
+                        try:
+                            data = future.result()
+                            write_queue.put((data, str(batch_dir), fpath))
+                        except Exception as e:
+                            if skip_on_error:
+                                error_message = str(e)
+                                rows.append({"file_name": fpath.name, "file_path": str(fpath), "error": error_message})
+                                errors.append({"file_name": fpath.name, "file_path": str(fpath), "reason": error_message})
+                                pbar_saving.update(1) # We skip the saving step for this file
+                            else:
+                                # Stop everything
+                                # We can't easily cancel other futures, but we can raise
+                                raise e
+                        finally:
+                            pbar_processing.update(1)
+            else:
+                # Single thread processing (concurrent_io only)
+                for fpath in files_sorted:
+                    try:
+                        data = self.analyst.analyze_document_memory(
+                            earnings_call_path=fpath,
+                            setup_dict=setup_dict,
+                            run_sentiment=run_sentiment,
+                            matching_method=matching_method,
+                        )
+                        write_queue.put((data, str(batch_dir), fpath))
+                    except Exception as e:
+                        if skip_on_error:
+                            error_message = str(e)
+                            rows.append({"file_name": fpath.name, "file_path": str(fpath), "error": error_message})
+                            errors.append({"file_name": fpath.name, "file_path": str(fpath), "reason": error_message})
+                            pbar_saving.update(1) 
+                            continue
+                        else:
+                            pbar_processing.close()
+                            pbar_saving.close()
+                            raise
+                    finally:
+                        pbar_processing.update(1)
 
             write_queue.put(None)
             t.join()
@@ -224,7 +313,7 @@ class BatchRunner:
                     raise exc
 
         else:
-            # Sequential
+            # Sequential (No Threading, No Concurrent IO)
             for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing files", unit="file", dynamic_ncols=True):
                 try:
                     # Use the public wrapper process_single_document
@@ -285,10 +374,26 @@ class BatchRunner:
         transcript_roots: Optional[Union[str, Path, Sequence[Union[str, Path]]]] = None,
         search_recursive: bool = True,
         concurrent_io: bool = False,
+        num_threads: int = 1,
     ) -> Dict[str, Any]:
         """
-        Run keyword matching on an existing directory.
-        Replaces Analyst.process_existing_directory.
+        Run keyword matching analysis on an already processed batch of transcripts.
+
+        This method is useful when you have already parsed the documents and want to run
+        different keyword sets or matching algorithms without re-parsing the original files.
+
+        Args:
+            batch_dir (Union[str, Path]): Directory containing the previously processed results (should contain subdirectories with analysis_metadata.toml).
+            keyword_path (str): Path to the CSV file containing keywords to match.
+            matching_method (str): The matching algorithm to use ('direct' or 'cosine').
+            skip_on_error (bool, optional): If True, continues processing if a single file/directory fails. Defaults to True.
+            transcript_roots (Optional[Union[str, Path, Sequence[Union[str, Path]]]], optional): Directories to search for the original XML transcripts if not found in default locations. Defaults to None.
+            search_recursive (bool, optional): Whether to search transcript_roots recursively. Defaults to True.
+            concurrent_io (bool, optional): If True, enables concurrent I/O for saving results. Defaults to False.
+            num_threads (int, optional): Number of threads for parallel matching. Defaults to 1.
+
+        Returns:
+            Dict[str, Any]: A summary dictionary containing the match ID, output CSV path, and results.
         """
         batch_dir = Path(batch_dir)
         if not batch_dir.exists() or not batch_dir.is_dir():
@@ -352,8 +457,7 @@ class BatchRunner:
 
         # -- Setup Matching --
         from src.analysis.match_extraction.matching_agent import MatchingAgent
-        matching_agent = MatchingAgent(keywords_path=keyword_path)
-
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         keyword_name = Path(keyword_path).stem
         match_id = f"{keyword_name}_{timestamp}"
@@ -396,12 +500,56 @@ class BatchRunner:
                 "total_matches": exp_res.total_direct_matches + exp_res.total_cosine_matches,
             }
 
+        def _check_existing_match(toml_data: Dict[str, Any], subdir: Path) -> Optional[Dict[str, Any]]:
+            """
+            Checks if a matching run with the same keyword_name and matching_method exists.
+            If found and valid, returns the data package with loaded results.
+            """
+            from src.analysis.match_extraction.exposure_results import ExposureResults
+            matching_runs = toml_data.get("metadata_matching_runs", [])
+            for run in matching_runs:
+                if (run.get("keyword_name") == keyword_name and 
+                    run.get("matching_method") == matching_method):
+                    
+                    # Found a potential match, check file existence
+                    exp_path_str = run.get("exposure_results_path")
+                    if not exp_path_str: continue
+                    
+                    exp_path = Path(exp_path_str)
+                    if not exp_path.is_absolute():
+                        exp_path = subdir / exp_path
+                        
+                    if exp_path.exists():
+                        try:
+                            exposure_results = ExposureResults.load_json(str(exp_path))
+                            return {
+                                "subdir": subdir,
+                                "exposure_results": exposure_results,
+                                "toml_data": toml_data,
+                                "match_id": run.get("match_id"),
+                                "keyword_path": keyword_path,
+                                "keyword_name": keyword_name,
+                                "matching_method": matching_method,
+                                "timestamp": run.get("timestamp"),
+                                "already_processed": True
+                            }
+                        except Exception as e:
+                            print(f"Warning: Failed to load existing results at {exp_path}: {e}")
+                            pass
+            return None
+
         # -- Execution --
-        if concurrent_io:
+        effective_threads = self._resolve_num_threads(num_threads)
+        use_threading = effective_threads > 1 or concurrent_io
+
+        if use_threading:
             write_queue = queue.Queue(maxsize=50)
             thread_results = []
             thread_errors = []
             
+            mode_desc = f"Multi-threaded ({effective_threads} threads)" if effective_threads > 1 else "Concurrent I/O"
+            print(f"{mode_desc} enabled: Matching and Writing will run in parallel.")
+
             pbar_processing = tqdm(total=len(sorted_subdirs), desc="Matching (CPU)", unit="file", position=0, dynamic_ncols=True)
             pbar_saving = tqdm(total=len(sorted_subdirs), desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True)
             
@@ -412,9 +560,12 @@ class BatchRunner:
                         write_queue.task_done()
                         break
                     try:
-                        # Assumes Analyst has public `save_match_results`
-                        res = self.analyst.save_match_results(item)
-                        thread_results.append(res)
+                        if item.get("already_processed"):
+                            thread_results.append(item)
+                        else:
+                            # Assumes Analyst has public `save_match_results`
+                            res = self.analyst.save_match_results(item)
+                            thread_results.append(res)
                     except Exception as e:
                         thread_errors.append((e, item.get("subdir")))
                     finally:
@@ -424,71 +575,93 @@ class BatchRunner:
             t = threading.Thread(target=writer_worker, daemon=True)
             t.start()
 
-            for subdir in sorted_subdirs:
+            def process_subdir(subdir: Path):
                 toml_path = subdir / "analysis_metadata.toml"
                 if not toml_path.exists():
-                    pbar_processing.update(1)
-                    pbar_saving.update(1)
-                    continue
-                
-                try:
-                    with open(toml_path, "r", encoding="utf-8") as f:
-                        toml_data = toml.load(f)
+                    return None
 
-                    doc_meta = toml_data.get("document", {})
-                    earnings_call_path = doc_meta.get("file_path")
-                    file_name = doc_meta.get("file_name")
+                with open(toml_path, "r", encoding="utf-8") as f:
+                    toml_data = toml.load(f)
 
-                    resolved_path: Optional[Path] = None
-                    if earnings_call_path and Path(earnings_call_path).exists():
-                        resolved_path = Path(earnings_call_path)
-                    elif file_name:
-                        resolved_path = find_transcript_by_name(file_name)
+                # Check for existing match
+                existing = _check_existing_match(toml_data, subdir)
+                if existing:
+                    return existing
 
-                    if resolved_path is None:
-                        if skip_on_error:
-                            exposure_rows.append({"file_name": file_name or subdir.name, "error": "Earnings call not found"})
-                            pbar_saving.update(1)
+                doc_meta = toml_data.get("document", {})
+                earnings_call_path = doc_meta.get("file_path")
+                file_name = doc_meta.get("file_name")
+
+                resolved_path: Optional[Path] = None
+                if earnings_call_path and Path(earnings_call_path).exists():
+                    resolved_path = Path(earnings_call_path)
+                elif file_name:
+                    resolved_path = find_transcript_by_name(file_name)
+
+                if resolved_path is None:
+                    raise FileNotFoundError(f"Earnings call not found for {subdir.name}")
+
+                # Update path
+                earnings_call_path = str(resolved_path)
+                doc_meta["file_path"] = earnings_call_path
+                toml_data["document"] = doc_meta
+
+                # Create local agent for thread safety if using multiple threads
+                local_matching_agent = MatchingAgent(keywords_path=keyword_path)
+
+                # Run Matching
+                exposure_results = local_matching_agent.single_processing(
+                    document_path=earnings_call_path,
+                    matching_function=matching_method
+                )
+
+                return {
+                    "subdir": subdir,
+                    "exposure_results": exposure_results,
+                    "toml_data": toml_data,
+                    "match_id": match_id,
+                    "keyword_path": keyword_path,
+                    "keyword_name": keyword_name,
+                    "matching_method": matching_method,
+                    "timestamp": timestamp,
+                }
+
+            if effective_threads > 1:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=effective_threads) as executor:
+                    future_to_subdir = {executor.submit(process_subdir, sd): sd for sd in sorted_subdirs}
+                    for future in concurrent.futures.as_completed(future_to_subdir):
+                        sd = future_to_subdir[future]
+                        try:
+                            data_package = future.result()
+                            if data_package:
+                                write_queue.put(data_package)
+                            else:
+                                pbar_saving.update(1)
+                        except Exception as e:
+                            if skip_on_error:
+                                thread_errors.append((e, sd))
+                                pbar_saving.update(1)
+                            else:
+                                raise e
+                        finally:
                             pbar_processing.update(1)
-                            continue
+            else:
+                # Single thread processing (concurrent_io only)
+                for subdir in sorted_subdirs:
+                    try:
+                        data_package = process_subdir(subdir)
+                        if data_package:
+                            write_queue.put(data_package)
                         else:
-                            raise FileNotFoundError(f"Earnings call not found: {earnings_call_path or file_name}")
-
-                    # Update path
-                    earnings_call_path = str(resolved_path)
-                    doc_meta["file_path"] = earnings_call_path
-                    toml_data["document"] = doc_meta
-
-                    # Run Matching
-                    exposure_results = matching_agent.single_processing(
-                        document_path=earnings_call_path,
-                        matching_function=matching_method
-                    )
-
-                    # Enqueue
-                    data_package = {
-                        "subdir": subdir,
-                        "exposure_results": exposure_results,
-                        "toml_data": toml_data,
-                        "match_id": match_id,
-                        "keyword_path": keyword_path,
-                        "keyword_name": keyword_name,
-                        "matching_method": matching_method,
-                        "timestamp": timestamp,
-                    }
-                    write_queue.put(data_package)
-
-                except Exception as e:
-                    if skip_on_error:
-                        exposure_rows.append({"file_name": subdir.name, "error": str(e)})
-                        pbar_saving.update(1)
+                            pbar_saving.update(1)
+                    except Exception as e:
+                        if skip_on_error:
+                            thread_errors.append((e, subdir))
+                            pbar_saving.update(1)
+                        else:
+                            raise e
+                    finally:
                         pbar_processing.update(1)
-                        continue
-                    else:
-                        pbar_processing.close()
-                        pbar_saving.close()
-                        raise
-                pbar_processing.update(1)
 
             write_queue.put(None)
             t.join()
@@ -505,7 +678,8 @@ class BatchRunner:
                     raise exc
 
         else:
-            # Sequential
+            # Sequential (No Threading, No Concurrent IO)
+            matching_agent = MatchingAgent(keywords_path=keyword_path)
             for subdir in tqdm(sorted_subdirs, total=len(sorted_subdirs), desc="Matching keywords", unit="file", dynamic_ncols=True):
                 toml_path = subdir / "analysis_metadata.toml"
                 if not toml_path.exists():
@@ -515,6 +689,13 @@ class BatchRunner:
                 try:
                     with open(toml_path, "r", encoding="utf-8") as f:
                         toml_data = toml.load(f)
+
+                    # Check for existing match
+                    existing = _check_existing_match(toml_data, subdir)
+                    if existing:
+                        results.append(existing)
+                        exposure_rows.append(generate_csv_row(existing))
+                        continue
                     
                     doc_meta = toml_data.get("document", {})
                     earnings_call_path = doc_meta.get("file_path")
@@ -594,7 +775,20 @@ class BatchRunner:
         save_path: Optional[Union[str, Path]] = None,
     ) -> Dict[str, Any]:
         """
-        Compare result metadata files against the available earnings call transcripts.
+        Verify the completeness of a processing batch by comparing results against source files.
+
+        Checks if every source transcript in `earnings_calls_dir` has a corresponding
+        result in `results_dir`.
+
+        Args:
+            earnings_calls_dir (Union[str, Path]): Directory containing the source XML transcript files.
+            results_dir (Union[str, Path]): Directory containing the processed results.
+            metadata_filename (str, optional): Name of the metadata file to look for in result directories. Defaults to "analysis_metadata.toml".
+            save_results (bool, optional): Whether to save the integrity report to a JSON file. Defaults to False.
+            save_path (Optional[Union[str, Path]], optional): Specific path to save the integrity report. If None, saves to 'integrity_snapshot.json' in results_dir. Defaults to None.
+
+        Returns:
+            Dict[str, Any]: A dictionary detailing present/missing files, total counts, and specific missing file details.
         """
         earnings_dir = Path(earnings_calls_dir).expanduser()
         results_dir = Path(results_dir).expanduser()
@@ -682,7 +876,25 @@ class BatchRunner:
         skip_on_error: bool = True,
     ) -> Dict[str, Any]:
         """
-        Re-run analysis for earnings calls that are missing from a results directory.
+        Attempt to process missing files identified by an integrity check.
+
+        This method finds transcripts that are present in the source directory but missing
+        from the results, and processes them to complete the batch.
+
+        Args:
+            earnings_calls_dir (Union[str, Path]): Source directory for earnings call transcripts.
+            results_dir (Union[str, Path]): Directory containing partial results.
+            integrity_snapshot (Optional[Dict[str, Any]], optional): Pre-computed integrity report from `check_integrity`. Defaults to None.
+            integrity_snapshot_path (Optional[Union[str, Path]], optional): Path to a saved integrity report JSON file. Defaults to None.
+            metadata_filename (str, optional): Name of the metadata file to look for. Defaults to "analysis_metadata.toml".
+            setup_dict (Optional[Dict[str, Any]], optional): Configuration for analysis (should match original batch). Defaults to None.
+            run_sentiment (bool, optional): Whether to run sentiment analysis. Defaults to False.
+            matching_method (Optional[str], optional): Matching method to use. Defaults to None.
+            csv_name (str, optional): Name of the summary CSV. Defaults to "batch_summary.csv".
+            skip_on_error (bool, optional): If True, ignores errors during repair. Defaults to True.
+
+        Returns:
+            Dict[str, Any]: A summary of the repair operation, including processed count and updated integrity status.
         """
         earnings_dir = Path(earnings_calls_dir).expanduser()
         results_dir = Path(results_dir).expanduser()
