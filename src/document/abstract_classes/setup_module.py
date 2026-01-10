@@ -97,14 +97,18 @@ class SentimentSetup:
 
         # Base guess roughly scales with memory and inverse with sequence length
         length_scale = max(1, 256 // max(1, int(self.max_length)))
-        initial_guess = int(max(4, min(128, 16 * free_gb * length_scale)))
+        # Remove arbitrary 128 cap on initial guess, allow scaling with VRAM
+        initial_guess = int(max(4, 16 * free_gb * length_scale))
 
         # Probe by doubling until OOM or cap, with a small number of attempts
-        upper_cap = 256
+        upper_cap = 4096
         best_working = 1
         candidate = max(1, min(initial_guess, upper_cap))
         attempts = 0
-        test_text = "ok."
+        
+        # Use a dummy text roughly the size of max_length to ensure the batch size 
+        # is safe for worst-case inputs (assuming ~4 chars per token)
+        test_text = "word " * max(1, int(self.max_length))
 
         while attempts < 5:
             batch_candidate = max(1, min(candidate, upper_cap))
