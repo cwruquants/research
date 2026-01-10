@@ -153,6 +153,14 @@ class BatchRunner:
             else:
                 model_name = "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis"
             print(f"Using HuggingFace model for sentiment: {model_name}")
+            
+            # Print batch size
+            if self.analyst.setup:
+                print(f"Batch size: {self.analyst.setup.batch_size}")
+            elif setup_dict:
+                print(f"Batch size: {setup_dict.get('batch_size', 'auto')}")
+            else:
+                print(f"Batch size: auto")
 
         # Create a single batch folder
         if batch_folder_name:
@@ -538,6 +546,50 @@ class BatchRunner:
                             pass
             return None
 
+        # -- Pre-scan for existing results --
+        print(f"Scanning {len(sorted_subdirs)} files for existing results...")
+        
+        pending_subdirs = []
+        already_processed_count = 0
+        
+        # Use a thread pool for faster checking of existing files if there are many
+        with concurrent.futures.ThreadPoolExecutor() as scanner:
+            # Helper to return (subdir, existing_package)
+            def scan_subdir(sd):
+                tp = sd / "analysis_metadata.toml"
+                if not tp.exists():
+                    return sd, None
+                try:
+                    with open(tp, "r", encoding="utf-8") as f:
+                        td = toml.load(f)
+                    existing = _check_existing_match(td, sd)
+                    return sd, existing
+                except Exception:
+                    return sd, None
+
+            # Execute scan
+            future_to_subdir = {scanner.submit(scan_subdir, sd): sd for sd in sorted_subdirs}
+            
+            # We want to maintain order for consistency if possible, but results list order doesn't strictly matter
+            # pending_subdirs needs to be processed.
+            
+            # Temporary storage to sort back later if needed, or just append
+            # For progress bar consistency, simple append is fine.
+            
+            for future in tqdm(concurrent.futures.as_completed(future_to_subdir), total=len(sorted_subdirs), desc="Restoring state", unit="file", dynamic_ncols=True):
+                sd, existing_pkg = future.result()
+                if existing_pkg:
+                    results.append(existing_pkg)
+                    exposure_rows.append(generate_csv_row(existing_pkg))
+                    already_processed_count += 1
+                else:
+                    pending_subdirs.append(sd)
+        
+        # Sort pending to maintain deterministic processing order
+        pending_subdirs.sort()
+        
+        print(f"Found {already_processed_count} existing results. Resuming processing for {len(pending_subdirs)} files.")
+
         # -- Execution --
         effective_threads = self._resolve_num_threads(num_threads)
         use_threading = effective_threads > 1 or concurrent_io
@@ -550,8 +602,8 @@ class BatchRunner:
             mode_desc = f"Multi-threaded ({effective_threads} threads)" if effective_threads > 1 else "Concurrent I/O"
             print(f"{mode_desc} enabled: Matching and Writing will run in parallel.")
 
-            pbar_processing = tqdm(total=len(sorted_subdirs), desc="Matching (CPU)", unit="file", position=0, dynamic_ncols=True)
-            pbar_saving = tqdm(total=len(sorted_subdirs), desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True)
+            pbar_processing = tqdm(total=len(sorted_subdirs), initial=already_processed_count, desc="Matching (CPU)", unit="file", position=0, dynamic_ncols=True)
+            pbar_saving = tqdm(total=len(sorted_subdirs), initial=already_processed_count, desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True)
             
             def writer_worker():
                 while True:
@@ -583,10 +635,8 @@ class BatchRunner:
                 with open(toml_path, "r", encoding="utf-8") as f:
                     toml_data = toml.load(f)
 
-                # Check for existing match
-                existing = _check_existing_match(toml_data, subdir)
-                if existing:
-                    return existing
+                # NOTE: We already checked for existing match in the pre-scan, 
+                # so we can skip calling _check_existing_match here.
 
                 doc_meta = toml_data.get("document", {})
                 earnings_call_path = doc_meta.get("file_path")
@@ -628,7 +678,7 @@ class BatchRunner:
 
             if effective_threads > 1:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=effective_threads) as executor:
-                    future_to_subdir = {executor.submit(process_subdir, sd): sd for sd in sorted_subdirs}
+                    future_to_subdir = {executor.submit(process_subdir, sd): sd for sd in pending_subdirs}
                     for future in concurrent.futures.as_completed(future_to_subdir):
                         sd = future_to_subdir[future]
                         try:
@@ -647,7 +697,7 @@ class BatchRunner:
                             pbar_processing.update(1)
             else:
                 # Single thread processing (concurrent_io only)
-                for subdir in sorted_subdirs:
+                for subdir in pending_subdirs:
                     try:
                         data_package = process_subdir(subdir)
                         if data_package:
@@ -680,7 +730,10 @@ class BatchRunner:
         else:
             # Sequential (No Threading, No Concurrent IO)
             matching_agent = MatchingAgent(keywords_path=keyword_path)
-            for subdir in tqdm(sorted_subdirs, total=len(sorted_subdirs), desc="Matching keywords", unit="file", dynamic_ncols=True):
+            
+            # Initialize tqdm with total subdirs but start at already_processed_count
+            # Iterate only over pending_subdirs
+            for subdir in tqdm(pending_subdirs, total=len(sorted_subdirs), initial=already_processed_count, desc="Matching keywords", unit="file", dynamic_ncols=True):
                 toml_path = subdir / "analysis_metadata.toml"
                 if not toml_path.exists():
                     if skip_on_error: continue
@@ -690,12 +743,7 @@ class BatchRunner:
                     with open(toml_path, "r", encoding="utf-8") as f:
                         toml_data = toml.load(f)
 
-                    # Check for existing match
-                    existing = _check_existing_match(toml_data, subdir)
-                    if existing:
-                        results.append(existing)
-                        exposure_rows.append(generate_csv_row(existing))
-                        continue
+                    # NOTE: Pre-scan already handled existing matches
                     
                     doc_meta = toml_data.get("document", {})
                     earnings_call_path = doc_meta.get("file_path")
