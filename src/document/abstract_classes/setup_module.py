@@ -58,6 +58,8 @@ class SentimentSetup:
         # Resolve auto batch size after pipeline is initialized (so device info is available)
         if isinstance(self.batch_size, str) and self.batch_size.lower() == "auto":
             self.batch_size = self._auto_determine_batch_size()
+        
+        print(f"[SentimentSetup] Resolved batch_size: {self.batch_size}")
 
     def _hf_infer(self, texts: List[str]):
         if not texts:

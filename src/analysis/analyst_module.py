@@ -58,7 +58,7 @@ class Analyst:
             "file_path": "data/word_sets/Garcia_MLWords.xlsx",
             "hf_model": "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis",
             "device": -1,
-            "batch_size": 32,
+            "batch_size": "auto",
             "max_length": 512,
         }
         cfg = {**defaults, **(setup_dict or {})}
