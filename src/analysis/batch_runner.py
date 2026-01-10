@@ -383,6 +383,7 @@ class BatchRunner:
         search_recursive: bool = True,
         concurrent_io: bool = False,
         num_threads: int = 1,
+        check_state: bool = True,
     ) -> Dict[str, Any]:
         """
         Run keyword matching analysis on an already processed batch of transcripts.
@@ -399,6 +400,7 @@ class BatchRunner:
             search_recursive (bool, optional): Whether to search transcript_roots recursively. Defaults to True.
             concurrent_io (bool, optional): If True, enables concurrent I/O for saving results. Defaults to False.
             num_threads (int, optional): Number of threads for parallel matching. Defaults to 1.
+            check_state (bool, optional): If True, checks for existing results and resumes. Defaults to True.
 
         Returns:
             Dict[str, Any]: A summary dictionary containing the match ID, output CSV path, and results.
@@ -547,48 +549,53 @@ class BatchRunner:
             return None
 
         # -- Pre-scan for existing results --
-        print(f"Scanning {len(sorted_subdirs)} files for existing results...")
-        
         pending_subdirs = []
         already_processed_count = 0
         
-        # Use a thread pool for faster checking of existing files if there are many
-        with concurrent.futures.ThreadPoolExecutor() as scanner:
-            # Helper to return (subdir, existing_package)
-            def scan_subdir(sd):
-                tp = sd / "analysis_metadata.toml"
-                if not tp.exists():
-                    return sd, None
-                try:
-                    with open(tp, "r", encoding="utf-8") as f:
-                        td = toml.load(f)
-                    existing = _check_existing_match(td, sd)
-                    return sd, existing
-                except Exception:
-                    return sd, None
+        if check_state:
+            print(f"Scanning {len(sorted_subdirs)} files for existing results...")
+            
+            # Use a thread pool for faster checking of existing files if there are many
+            with concurrent.futures.ThreadPoolExecutor() as scanner:
+                # Helper to return (subdir, existing_package)
+                def scan_subdir(sd):
+                    tp = sd / "analysis_metadata.toml"
+                    if not tp.exists():
+                        return sd, None
+                    try:
+                        with open(tp, "r", encoding="utf-8") as f:
+                            td = toml.load(f)
+                        existing = _check_existing_match(td, sd)
+                        return sd, existing
+                    except Exception:
+                        return sd, None
 
-            # Execute scan
-            future_to_subdir = {scanner.submit(scan_subdir, sd): sd for sd in sorted_subdirs}
+                # Execute scan
+                future_to_subdir = {scanner.submit(scan_subdir, sd): sd for sd in sorted_subdirs}
+                
+                # We want to maintain order for consistency if possible, but results list order doesn't strictly matter
+                # pending_subdirs needs to be processed.
+                
+                # Temporary storage to sort back later if needed, or just append
+                # For progress bar consistency, simple append is fine.
+                
+                for future in tqdm(concurrent.futures.as_completed(future_to_subdir), total=len(sorted_subdirs), desc="Restoring state", unit="file", dynamic_ncols=True):
+                    sd, existing_pkg = future.result()
+                    if existing_pkg:
+                        results.append(existing_pkg)
+                        exposure_rows.append(generate_csv_row(existing_pkg))
+                        already_processed_count += 1
+                    else:
+                        pending_subdirs.append(sd)
             
-            # We want to maintain order for consistency if possible, but results list order doesn't strictly matter
-            # pending_subdirs needs to be processed.
-            
-            # Temporary storage to sort back later if needed, or just append
-            # For progress bar consistency, simple append is fine.
-            
-            for future in tqdm(concurrent.futures.as_completed(future_to_subdir), total=len(sorted_subdirs), desc="Restoring state", unit="file", dynamic_ncols=True):
-                sd, existing_pkg = future.result()
-                if existing_pkg:
-                    results.append(existing_pkg)
-                    exposure_rows.append(generate_csv_row(existing_pkg))
-                    already_processed_count += 1
-                else:
-                    pending_subdirs.append(sd)
+            print(f"Found {already_processed_count} existing results. Resuming processing for {len(pending_subdirs)} files.")
+        
+        else:
+            pending_subdirs = sorted_subdirs
+            print(f"Checking disabled. Processing all {len(pending_subdirs)} files.")
         
         # Sort pending to maintain deterministic processing order
         pending_subdirs.sort()
-        
-        print(f"Found {already_processed_count} existing results. Resuming processing for {len(pending_subdirs)} files.")
 
         # -- Execution --
         effective_threads = self._resolve_num_threads(num_threads)
