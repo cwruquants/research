@@ -209,8 +209,9 @@ class BatchRunner:
             
             mode_desc = f"Multi-threaded ({effective_threads} threads)" if effective_threads > 1 else "Concurrent I/O"
             print(f"{mode_desc} enabled: Matching and Writing will run in parallel.")
-            pbar_processing = tqdm(total=len(files_sorted), desc="Processing (CPU)", unit="file", position=0, dynamic_ncols=True)
-            pbar_saving = tqdm(total=len(files_sorted), desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True)
+            # Use file=sys.stderr for better Windows terminal compatibility
+            pbar_processing = tqdm(total=len(files_sorted), desc="Processing (CPU)", unit="file", position=0, dynamic_ncols=True, file=sys.stderr)
+            pbar_saving = tqdm(total=len(files_sorted), desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True, file=sys.stderr)
             
             def writer_worker():
                 while True:
@@ -322,7 +323,7 @@ class BatchRunner:
 
         else:
             # Sequential (No Threading, No Concurrent IO)
-            for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing files", unit="file", dynamic_ncols=True):
+            for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing files", unit="file", dynamic_ncols=True, file=sys.stderr):
                 try:
                     # Use the public wrapper process_single_document
                     res = self.analyst.process_single_document(
@@ -579,7 +580,7 @@ class BatchRunner:
                 # Temporary storage to sort back later if needed, or just append
                 # For progress bar consistency, simple append is fine.
                 
-                for future in tqdm(concurrent.futures.as_completed(future_to_subdir), total=len(sorted_subdirs), desc="Restoring state", unit="file", dynamic_ncols=True):
+                for future in tqdm(concurrent.futures.as_completed(future_to_subdir), total=len(sorted_subdirs), desc="Restoring state", unit="file", dynamic_ncols=True, file=sys.stderr):
                     sd, existing_pkg = future.result()
                     if existing_pkg:
                         results.append(existing_pkg)
@@ -609,8 +610,9 @@ class BatchRunner:
             mode_desc = f"Multi-threaded ({effective_threads} threads)" if effective_threads > 1 else "Concurrent I/O"
             print(f"{mode_desc} enabled: Matching and Writing will run in parallel.")
 
-            pbar_processing = tqdm(total=len(sorted_subdirs), initial=already_processed_count, desc="Matching (CPU)", unit="file", position=0, dynamic_ncols=True)
-            pbar_saving = tqdm(total=len(sorted_subdirs), initial=already_processed_count, desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True)
+            # Use file=sys.stderr for better Windows terminal compatibility
+            pbar_processing = tqdm(total=len(sorted_subdirs), initial=already_processed_count, desc="Matching (CPU)", unit="file", position=0, dynamic_ncols=True, file=sys.stderr)
+            pbar_saving = tqdm(total=len(sorted_subdirs), initial=already_processed_count, desc="Saving/Uploading (I/O)", unit="file", position=1, dynamic_ncols=True, file=sys.stderr)
             
             def writer_worker():
                 while True:
@@ -740,7 +742,7 @@ class BatchRunner:
             
             # Initialize tqdm with total subdirs but start at already_processed_count
             # Iterate only over pending_subdirs
-            for subdir in tqdm(pending_subdirs, total=len(sorted_subdirs), initial=already_processed_count, desc="Matching keywords", unit="file", dynamic_ncols=True):
+            for subdir in tqdm(pending_subdirs, total=len(sorted_subdirs), initial=already_processed_count, desc="Matching keywords", unit="file", dynamic_ncols=True, file=sys.stderr):
                 toml_path = subdir / "analysis_metadata.toml"
                 if not toml_path.exists():
                     if skip_on_error: continue
@@ -868,7 +870,7 @@ class BatchRunner:
         analyzed_files: set[str] = set()
         metadata_issues = []
 
-        for metadata_path in tqdm(metadata_paths, total=len(metadata_paths), desc="Checking integrity", unit="file", dynamic_ncols=True):
+        for metadata_path in tqdm(metadata_paths, total=len(metadata_paths), desc="Checking integrity", unit="file", dynamic_ncols=True, file=sys.stderr):
             try:
                 toml_data = toml.load(metadata_path)
             except (OSError, toml.TomlDecodeError) as exc:

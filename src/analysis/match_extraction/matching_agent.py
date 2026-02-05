@@ -34,7 +34,7 @@ class MatchingAgent:
         self.find_keyword_variations = find_keyword_variations
         self.model = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {self.device}")
+        # Device selection is silent to avoid disrupting progress bars
 
 
     def _get_model(self):
