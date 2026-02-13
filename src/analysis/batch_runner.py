@@ -13,6 +13,7 @@ from typing import Optional, Dict, Any, Union, Sequence, List, TYPE_CHECKING
 from tqdm.auto import tqdm
 
 from src.analysis.analyst_module import Analyst
+from src.analysis.supabase_uploader import SupabaseUploader
 
 class BatchRunner:
     """
@@ -371,6 +372,181 @@ class BatchRunner:
             "csv_path": str(csv_path),
             "num_files_processed": len(files),
             "results": results,
+            "errors": errors,
+        }
+
+    def process_batch_to_supabase(
+        self,
+        input_dir: Union[str, Path],
+        year: int,
+        supabase_client,
+        setup_dict: Optional[Dict[str, Any]] = None,
+        run_sentiment: bool = False,
+        matching_method: Optional[str] = None,
+        pattern: str = "*.xml",
+        recursive: bool = False,
+        skip_on_error: bool = True,
+        specific_files: Optional[Sequence[Union[str, Path]]] = None,
+        num_threads: int = 1,
+    ) -> Dict[str, Any]:
+        """
+        Process earnings calls and upload results directly to Supabase (no intermediate files).
+        
+        This method bypasses file creation entirely, uploading analysis results directly
+        to the Supabase database as each document is processed.
+        
+        Args:
+            input_dir (Union[str, Path]): Directory containing XML transcript files
+            year (int): Year of the earnings calls (for database storage)
+            supabase_client: Initialized Supabase client
+            setup_dict (Optional[Dict[str, Any]]): Setup configuration for sentiment analysis
+            run_sentiment (bool): Whether to run sentiment analysis. Defaults to False.
+            matching_method (Optional[str]): Matching method ('direct' or 'cosine'). Defaults to None.
+            pattern (str): Glob pattern to match files. Defaults to "*.xml".
+            recursive (bool): Whether to search recursively. Defaults to False.
+            skip_on_error (bool): Continue on errors. Defaults to True.
+            specific_files (Optional[Sequence]): Specific files to process. Defaults to None.
+            num_threads (int): Number of threads for parallel processing. Defaults to 1.
+        
+        Returns:
+            Dict[str, Any]: Summary with upload statistics and errors
+        """
+        input_dir = Path(input_dir)
+        if not input_dir.exists() or not input_dir.is_dir():
+            raise NotADirectoryError(f"Input directory not found: {input_dir}")
+
+        if run_sentiment:
+            if setup_dict and "hf_model" in setup_dict:
+                model_name = setup_dict["hf_model"]
+            elif self.analyst.setup:
+                model_name = getattr(self.analyst.setup.transformer.model, "name_or_path", "unknown")
+            else:
+                model_name = "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis"
+            print(f"Using HuggingFace model for sentiment: {model_name}")
+            
+            if self.analyst.setup:
+                print(f"Batch size: {self.analyst.setup.batch_size}")
+            elif setup_dict:
+                print(f"Batch size: {setup_dict.get('batch_size', 'auto')}")
+            else:
+                print(f"Batch size: auto")
+
+        # Initialize Supabase uploader
+        uploader = SupabaseUploader(supabase_client, batch_size=500)
+        print("Initializing company cache from Supabase...")
+        num_companies = uploader.initialize_company_cache()
+        print(f"✓ Loaded {num_companies} existing companies")
+
+        # Gather files
+        if specific_files is not None:
+            files = []
+            for path_like in specific_files:
+                candidate = Path(path_like)
+                if not candidate.exists() or not candidate.is_file():
+                    raise FileNotFoundError(f"Specified file not found: {candidate}")
+                files.append(candidate)
+        else:
+            files = (
+                list(input_dir.rglob(pattern)) if recursive
+                else list(input_dir.glob(pattern))
+            )
+            files = [p for p in files if p.is_file()]
+
+        if not files:
+            raise FileNotFoundError(f"No files matched pattern '{pattern}' in {input_dir}")
+
+        upload_results = []
+        errors = []
+        files_sorted = sorted(files)
+        
+        effective_threads = self._resolve_num_threads(num_threads)
+        use_threading = effective_threads > 1
+
+        if use_threading:
+            # Multi-threaded processing with direct upload
+            print(f"Multi-threaded ({effective_threads} threads) enabled: Processing + Uploading in parallel")
+            pbar_processing = tqdm(total=len(files_sorted), desc="Processing & Uploading", unit="file", position=0, dynamic_ncols=True, file=sys.stderr)
+            
+            # Capture needed state
+            current_setups = self.analyst.setups
+            current_keyword_path = self.analyst.keyword_path
+
+            def process_and_upload(f_path: Path):
+                # Create thread-local analyst
+                local_analyst = Analyst(setups=current_setups, keyword_path=current_keyword_path)
+                
+                # Analyze
+                data = local_analyst.analyze_document_memory(
+                    earnings_call_path=f_path,
+                    setup_dict=setup_dict,
+                    run_sentiment=run_sentiment,
+                    matching_method=matching_method,
+                )
+                
+                # Upload directly (note: uploader is shared, but upsert is thread-safe)
+                result = uploader.upload_document(data, year)
+                result["file_path"] = str(f_path)
+                return result
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=effective_threads) as executor:
+                future_to_file = {executor.submit(process_and_upload, fp): fp for fp in files_sorted}
+                
+                for future in concurrent.futures.as_completed(future_to_file):
+                    fpath = future_to_file[future]
+                    try:
+                        result = future.result()
+                        upload_results.append(result)
+                        if result["status"] != "success":
+                            errors.append({"file": str(fpath), "reason": result.get("reason", "Unknown")})
+                    except Exception as e:
+                        if skip_on_error:
+                            errors.append({"file": str(fpath), "reason": str(e)})
+                        else:
+                            raise e
+                    finally:
+                        pbar_processing.update(1)
+            
+            pbar_processing.close()
+
+        else:
+            # Sequential processing with direct upload
+            for fpath in tqdm(files_sorted, total=len(files_sorted), desc="Processing & Uploading", unit="file", dynamic_ncols=True, file=sys.stderr):
+                try:
+                    # Analyze
+                    data = self.analyst.analyze_document_memory(
+                        earnings_call_path=fpath,
+                        setup_dict=setup_dict,
+                        run_sentiment=run_sentiment,
+                        matching_method=matching_method,
+                    )
+                    
+                    # Upload directly
+                    result = uploader.upload_document(data, year)
+                    result["file_path"] = str(fpath)
+                    upload_results.append(result)
+                    
+                    if result["status"] != "success":
+                        errors.append({"file": str(fpath), "reason": result.get("reason", "Unknown")})
+
+                except Exception as e:
+                    if skip_on_error:
+                        errors.append({"file": str(fpath), "reason": str(e)})
+                        continue
+                    else:
+                        raise
+
+        # Finalize uploader (flush any buffered data)
+        uploader.finalize()
+        
+        # Count successful uploads
+        successful = sum(1 for r in upload_results if r["status"] == "success")
+        
+        return {
+            "year": year,
+            "num_files_processed": len(files),
+            "num_uploaded": successful,
+            "num_errors": len(errors),
+            "upload_results": upload_results,
             "errors": errors,
         }
 
