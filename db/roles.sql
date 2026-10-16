@@ -9,3 +9,13 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     GRANT USAGE, SELECT ON SEQUENCES TO research_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     GRANT SELECT ON TABLES TO research_ro;
+
+-- research_agent is created once by an administrator: CREATE ROLE research_agent LOGIN;
+GRANT CONNECT ON DATABASE research TO research_agent;
+GRANT USAGE ON SCHEMA public TO research_agent;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO research_agent;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO research_agent;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO research_agent;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO research_agent;
