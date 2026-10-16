@@ -1,8 +1,8 @@
 # Local research database
 
-PostgreSQL 18 runs on the Windows desktop. It is reachable from the tailnet as
-`desktop-64ns9eu:5432` and locally as `localhost:5432`. The source Supabase
-project remains a separate fallback.
+PostgreSQL 18 runs on a Windows desktop. It is reachable from approved
+Tailscale devices using that desktop's Tailscale hostname and locally as
+`localhost:5432`. The source Supabase project remains a separate fallback.
 
 ## Schema and migration
 
@@ -15,9 +15,9 @@ The indexes and foreign keys are built and checked after the copy.
 
 Use the `research_app` role for uploads. Set `DATABASE_URL` in the process
 environment to `postgresql://research_app@localhost:5432/research` on the
-desktop or `postgresql://research_app@desktop-64ns9eu:5432/research` on the
-Mac. Store the password in that machine's PostgreSQL password file rather
-than in the URL. On Windows, this file is
+desktop or `postgresql://research_app@<windows-tailscale-hostname>:5432/research`
+on another Tailscale device. Store the password in that machine's PostgreSQL
+password file rather than in the URL. On Windows, this file is
 `%APPDATA%\postgresql\pgpass.conf`; on macOS, it is `~/.pgpass`.
 
 The uploader is `PostgresUploader` in `src/analysis/postgres_uploader.py`, or
@@ -35,7 +35,7 @@ password file at `G:\pg_backups\pgpass.conf` containing only the local
 It logs success or failure to `backup.log`.
 
 Windows Task Scheduler runs the stable copy at `G:\pg_backups\backup.ps1`
-daily at 3:00 a.m. while the `arete` Windows user is signed in. The archive
+daily while the Windows user is signed in. The archive
 and login-file folder grants access only to that user, SYSTEM, and local
 administrators. The first backup was restored and its five table counts,
 identity sequences, and foreign keys matched the original database.
