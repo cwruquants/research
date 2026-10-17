@@ -58,3 +58,6 @@ results/README.md
 
 # Ignore earnings call XML files
 data/earnings_calls/
+
+# Licensed / private data (LSEG, CRSP, professor files): never commit
+data/private/

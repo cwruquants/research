@@ -17,6 +17,10 @@ __all__ = [
     "extract_full_body_text"
 ]
 
+# Headlines look like "Edited Transcript of LLOY.L M&A conference call or presentation ...".
+# The ticker token is upper-case letters/digits plus RIC punctuation (., ^ delisting codes);
+# anything else (e.g. a company name) is not treated as a ticker.
+HEADLINE_TICKER_RE = re.compile(r"Transcript of ([A-Z0-9][A-Z0-9.^*&\-]*) ")
 
 def clean_text(value: Optional[str]) -> Optional[str]:
     """Strip whitespace; empty tags become None instead of '' or '\\n  '."""
@@ -34,9 +38,15 @@ def clean_ticker(value: Optional[str]) -> Optional[str]:
     return value
 
 
+def _headline_ticker(headline: Optional[str]) -> Optional[str]:
+    """Ticker as printed in the headline, i.e. as of the call date."""
+    match = HEADLINE_TICKER_RE.search(headline or "")
+    return match.group(1) if match else None
+
+
 def get_company_metadata(xml_path: Union[str, Path]) -> Dict[str, Any]:
     """
-    Parses company metadata (name, ticker, date, quarter) from the earnings call XML.
+    Parses company metadata (name, ticker, date, quarter, event type) from the earnings call XML.
     Standardizes the start date to GMT.
     """
     tree = ET.parse(xml_path)
@@ -68,9 +78,12 @@ def get_company_metadata(xml_path: Union[str, Path]) -> Dict[str, Any]:
 
     data = {
         "eventTitle": event_title,
-        "city": root.findtext("city"),
-        "companyName": root.findtext("companyName"),
-        "companyTicker": root.findtext("companyTicker"),
+        "city": clean_text(root.findtext("city")),
+        "companyName": clean_text(root.findtext("companyName")),
+        "companyTicker": clean_ticker(root.findtext("companyTicker")),
+        "headlineTicker": _headline_ticker(root.findtext(".//Headline")),
+        "eventTypeId": clean_text(root.get("eventTypeId")),
+        "eventTypeName": clean_text(root.get("eventTypeName")),
         "startDate": start_date_gmt,
         "quarter": quarter,
         "year": year,
