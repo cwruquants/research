@@ -397,7 +397,8 @@ class BatchRunner:
         
         Args:
             input_dir (Union[str, Path]): Directory containing XML transcript files
-            year (int): Year of the earnings calls (for database storage)
+            year (int): Batch year, stored only for transcripts with no parseable start date;
+                otherwise the year comes from the call's start date
             supabase_client: Initialized Supabase client
             setup_dict (Optional[Dict[str, Any]]): Setup configuration for sentiment analysis
             run_sentiment (bool): Whether to run sentiment analysis. Defaults to False.
@@ -592,11 +593,15 @@ class BatchRunner:
 
         # Count successful uploads
         successful = sum(1 for r in upload_results if r["status"] == "success")
+        year_fallbacks = sum(1 for r in upload_results if r.get("year_fallback"))
+        if year_fallbacks:
+            print(f"{year_fallbacks} documents had no parseable start date and were stored with year {year}")
         
         return {
             "year": year,
             "num_files_processed": len(files),
             "num_uploaded": successful,
+            "num_year_fallbacks": year_fallbacks,
             "num_errors": len(errors),
             "upload_results": upload_results,
             "errors": errors,
