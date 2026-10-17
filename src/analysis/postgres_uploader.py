@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 import psycopg
 from psycopg_pool import ConnectionPool
 
+from src.analysis.document_year import resolve_document_year
+
 
 class PostgresUploader:
     """Upload sentiment analysis results with the Supabase uploader's interface."""
@@ -94,10 +96,11 @@ class PostgresUploader:
         company_id = self._get_or_create_company(company_name, company_ticker)
         date_str = str(doc_metadata.get("start_date", "")) if doc_metadata.get("start_date") else ""
         event_date = self._parse_date(date_str) if date_str else None
+        doc_year, year_fallback = resolve_document_year(event_date, year)
 
         doc_row = {
             "company_id": company_id,
-            "year": year,
+            "year": doc_year,
             "source_file": source_file,
             "event_title": str(doc_metadata.get("event_title", "")) or None,
             "event_date": event_date,
@@ -131,7 +134,8 @@ class PostgresUploader:
         with self.pool.connection() as conn:
             document_id = conn.execute(statement, tuple(doc_row.values())).fetchone()[0]
         return {"status": "success", "document_id": document_id,
-                "company_id": company_id, "source_file": source_file}
+                "company_id": company_id, "source_file": source_file,
+                "year": doc_year, "year_fallback": year_fallback}
 
     def upload_document(self, data: Dict[str, Any], year: int) -> Dict[str, Any]:
         """Upload one document, retrying a transient connection failure."""
