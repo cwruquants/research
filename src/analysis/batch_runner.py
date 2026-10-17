@@ -75,11 +75,13 @@ class BatchRunner:
             "file_name": doc.get("file_name"),
             "company_name": doc.get("company_name"),
             "company_ticker": doc.get("company_ticker"),
+            "headline_ticker": doc.get("headline_ticker"),
             "date": date_val,
             "time": time_val,
             "quarter": doc.get("quarter"),
             "city": doc.get("city"),
             "event_title": doc.get("event_title"),
+            "event_type": doc.get("event_type"),
 
             # document attributes
             "sentiment": da.get("sentiment"),
