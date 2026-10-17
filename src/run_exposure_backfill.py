@@ -36,7 +36,7 @@ from tqdm import tqdm
 
 from src.analysis.match_extraction.matching_agent import MatchingAgent
 from src.document.decompose_text import document_to_sentence, document_to_word
-from src.document.decompose_transcript import load_document
+from src.document.decompose_transcript import get_company_metadata, load_document
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,7 +47,7 @@ KEYWORD_SET_FILES = {
 }
 
 MISSING_RUNS_SQL = """
-    SELECT d.id, d.source_file, ks.id, ks.name
+    SELECT d.id, d.source_file, d.year, d.event_title, ks.id, ks.name
     FROM public.documents d
     CROSS JOIN public.keyword_sets ks
     WHERE ks.name = ANY(%(names)s)
@@ -86,9 +86,9 @@ COPY_MATCHES_SQL = """
 Location = Tuple[str, str, Optional[str]]
 
 
-def index_sources(sources: List[str]) -> Dict[str, Location]:
-    """Map transcript file name -> location. Earlier sources win when a name repeats."""
-    index: Dict[str, Location] = {}
+def index_sources(sources: List[str]) -> Dict[str, List[Location]]:
+    """Map transcript file name -> every location holding a file with that name."""
+    index: Dict[str, List[Location]] = defaultdict(list)
     for source in sources:
         path = Path(source)
         if path.is_file() and zipfile.is_zipfile(path):
@@ -96,13 +96,49 @@ def index_sources(sources: List[str]) -> Dict[str, Location]:
                 for member in archive.namelist():
                     name = member.rsplit("/", 1)[-1]
                     if name.lower().endswith(".xml"):
-                        index.setdefault(name, ("zip", str(path), member))
+                        index[name].append(("zip", str(path), member))
         elif path.is_dir():
             for xml_path in path.rglob("*.xml"):
-                index.setdefault(xml_path.name, ("dir", str(xml_path), None))
+                index[xml_path.name].append(("dir", str(xml_path), None))
         else:
             raise SystemExit(f"Source is neither a folder nor a zip file: {source}")
     return index
+
+
+def _folder_year(location: Location) -> Optional[int]:
+    """The innermost year-named folder in a transcript's path (e.g. .../2021/123_T.xml -> 2021)."""
+    kind, path, member = location
+    parts = (member if kind == "zip" else path).replace("\\", "/").split("/")[:-1]
+    years = [int(p) for p in parts if len(p) == 4 and p.isdigit()]
+    return years[-1] if years else None
+
+
+def _normalize_title(title: Optional[str]) -> str:
+    return " ".join((title or "").split()).casefold()
+
+
+def _resolve_location(doc: dict, candidates: List[Location]) -> Tuple[Optional[Location], str]:
+    """
+    Pick the transcript for a document when its file name is in more than one folder
+    (the same name in two year folders is usually a different transcript): the one whose
+    eventTitle matches documents.event_title, then the one in the document's year folder.
+    """
+    if len(candidates) == 1:
+        return candidates[0], ""
+    want = _normalize_title(doc["event_title"])
+    if want:
+        titled = []
+        for location in candidates:
+            with _open_transcript(location) as fh:
+                if _normalize_title(get_company_metadata(fh)["eventTitle"]) == want:
+                    titled.append(location)
+        if len(titled) == 1:
+            return titled[0], ""
+        candidates = titled or candidates
+    same_year = [loc for loc in candidates if _folder_year(loc) == doc["year"]]
+    if len(same_year) == 1:
+        return same_year[0], ""
+    return None, f"{len(candidates)} transcripts named {doc['source_file']}; none uniquely matches its title or year"
 
 
 # ---- worker process state (set up once per process by _init_worker) ----
@@ -203,11 +239,24 @@ def _load_missing(conn: psycopg.Connection, years: Optional[List[int]]) -> List[
 
         cur.execute(MISSING_RUNS_SQL, {"names": list(KEYWORD_SET_FILES), "years": years})
         docs: Dict[int, dict] = {}
-        for document_id, source_file, keyword_set_id, name in cur.fetchall():
+        for document_id, source_file, year, event_title, keyword_set_id, name in cur.fetchall():
             doc = docs.setdefault(document_id, {"document_id": document_id, "source_file": source_file,
+                                                "year": year, "event_title": event_title,
                                                 "keyword_sets": []})
             doc["keyword_sets"].append((keyword_set_id, name))
     return list(docs.values())
+
+
+def _write_failures(failures: List[tuple], report_dir: str, suffix: str) -> None:
+    if not failures:
+        return
+    report = Path(report_dir) / f"exposure_backfill_failures_{suffix}.csv"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    with open(report, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["document_id", "source_file", "reason"])
+        writer.writerows(failures)
+    print(f"{len(failures)} documents not backfilled; see {report}")
 
 
 def main() -> None:
@@ -231,9 +280,13 @@ def main() -> None:
 
     todo, not_found = [], []
     for doc in missing:
-        location = index.get(doc["source_file"])
-        if location is None:
+        candidates = index.get(doc["source_file"])
+        if not candidates:
             not_found.append((doc["document_id"], doc["source_file"], "transcript not found in sources"))
+            continue
+        location, problem = _resolve_location(doc, candidates)
+        if location is None:
+            not_found.append((doc["document_id"], doc["source_file"], problem))
         else:
             todo.append({**doc, "location": location})
     # Keep each archive's members together and in order so reads stay sequential
@@ -243,11 +296,12 @@ def main() -> None:
 
     pairs = sum(len(d["keyword_sets"]) for d in todo)
     print(f"{len(missing)} documents missing runs, {len(todo)} to process ({pairs} runs), "
-          f"{len(not_found)} with no transcript in the sources")
+          f"{len(not_found)} with no usable transcript in the sources")
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.dry_run:
+        _write_failures(not_found, args.report_dir, f"dryrun_{run_timestamp}")
         return
 
-    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     batches = [todo[i:i + args.batch_size] for i in range(0, len(todo), args.batch_size)]
     totals = defaultdict(int)
     failures = list(not_found)
@@ -270,14 +324,7 @@ def main() -> None:
 
     print(f"Wrote {totals['runs_written']} runs and {totals['matches_written']} matches; "
           f"{totals['runs_skipped']} runs already existed")
-    if failures:
-        report = Path(args.report_dir) / f"exposure_backfill_failures_{run_timestamp}.csv"
-        report.parent.mkdir(parents=True, exist_ok=True)
-        with open(report, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["document_id", "source_file", "reason"])
-            writer.writerows(failures)
-        print(f"{len(failures)} documents not backfilled; see {report}")
+    _write_failures(failures, args.report_dir, run_timestamp)
 
 
 if __name__ == "__main__":
