@@ -9,6 +9,8 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.analysis.document_year import resolve_document_year
+
 
 class SupabaseUploader:
     """Upload sentiment analysis results directly to Supabase."""
@@ -129,7 +131,7 @@ class SupabaseUploader:
         
         Args:
             data: Result from Analyst.analyze_document_memory()
-            year: Year of the earnings call
+            year: Batch year, stored only when the transcript has no parseable start date
             
         Returns:
             dict: Upload result with document_id and status
@@ -164,10 +166,11 @@ class SupabaseUploader:
         
         date_str = str(doc_metadata.get("start_date", "")) if doc_metadata.get("start_date") else ""
         event_date = self._parse_date(date_str) if date_str else None
+        doc_year, year_fallback = resolve_document_year(event_date, year)
         
         doc_row = {
             "company_id": company_id,
-            "year": year,
+            "year": doc_year,
             "source_file": source_file,
             "event_title": str(doc_metadata.get("event_title", "")) or None,
             "event_date": event_date,
@@ -204,6 +207,8 @@ class SupabaseUploader:
                     "document_id": document_id,
                     "company_id": company_id,
                     "source_file": source_file,
+                    "year": doc_year,
+                    "year_fallback": year_fallback,
                 }
             else:
                 return {"status": "error", "reason": "No data returned from insert"}
