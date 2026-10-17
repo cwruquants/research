@@ -12,8 +12,27 @@ __all__ = [
     "extract_qa_section",
     "clean_spoken_content",
     "get_company_metadata",
+    "clean_text",
+    "clean_ticker",
     "extract_full_body_text"
 ]
+
+
+def clean_text(value: Optional[str]) -> Optional[str]:
+    """Strip whitespace; empty tags become None instead of '' or '\\n  '."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def clean_ticker(value: Optional[str]) -> Optional[str]:
+    """Like clean_text, but also treat escaped whitespace (a literal '\\n') as empty."""
+    value = clean_text(value)
+    if value is None or not re.sub(r"\\[nrt]|\s", "", value):
+        return None
+    return value
+
 
 def get_company_metadata(xml_path: Union[str, Path]) -> Dict[str, Any]:
     """
