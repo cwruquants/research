@@ -1,14 +1,13 @@
 # from src.abstract_classes.attribute import DocumentAttr
 from src.analysis.match_extraction.exposure_results import ExposureResults, MatchInstance
 import os, csv
+from bisect import bisect_right
 from word_forms.word_forms import get_word_forms
-from sentence_transformers import SentenceTransformer, util
 from typing import List
 from src.document.decompose_text import document_to_word, document_to_sentence, document_to_bigram, is_bigram
 from src.document.decompose_transcript import load_document
 from nltk.tokenize import RegexpTokenizer
 from tqdm import tqdm
-import torch
 import time
 from typing import List, Tuple, Dict, Any
 
@@ -33,12 +32,16 @@ class MatchingAgent:
         self.cos_threshold = cos_threshold
         self.find_keyword_variations = find_keyword_variations
         self.model = None
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        # Device selection is silent to avoid disrupting progress bars
+        self.device = None
 
 
     def _get_model(self):
+        # torch and sentence_transformers are imported here so direct-only runs never load them
         if self.model is None:
+            import torch
+            from sentence_transformers import SentenceTransformer
+            # Device selection is silent to avoid disrupting progress bars
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.model = SentenceTransformer("all-MiniLM-L6-v2")
             self.model.to(self.device)
         return self.model
@@ -94,31 +97,42 @@ class MatchingAgent:
         self.keywords_list = [keyword for keyword in self.keywords_list
                               if keyword.lower() not in seen and not seen.add(keyword.lower())]
 
-    def _get_context(self, word_index: int, sentences: List[str], context_size: int = 0) -> str:
+    @staticmethod
+    def _sentence_word_ends(sentences: List[str]) -> List[int]:
+        """
+        Cumulative word counts per sentence: entry i is the document word index
+        just past the last word of sentence i.
+        """
+        tokenizer = RegexpTokenizer(r'\w+')
+        ends = []
+        word_count = 0
+        for sentence in sentences:
+            word_count += len(tokenizer.tokenize(sentence))
+            ends.append(word_count)
+        return ends
+
+    def _get_context(self, word_index: int, sentences: List[str], context_size: int = 0,
+                     sentence_ends: List[int] | None = None) -> str:
         """
         Extract sentence-based context around a match.
         Args:
             word_index (int): Index of the matched word in the document's word list.
             sentences (List[str]): The list of sentences in the document.
             context_size (int): Number of sentences to include on each side.
+            sentence_ends (List[int], optional): Precomputed _sentence_word_ends(sentences),
+                passed by callers that look up many matches in the same document.
         Returns:
             str: Context string.
         """
         if not sentences:
             return ""
 
+        if sentence_ends is None:
+            sentence_ends = self._sentence_word_ends(sentences)
+
         # Find which sentence the word belongs to
-        word_count = 0
-        sentence_index = -1
-        tokenizer = RegexpTokenizer(r'\w+')
-        for i, sentence in enumerate(sentences):
-            sentence_word_count = len(tokenizer.tokenize(sentence))
-            if word_index < word_count + sentence_word_count:
-                sentence_index = i
-                break
-            word_count += sentence_word_count
-        
-        if sentence_index == -1:
+        sentence_index = bisect_right(sentence_ends, word_index)
+        if sentence_index >= len(sentences):
             return ""
 
         # Get context sentences
@@ -129,9 +143,13 @@ class MatchingAgent:
         
         return " ".join(context_sentences).strip()
 
-    def _direct_match(self, show_progress: bool = False) -> ExposureResults:
+    def _direct_match(self, show_progress: bool = False, document_words: List[str] | None = None,
+                      sentences: List[str] | None = None) -> ExposureResults:
         """
         Find exact matches between keywords and document text.
+        Args:
+            document_words, sentences (optional): Precomputed document_to_word / document_to_sentence
+                of self.document, so several keyword sets can share one tokenization.
         Returns:
             ExposureResults: Object containing direct match results
         """
@@ -141,8 +159,10 @@ class MatchingAgent:
         import time
         start_time = time.time()
 
-        document_words = document_to_word(self.document)
-        sentences = document_to_sentence(self.document)
+        if document_words is None:
+            document_words = document_to_word(self.document)
+        if sentences is None:
+            sentences = document_to_sentence(self.document)
         total_sentences = len(sentences)
 
         results = ExposureResults(
@@ -154,21 +174,27 @@ class MatchingAgent:
             cosine_threshold=None
         )
 
+        # One pass over the document: positions of every word that is a keyword (case-insensitive)
+        keyword_set = {keyword.lower() for keyword in self.keywords_list}
+        positions_by_keyword: Dict[str, List[int]] = {}
+        for i, word in enumerate(document_words):
+            lowered = word.lower()
+            if lowered in keyword_set:
+                positions_by_keyword.setdefault(lowered, []).append(i)
+
+        sentence_ends = self._sentence_word_ends(sentences)
+
         # Process each keyword
         for keyword in self.keywords_list:
-            direct_matches = []
-            
-            # Find all occurrences of the keyword (case-insensitive)
-            for i, word in enumerate(document_words):
-                if keyword.lower() == word.lower():
-                    context = self._get_context(i, sentences)
-                    match_instance = MatchInstance(
-                        keyword=keyword,
-                        matched_text=word,
-                        context=context,
-                        position=i
-                    )
-                    direct_matches.append(match_instance)
+            direct_matches = [
+                MatchInstance(
+                    keyword=keyword,
+                    matched_text=document_words[i],
+                    context=self._get_context(i, sentences, sentence_ends=sentence_ends),
+                    position=i
+                )
+                for i in positions_by_keyword.get(keyword.lower(), [])
+            ]
 
             results.add_direct_matches(keyword, direct_matches)
         
@@ -245,9 +271,11 @@ class MatchingAgent:
         if not self.document or not self.document.text:
             raise ValueError("No document provided for matching")
 
+        from sentence_transformers import util
+
         start_time = time.time()
         model = self._get_model()
-        
+
         final_threshold = threshold if threshold is not None else self.cos_threshold
         
         sentences = document_to_sentence(self.document)

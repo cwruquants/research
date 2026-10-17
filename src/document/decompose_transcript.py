@@ -102,15 +102,15 @@ def extract_full_body_text(xml_path: Union[str, Path]) -> str:
     return body_elem.text if body_elem is not None else ""
 
 
-def extract_presentation_section(xml_path):
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-    
-    # Extract the full transcript body
+def _body_lines(xml_source) -> list:
+    """Lines of the <Body> text of a transcript XML (a path or a binary file object)."""
+    root = ET.parse(xml_source).getroot()
     body_elem = root.find(".//Body")
     body = body_elem.text if body_elem is not None else None
-    lines = body.splitlines() if body is not None else []
+    return body.splitlines() if body is not None else []
 
+
+def _presentation_from_lines(lines: list) -> str:
     # Flags and buffers
     in_presentation = False
     presentation_lines = []
@@ -127,15 +127,7 @@ def extract_presentation_section(xml_path):
     return "\n".join(presentation_lines).strip()
 
 
-def extract_qa_section(xml_path):
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-
-    # Extract the full transcript body
-    body_elem = root.find(".//Body")
-    body = body_elem.text if body_elem is not None else None
-    lines = body.splitlines() if body is not None else []
-
+def _qa_from_lines(lines: list) -> str:
     in_qa = False
     qa_lines = []
 
@@ -147,6 +139,49 @@ def extract_qa_section(xml_path):
             qa_lines.append(line)
 
     return "\n".join(qa_lines).strip()
+
+
+# Section headings in the transcript body sit between a ==== rule and a ---- rule
+_PARTICIPANT_HEADINGS = {"corporate participants", "conference call participants"}
+
+
+def _spoken_sections_from_lines(lines: list) -> str:
+    """
+    Fallback for transcripts without the usual "Presentation" / "Questions and Answers"
+    headings (e.g. older calls with a single "Transcript" section, or headings like
+    "PRESENTATION", "q and a", "Q-and-A"): keep every section after the header block
+    except the participant lists, dropping the heading lines themselves.
+    """
+    kept = []
+    in_spoken_section = False
+    i = 0
+    while i < len(lines):
+        is_heading = (
+            0 < i < len(lines) - 1
+            and lines[i].strip()
+            and re.fullmatch(r"=+", lines[i - 1].strip())
+            and re.fullmatch(r"[-=]{5,}", lines[i + 1].strip())
+        )
+        if is_heading:
+            in_spoken_section = lines[i].strip().lower() not in _PARTICIPANT_HEADINGS
+            if kept and re.fullmatch(r"=+", kept[-1].strip()):
+                kept.pop()  # the ==== rule above the heading
+            # Skip the heading but keep the ---- rule below it: clean_spoken_content
+            # expects each speaker name framed by rules, as in the Presentation section
+            i += 1
+            continue
+        if in_spoken_section:
+            kept.append(lines[i])
+        i += 1
+    return "\n".join(kept).strip()
+
+
+def extract_presentation_section(xml_path):
+    return _presentation_from_lines(_body_lines(xml_path))
+
+
+def extract_qa_section(xml_path):
+    return _qa_from_lines(_body_lines(xml_path))
 
 
 def clean_spoken_content(raw_text: str) -> str:
@@ -178,23 +213,29 @@ def clean_spoken_content(raw_text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 
-def load_document(file_path: str) -> DocumentAttr:
+def load_document(file_path) -> DocumentAttr:
     """
     Load a sample XML earnings call transcript and extract its text content
     using the decompose_transcript functions.
+    file_path may be a path or a binary file object (e.g. a zip member).
     Returns a DocumentAttr object with the text.
     """
     try:
-        # Extract presentation and Q&A sections
-        presentation_text = extract_presentation_section(file_path)
-        qa_text = extract_qa_section(file_path)
+        # Extract presentation and Q&A sections from a single parse of the XML
+        lines = _body_lines(file_path)
+        presentation_text = _presentation_from_lines(lines)
+        qa_text = _qa_from_lines(lines)
         
         # Combine sections
         full_text = presentation_text + "\n\n" + qa_text
         
         # Clean spoken content to remove speaker tags and separators
         cleaned_text = clean_spoken_content(full_text)
-        
+
+        if not cleaned_text:
+            # No Presentation / Q&A headings found: fall back to the generic section layout
+            cleaned_text = clean_spoken_content(_spoken_sections_from_lines(lines))
+
         return DocumentAttr(document=cleaned_text)
     except Exception as e:
         print(f"Error loading document: {e}")
