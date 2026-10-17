@@ -141,6 +141,41 @@ def _qa_from_lines(lines: list) -> str:
     return "\n".join(qa_lines).strip()
 
 
+# Section headings in the transcript body sit between a ==== rule and a ---- rule
+_PARTICIPANT_HEADINGS = {"corporate participants", "conference call participants"}
+
+
+def _spoken_sections_from_lines(lines: list) -> str:
+    """
+    Fallback for transcripts without the usual "Presentation" / "Questions and Answers"
+    headings (e.g. older calls with a single "Transcript" section, or headings like
+    "PRESENTATION", "q and a", "Q-and-A"): keep every section after the header block
+    except the participant lists, dropping the heading lines themselves.
+    """
+    kept = []
+    in_spoken_section = False
+    i = 0
+    while i < len(lines):
+        is_heading = (
+            0 < i < len(lines) - 1
+            and lines[i].strip()
+            and re.fullmatch(r"=+", lines[i - 1].strip())
+            and re.fullmatch(r"[-=]{5,}", lines[i + 1].strip())
+        )
+        if is_heading:
+            in_spoken_section = lines[i].strip().lower() not in _PARTICIPANT_HEADINGS
+            if kept and re.fullmatch(r"=+", kept[-1].strip()):
+                kept.pop()  # the ==== rule above the heading
+            # Skip the heading but keep the ---- rule below it: clean_spoken_content
+            # expects each speaker name framed by rules, as in the Presentation section
+            i += 1
+            continue
+        if in_spoken_section:
+            kept.append(lines[i])
+        i += 1
+    return "\n".join(kept).strip()
+
+
 def extract_presentation_section(xml_path):
     return _presentation_from_lines(_body_lines(xml_path))
 
@@ -196,7 +231,11 @@ def load_document(file_path) -> DocumentAttr:
         
         # Clean spoken content to remove speaker tags and separators
         cleaned_text = clean_spoken_content(full_text)
-        
+
+        if not cleaned_text:
+            # No Presentation / Q&A headings found: fall back to the generic section layout
+            cleaned_text = clean_spoken_content(_spoken_sections_from_lines(lines))
+
         return DocumentAttr(document=cleaned_text)
     except Exception as e:
         print(f"Error loading document: {e}")
