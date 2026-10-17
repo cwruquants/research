@@ -102,15 +102,15 @@ def extract_full_body_text(xml_path: Union[str, Path]) -> str:
     return body_elem.text if body_elem is not None else ""
 
 
-def extract_presentation_section(xml_path):
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-    
-    # Extract the full transcript body
+def _body_lines(xml_source) -> list:
+    """Lines of the <Body> text of a transcript XML (a path or a binary file object)."""
+    root = ET.parse(xml_source).getroot()
     body_elem = root.find(".//Body")
     body = body_elem.text if body_elem is not None else None
-    lines = body.splitlines() if body is not None else []
+    return body.splitlines() if body is not None else []
 
+
+def _presentation_from_lines(lines: list) -> str:
     # Flags and buffers
     in_presentation = False
     presentation_lines = []
@@ -127,15 +127,7 @@ def extract_presentation_section(xml_path):
     return "\n".join(presentation_lines).strip()
 
 
-def extract_qa_section(xml_path):
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-
-    # Extract the full transcript body
-    body_elem = root.find(".//Body")
-    body = body_elem.text if body_elem is not None else None
-    lines = body.splitlines() if body is not None else []
-
+def _qa_from_lines(lines: list) -> str:
     in_qa = False
     qa_lines = []
 
@@ -147,6 +139,14 @@ def extract_qa_section(xml_path):
             qa_lines.append(line)
 
     return "\n".join(qa_lines).strip()
+
+
+def extract_presentation_section(xml_path):
+    return _presentation_from_lines(_body_lines(xml_path))
+
+
+def extract_qa_section(xml_path):
+    return _qa_from_lines(_body_lines(xml_path))
 
 
 def clean_spoken_content(raw_text: str) -> str:
@@ -178,16 +178,18 @@ def clean_spoken_content(raw_text: str) -> str:
     return "\n".join(cleaned_lines).strip()
 
 
-def load_document(file_path: str) -> DocumentAttr:
+def load_document(file_path) -> DocumentAttr:
     """
     Load a sample XML earnings call transcript and extract its text content
     using the decompose_transcript functions.
+    file_path may be a path or a binary file object (e.g. a zip member).
     Returns a DocumentAttr object with the text.
     """
     try:
-        # Extract presentation and Q&A sections
-        presentation_text = extract_presentation_section(file_path)
-        qa_text = extract_qa_section(file_path)
+        # Extract presentation and Q&A sections from a single parse of the XML
+        lines = _body_lines(file_path)
+        presentation_text = _presentation_from_lines(lines)
+        qa_text = _qa_from_lines(lines)
         
         # Combine sections
         full_text = presentation_text + "\n\n" + qa_text

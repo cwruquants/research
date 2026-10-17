@@ -143,9 +143,13 @@ class MatchingAgent:
         
         return " ".join(context_sentences).strip()
 
-    def _direct_match(self, show_progress: bool = False) -> ExposureResults:
+    def _direct_match(self, show_progress: bool = False, document_words: List[str] | None = None,
+                      sentences: List[str] | None = None) -> ExposureResults:
         """
         Find exact matches between keywords and document text.
+        Args:
+            document_words, sentences (optional): Precomputed document_to_word / document_to_sentence
+                of self.document, so several keyword sets can share one tokenization.
         Returns:
             ExposureResults: Object containing direct match results
         """
@@ -155,8 +159,10 @@ class MatchingAgent:
         import time
         start_time = time.time()
 
-        document_words = document_to_word(self.document)
-        sentences = document_to_sentence(self.document)
+        if document_words is None:
+            document_words = document_to_word(self.document)
+        if sentences is None:
+            sentences = document_to_sentence(self.document)
         total_sentences = len(sentences)
 
         results = ExposureResults(
