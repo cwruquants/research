@@ -9,6 +9,12 @@ import psycopg
 from psycopg_pool import ConnectionPool
 
 from src.analysis.document_year import resolve_document_year
+from src.document.decompose_transcript import clean_text, clean_ticker
+
+
+def _as_str(value: Any) -> Optional[str]:
+    """str() for metadata values (TOML may hold numeric tickers) that keeps None as None."""
+    return None if value is None else str(value)
 
 
 class PostgresUploader:
@@ -82,10 +88,10 @@ class PostgresUploader:
         doc_metadata = doc_attrs["document"]
         doc_attr = doc_attrs["document_attr"]
 
-        company_name = str(doc_metadata.get("company_name", ""))
-        company_ticker = doc_metadata.get("company_ticker")
-        if company_ticker:
-            company_ticker = str(company_ticker)
+        # Cleaned here because metadata may come from TOML files written before
+        # the parser stripped empty tags, and str(None) would store "None".
+        company_name = clean_text(_as_str(doc_metadata.get("company_name")))
+        company_ticker = clean_ticker(_as_str(doc_metadata.get("company_ticker")))
         if not company_name:
             return {"status": "skipped", "reason": "No company name"}
 
@@ -102,9 +108,9 @@ class PostgresUploader:
             "company_id": company_id,
             "year": doc_year,
             "source_file": source_file,
-            "event_title": str(doc_metadata.get("event_title", "")) or None,
+            "event_title": clean_text(_as_str(doc_metadata.get("event_title"))),
             "event_date": event_date,
-            "city": str(doc_metadata.get("city", "")) or None,
+            "city": clean_text(_as_str(doc_metadata.get("city"))),
             "num_sentences": self._safe_int(doc_attr.get("num_sentences")),
             "num_words": self._safe_int(doc_attr.get("num_words")),
             "sentiment": self._safe_float(doc_attr.get("sentiment")),
