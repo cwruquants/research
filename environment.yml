@@ -18,4 +18,5 @@ dependencies:
     - pysentiment2>=0.1.1
     - keybert>=0.9.0
     - transformers>=4.50.3
-    - python-dateutil>=2.9.0 
+    - python-dateutil>=2.9.0
+    - psycopg[binary,pool]>=3.3.6

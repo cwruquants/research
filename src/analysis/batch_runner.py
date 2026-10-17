@@ -411,6 +411,63 @@ class BatchRunner:
         Returns:
             Dict[str, Any]: Summary with upload statistics and errors
         """
+        uploader = SupabaseUploader(supabase_client, batch_size=500)
+        try:
+            return self._process_batch_with_uploader(
+                input_dir, year, uploader, "Supabase", setup_dict,
+                run_sentiment, matching_method, pattern, recursive,
+                skip_on_error, specific_files, num_threads,
+            )
+        finally:
+            uploader.finalize()
+
+    def process_batch_to_postgres(
+        self,
+        input_dir: Union[str, Path],
+        year: int,
+        database_url: Optional[str] = None,
+        setup_dict: Optional[Dict[str, Any]] = None,
+        run_sentiment: bool = False,
+        matching_method: Optional[str] = None,
+        pattern: str = "*.xml",
+        recursive: bool = False,
+        skip_on_error: bool = True,
+        specific_files: Optional[Sequence[Union[str, Path]]] = None,
+        num_threads: int = 1,
+    ) -> Dict[str, Any]:
+        """Process earnings calls and upload results directly to local Postgres."""
+        from src.analysis.postgres_uploader import PostgresUploader
+
+        if database_url is None:
+            database_url = os.environ["DATABASE_URL"]
+        uploader = PostgresUploader(
+            database_url, max_connections=self._resolve_num_threads(num_threads)
+        )
+        try:
+            return self._process_batch_with_uploader(
+                input_dir, year, uploader, "Postgres", setup_dict,
+                run_sentiment, matching_method, pattern, recursive,
+                skip_on_error, specific_files, num_threads,
+            )
+        finally:
+            uploader.finalize()
+
+    def _process_batch_with_uploader(
+        self,
+        input_dir: Union[str, Path],
+        year: int,
+        uploader,
+        source_name: str,
+        setup_dict: Optional[Dict[str, Any]],
+        run_sentiment: bool,
+        matching_method: Optional[str],
+        pattern: str,
+        recursive: bool,
+        skip_on_error: bool,
+        specific_files: Optional[Sequence[Union[str, Path]]],
+        num_threads: int,
+    ) -> Dict[str, Any]:
+        """Shared analysis and upload loop for the two database backends."""
         input_dir = Path(input_dir)
         if not input_dir.exists() or not input_dir.is_dir():
             raise NotADirectoryError(f"Input directory not found: {input_dir}")
@@ -431,11 +488,9 @@ class BatchRunner:
             else:
                 print(f"Batch size: auto")
 
-        # Initialize Supabase uploader
-        uploader = SupabaseUploader(supabase_client, batch_size=500)
-        print("Initializing company cache from Supabase...")
+        print(f"Initializing company cache from {source_name}...")
         num_companies = uploader.initialize_company_cache()
-        print(f"✓ Loaded {num_companies} existing companies")
+        print(f"Loaded {num_companies} existing companies")
 
         # Gather files
         if specific_files is not None:
@@ -535,9 +590,6 @@ class BatchRunner:
                     else:
                         raise
 
-        # Finalize uploader (flush any buffered data)
-        uploader.finalize()
-        
         # Count successful uploads
         successful = sum(1 for r in upload_results if r["status"] == "success")
         
