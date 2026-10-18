@@ -79,3 +79,18 @@ CREATE TABLE public.keyword_matches (
     created_at timestamptz DEFAULT now(),
     CONSTRAINT keyword_matches_match_type_check CHECK (match_type IN ('direct', 'cosine'))
 );
+
+CREATE TABLE public.document_crsp_links (
+    document_id bigint NOT NULL,
+    permno integer NOT NULL,
+    permco integer,
+    ncusip8 text,
+    crsp_ticker text,
+    comnam text,
+    route text NOT NULL,
+    method text NOT NULL,
+    note text,
+    title_score double precision,
+    linked_at timestamptz DEFAULT now(),
+    CONSTRAINT document_crsp_links_route_check CHECK (route IN ('A', 'B'))
+);
