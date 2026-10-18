@@ -34,7 +34,7 @@ WRDS_HOST = "wrds-pgdata.wharton.upenn.edu"
 WRDS_PORT = 9737
 
 # Events run 2002-2021. The start leaves room for the 250-day estimation window,
-# the end for the +61-day drift window after the last call.
+# the end for the +121-day drift window after the last call.
 START = "2000-06-01"
 END = "2022-12-31"
 

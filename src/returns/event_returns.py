@@ -17,8 +17,9 @@ Day 0
     CRSP index file.
 
 Windows
-    Trading-day offsets from day 0, inclusive: [-1,+1], [0,+1], [+2,+61] by
-    default. A day with no CRSP return for the stock is skipped, and n_<w> counts
+    Trading-day offsets from day 0, inclusive (WINDOWS): run-up [-20,-2];
+    reaction [0,0], [0,+1], [-1,+1], [-1,+2], [0,+2]; drift [+2,+21],
+    [+22,+42], [+43,+63], [+2,+61], [+2,+121]. A day with no CRSP return for the stock is skipped, and n_<w> counts
     the days used; a window with no days is missing, not zero.
 
 Returns, per window w
@@ -44,7 +45,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-WINDOWS = [(-1, 1), (0, 1), (2, 61)]
+WINDOWS = [
+    (-20, -2),                      # pre-call run-up
+    (0, 0), (0, 1), (-1, 1), (-1, 2), (0, 2),  # reaction
+    (2, 21), (22, 42), (43, 63),    # drift, month by month
+    (2, 61), (2, 121),              # drift, three and six months
+]
 ESTIMATION = (-250, -30)
 MIN_EST_DAYS = 100
 CLOSE_HOUR = 16  # New York, 4pm
