@@ -94,3 +94,30 @@ CREATE TABLE public.document_crsp_links (
     linked_at timestamptz DEFAULT now(),
     CONSTRAINT document_crsp_links_route_check CHECK (route IN ('A', 'B'))
 );
+
+CREATE TABLE public.document_event_returns (
+    document_id bigint NOT NULL,
+    permno integer NOT NULL,
+    call_day date NOT NULL,
+    call_timing text NOT NULL,
+    day0 date,
+    is_earnings_call boolean NOT NULL,
+    mm_est_days integer,
+    mm_alpha double precision,
+    mm_beta double precision,
+    n_m1_p1 integer,
+    ret_m1_p1 double precision,
+    bhar_m1_p1 double precision,
+    car_mm_m1_p1 double precision,
+    n_p0_p1 integer,
+    ret_p0_p1 double precision,
+    bhar_p0_p1 double precision,
+    car_mm_p0_p1 double precision,
+    n_p2_p61 integer,
+    ret_p2_p61 double precision,
+    bhar_p2_p61 double precision,
+    car_mm_p2_p61 double precision,
+    computed_at timestamptz DEFAULT now(),
+    CONSTRAINT document_event_returns_call_timing_check
+        CHECK (call_timing IN ('pre_open', 'market_hours', 'after_close'))
+);
