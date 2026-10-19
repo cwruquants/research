@@ -150,6 +150,7 @@ CREATE TABLE public.document_event_returns (
     bhar_p2_p121 double precision,
     car_mm_p2_p121 double precision,
     computed_at timestamptz DEFAULT now(),
+    mcap_pre double precision,  -- USD millions, last trading day >= 2 calendar days before day0
     CONSTRAINT document_event_returns_call_timing_check
         CHECK (call_timing IN ('pre_open', 'market_hours', 'after_close'))
 );
