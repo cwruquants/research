@@ -61,3 +61,6 @@ data/earnings_calls/
 
 # Licensed / private data (LSEG, CRSP, professor files): never commit
 data/private/
+
+# Private machine-specific setup notes: never commit
+db/WINDOWS_POSTGRES_SETUP.md
