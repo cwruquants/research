@@ -18,7 +18,7 @@ class SentimentSetup:
         self,
         sheet_name_positive: str = "ML_positive_unigram",
         sheet_name_negative: str = "ML_negative_unigram",
-        ml_wordlist_path: str = "data/word_sets/Garcia_MLWords.xlsx",
+        ml_wordlist_path: str = "data/word_sets/original_xlsx/Garcia_MLWords.xlsx",
         hf_model: str = "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis",
         device: int = -1,
         batch_size: Union[int, str] = "auto",
@@ -31,7 +31,7 @@ class SentimentSetup:
             sheet_name_negative (str): Excel sheet name for list of negative unigrams (for ML sentiment). 
                 Default is "ML_negative_unigram".
             ml_wordlist_path (str): Path to Excel wordlist file (MLWords). 
-                Default is "data/word_sets/Garcia_MLWords.xlsx".
+                Default is "data/word_sets/original_xlsx/Garcia_MLWords.xlsx".
             hf_model (str): Huggingface model name for transformer-based sentiment analysis. 
                 Default is "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis".
             device (int): Device for transformer inference. -1 for CPU, 0 for first CUDA GPU, etc. 

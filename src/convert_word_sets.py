@@ -25,16 +25,17 @@ def convert_and_organize_word_sets():
     
     for xlsx_path in xlsx_files:
         try:
-            # Read excel
-            df = pd.read_excel(xlsx_path)
+            # Read excel; the lists have no header row, and each sheet of a workbook is its own list
+            sheets = pd.read_excel(xlsx_path, sheet_name=None, header=None)
             
-            # Construct csv path
-            csv_name = xlsx_path.stem + ".csv"
-            csv_path = word_sets_dir / csv_name
-            
-            # Save as csv
-            df.to_csv(csv_path, index=False)
-            print(f"Converted: {xlsx_path.name} -> {csv_name}")
+            for sheet_name, df in sheets.items():
+                # Construct csv path
+                csv_name = f"{xlsx_path.stem}.csv" if len(sheets) == 1 else f"{xlsx_path.stem}_{sheet_name}.csv"
+                csv_path = word_sets_dir / csv_name
+                
+                # Save as csv
+                df.to_csv(csv_path, index=False, header=False)
+                print(f"Converted: {xlsx_path.name} [{sheet_name}] -> {csv_name}")
             
         except Exception as e:
             print(f"Error converting {xlsx_path.name}: {e}")

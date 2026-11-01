@@ -11,19 +11,34 @@ from tqdm import tqdm
 import time
 from typing import List, Tuple, Dict, Any
 
+# Dropped from the document for normalized phrase matching. Negations stay: "impact not" is a real entry
+PHRASE_STOPWORDS = frozenset(
+    "a an the of to in on at for and or but is are was were be been it its this that these those "
+    "we our i you they he she as by with from so very have has had will would can could do does did".split()
+)
+
+def _strip_plural(word: str) -> str:
+    return word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
+
 class MatchingAgent:
-    def __init__(self, keywords_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False):
+    def __init__(self, keywords_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False,
+                 normalize_phrases: bool = False):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
         Args:
             keywords_file (str, optional): Path to CSV file containing exposure words
             cos_threshold (float): Similarity threshold for matching (default: 0.7)
+            normalize_phrases (bool): In direct matching, also match multi-word keywords across
+                stopwords and plural endings, for lists built from stripped text ("want make"
+                matches "want to make"). Single-word keywords stay exact.
         """
+        self.normalize_phrases = normalize_phrases
         self.keywords_path = keywords_path
         self._load_keywords(keywords_path)
         if find_keyword_variations:
             self._load_keyword_variations(self.keywords_list)
+        self._load_phrases()
         # Document is provided later to processing methods and may be overwritten per call
         self.document_path = None
         self.document = None
@@ -143,6 +158,44 @@ class MatchingAgent:
         
         return " ".join(context_sentences).strip()
 
+    def _load_phrases(self) -> None:
+        """Index multi-word keywords by their lowercase tokens, for _phrase_spans."""
+        tokenizer = RegexpTokenizer(r'\w+')
+        exact: Dict[Tuple[str, ...], str] = {}
+        normalized: Dict[Tuple[str, ...], str] = {}
+        for keyword in self.keywords_list:
+            tokens = tuple(token.lower() for token in tokenizer.tokenize(keyword))
+            if len(tokens) < 2:
+                continue
+            if self.normalize_phrases and not PHRASE_STOPWORDS.intersection(tokens):
+                normalized.setdefault(tuple(_strip_plural(token) for token in tokens), keyword)
+            else:
+                exact.setdefault(tokens, keyword)
+        self.exact_phrases = exact
+        self.normalized_phrases = normalized
+
+    def _phrase_spans(self, document_words: List[str]) -> Dict[str, List[Tuple[int, int]]]:
+        """
+        Find multi-word keywords as consecutive document words (case-insensitive).
+        Returns:
+            Keyword -> list of (start, end) word index spans, end exclusive.
+        """
+        spans: Dict[str, List[Tuple[int, int]]] = {}
+
+        def scan(words: List[str], positions: List[int], phrases: Dict[Tuple[str, ...], str]) -> None:
+            for size in {len(phrase) for phrase in phrases}:
+                for i in range(len(words) - size + 1):
+                    keyword = phrases.get(tuple(words[i:i + size]))
+                    if keyword is not None:
+                        spans.setdefault(keyword, []).append((positions[i], positions[i + size - 1] + 1))
+
+        lowered = [word.lower() for word in document_words]
+        scan(lowered, list(range(len(lowered))), self.exact_phrases)
+        if self.normalized_phrases:
+            kept = [i for i, word in enumerate(lowered) if word not in PHRASE_STOPWORDS]
+            scan([_strip_plural(lowered[i]) for i in kept], kept, self.normalized_phrases)
+        return spans
+
     def _direct_match(self, show_progress: bool = False, document_words: List[str] | None = None,
                       sentences: List[str] | None = None) -> ExposureResults:
         """
@@ -183,6 +236,7 @@ class MatchingAgent:
                 positions_by_keyword.setdefault(lowered, []).append(i)
 
         sentence_ends = self._sentence_word_ends(sentences)
+        phrase_spans = self._phrase_spans(document_words)
 
         # Process each keyword
         for keyword in self.keywords_list:
@@ -194,6 +248,15 @@ class MatchingAgent:
                     position=i
                 )
                 for i in positions_by_keyword.get(keyword.lower(), [])
+            ]
+            direct_matches += [
+                MatchInstance(
+                    keyword=keyword,
+                    matched_text=" ".join(document_words[start:end]),
+                    context=self._get_context(start, sentences, sentence_ends=sentence_ends),
+                    position=start
+                )
+                for start, end in phrase_spans.get(keyword, [])
             ]
 
             results.add_direct_matches(keyword, direct_matches)
