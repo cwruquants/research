@@ -1,6 +1,6 @@
 # from src.abstract_classes.attribute import DocumentAttr
 from src.analysis.match_extraction.exposure_results import ExposureResults, MatchInstance
-import os, csv
+import os, csv, re
 from bisect import bisect_right
 from word_forms.word_forms import get_word_forms
 from typing import List
@@ -17,12 +17,22 @@ PHRASE_STOPWORDS = frozenset(
     "we our i you they he she as by with from so very have has had will would can could do does did".split()
 )
 
+# Sentences that read as a legal safe-harbor statement, and the sentences around them
+SAFE_HARBOR_RE = re.compile(
+    r"forward[- ]looking|safe[- ]harbor|private securities|actual results|differ materially"
+    r"|securities and exchange commission|sec filing|filings? with the sec|form 10-?[kq]"
+    r"|annual report on form|risk factors|no obligation|undertakes? no",
+    re.IGNORECASE,
+)
+SAFE_HARBOR_WINDOW = 2
+
 def _strip_plural(word: str) -> str:
     return word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
 
 class MatchingAgent:
     def __init__(self, keywords_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False,
-                 normalize_phrases: bool = False):
+                 normalize_phrases: bool = False, exclude_phrases_path: str | None = None,
+                 exclude_safe_harbor: bool = False):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
@@ -32,8 +42,21 @@ class MatchingAgent:
             normalize_phrases (bool): In direct matching, also match multi-word keywords across
                 stopwords and plural endings, for lists built from stripped text ("want make"
                 matches "want to make"). Single-word keywords stay exact.
+            exclude_phrases_path (str, optional): CSV of terms of art ("risk management"); in direct
+                matching, words inside them don't count toward any keyword.
+            exclude_safe_harbor (bool): In direct matching, skip safe-harbor sentences and the
+                sentences around them.
         """
         self.normalize_phrases = normalize_phrases
+        self.exclude_safe_harbor = exclude_safe_harbor
+        self.excluded_phrases = set()
+        if exclude_phrases_path:
+            tokenizer = RegexpTokenizer(r'\w+')
+            with open(exclude_phrases_path, 'r', encoding='utf-8') as file:
+                self.excluded_phrases = {
+                    tuple(token.lower() for token in tokenizer.tokenize(cell))
+                    for row in csv.reader(file) for cell in row if cell.strip()
+                }
         self.keywords_path = keywords_path
         self._load_keywords(keywords_path)
         if find_keyword_variations:
@@ -196,6 +219,24 @@ class MatchingAgent:
             scan([_strip_plural(lowered[i]) for i in kept], kept, self.normalized_phrases)
         return spans
 
+    def _excluded_positions(self, document_words: List[str], sentences: List[str],
+                            sentence_ends: List[int]) -> set:
+        """Document word indexes that direct matching must skip."""
+        excluded = set()
+        lowered = [word.lower() for word in document_words]
+        for size in {len(phrase) for phrase in self.excluded_phrases}:
+            for i in range(len(lowered) - size + 1):
+                if tuple(lowered[i:i + size]) in self.excluded_phrases:
+                    excluded.update(range(i, i + size))
+
+        if self.exclude_safe_harbor:
+            starts = [0] + sentence_ends[:-1]
+            for i, sentence in enumerate(sentences):
+                if SAFE_HARBOR_RE.search(sentence):
+                    for j in range(max(0, i - SAFE_HARBOR_WINDOW), min(len(sentences), i + SAFE_HARBOR_WINDOW + 1)):
+                        excluded.update(range(starts[j], sentence_ends[j]))
+        return excluded
+
     def _direct_match(self, show_progress: bool = False, document_words: List[str] | None = None,
                       sentences: List[str] | None = None) -> ExposureResults:
         """
@@ -236,6 +277,7 @@ class MatchingAgent:
                 positions_by_keyword.setdefault(lowered, []).append(i)
 
         sentence_ends = self._sentence_word_ends(sentences)
+        excluded = self._excluded_positions(document_words, sentences, sentence_ends)
         phrase_spans = self._phrase_spans(document_words)
 
         # Process each keyword
@@ -248,6 +290,7 @@ class MatchingAgent:
                     position=i
                 )
                 for i in positions_by_keyword.get(keyword.lower(), [])
+                if i not in excluded
             ]
             direct_matches += [
                 MatchInstance(
@@ -257,6 +300,7 @@ class MatchingAgent:
                     position=start
                 )
                 for start, end in phrase_spans.get(keyword, [])
+                if start not in excluded
             ]
 
             results.add_direct_matches(keyword, direct_matches)

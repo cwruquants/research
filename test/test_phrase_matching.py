@@ -81,3 +81,19 @@ def test_load_document_keeps_answers_and_drops_speakers(tmp_path, gap):
     assert "How are margins?" in text
     assert "Margins are improving." in text
     assert "Ann Lee" not in text and "Bo Ray" not in text and "[" not in text
+
+
+def test_excluded_phrases_do_not_count(tmp_path):
+    exclusions = tmp_path / "exclusions.csv"
+    exclusions.write_text("risk management\n", encoding="utf-8")
+    agent = _agent(tmp_path, ["risk"], exclude_phrases_path=str(exclusions))
+    assert _match(agent, "Our risk management team sees risk ahead.") == {"risk": [("risk", 5)]}
+
+
+def test_safe_harbor_sentences_do_not_count(tmp_path):
+    agent = _agent(tmp_path, ["risk"], exclude_safe_harbor=True)
+    text = (
+        "These statements carry risk. Actual results may differ. "
+        "Sales grew well. Margins held up. Costs fell again. Tariffs are a real risk."
+    )
+    assert _match(agent, text) == {"risk": [("risk", 21)]}
