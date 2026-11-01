@@ -19,7 +19,7 @@ def main():
     setup = SentimentSetup(
     sheet_name_positive='ML_positive_unigram',
     sheet_name_negative='ML_negative_unigram',
-    ml_wordlist_path="data/word_sets/Garcia_MLWords.xlsx",
+    ml_wordlist_path="data/word_sets/original_xlsx/Garcia_MLWords.xlsx",
     hf_model='cardiffnlp/twitter-roberta-base-sentiment-latest',
     device=0, 
 )

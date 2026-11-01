@@ -226,11 +226,9 @@ def load_document(file_path) -> DocumentAttr:
         presentation_text = _presentation_from_lines(lines)
         qa_text = _qa_from_lines(lines)
         
-        # Combine sections
-        full_text = presentation_text + "\n\n" + qa_text
-        
-        # Clean spoken content to remove speaker tags and separators
-        cleaned_text = clean_spoken_content(full_text)
+        # Clean each section on its own to remove speaker tags and separators: the ==== rule
+        # ending the Presentation would otherwise put clean_spoken_content one line off in Q&A
+        cleaned_text = (clean_spoken_content(presentation_text) + "\n\n" + clean_spoken_content(qa_text)).strip()
 
         if not cleaned_text:
             # No Presentation / Q&A headings found: fall back to the generic section layout
