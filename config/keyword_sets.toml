@@ -1,0 +1,14 @@
+# Word lists that run as keyword sets in the database (public.keyword_sets.name).
+# `research backfill` matches these. A list's options must stay the same once it has
+# runs in the DB; to change them, add a new set (e.g. risk_v2) instead.
+#
+#   file                 CSV under the repo root, one keyword or phrase per cell
+#   normalize_phrases    also match multi-word keywords across stopwords and plurals
+#   exclusions           CSV of terms of art whose words never count ("risk management")
+#   exclude_safe_harbor  skip safe-harbor sentences and the two sentences either side
+
+[risk]
+file = "data/word_sets/Risk.csv"
+
+[activeness]
+file = "data/word_sets/activeness.csv"
