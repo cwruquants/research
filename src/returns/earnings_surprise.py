@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.12,<3.13"
-# dependencies = ["psycopg[binary]==3.3.5", "pandas==2.3.0", "pyarrow==21.0.0"]
-# ///
 """
 Earnings surprise (SUE) for each earnings call in event_returns.py's output.
 

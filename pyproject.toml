@@ -4,8 +4,55 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "research"
-version = "0.0.1"
+version = "0.1.0"
+description = "Earnings-call text measures, CRSP links and event-window returns for the CWRU Quants research group"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+# Versions that affect stored numbers are pinned to what produced the current DB.
+dependencies = [
+    "nltk==3.9.1",
+    "numpy==2.3.1",
+    "pandas==2.3.0",
+    "pyarrow==21.0.0",
+    "textstat==0.7.12",
+    "word-forms==2.1.0",
+    "psycopg[binary,pool]>=3.3.5,<3.4",
+    "python-dateutil>=2.9",
+    "pytz>=2025.2",
+    "toml>=0.10.2",
+    "openpyxl>=3.1.5",
+    "pyyaml>=6.0.2",
+    "tqdm>=4.67",
+]
+
+[project.optional-dependencies]
+# Sentiment scores and cosine matching. Heavy; not needed for direct matching, linking or returns.
+ml = [
+    "torch==2.7.1",
+    "transformers==4.53.0",
+    "sentence-transformers==4.1.0",
+    "pysentiment2==0.1.1",
+    "datasets>=3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.12",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "db: needs a disposable Postgres at TEST_DATABASE_URL",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.12,<3.13"
-# dependencies = ["psycopg[binary]==3.3.5", "pandas==2.3.0", "pyarrow==21.0.0"]
-# ///
 """
 Pre-call market cap for each call in event_returns.py's output, for
 document_event_returns.mcap_pre.
