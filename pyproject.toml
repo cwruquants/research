@@ -42,12 +42,11 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+where = ["src"]
+include = ["research*"]
 
 [tool.pytest.ini_options]
-testpaths = ["test"]
-pythonpath = ["."]
+testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 markers = [
     "db: needs a disposable Postgres at TEST_DATABASE_URL",
