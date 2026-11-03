@@ -1,4 +1,4 @@
-"""Upload document analysis directly to the local PostgreSQL database."""
+"""Write companies and documents rows to Postgres."""
 
 from datetime import datetime, timezone
 import threading
@@ -18,7 +18,7 @@ def _as_str(value: Any) -> Optional[str]:
 
 
 class PostgresUploader:
-    """Upload sentiment analysis results with the Supabase uploader's interface."""
+    """Upsert companies and documents rows from analyze_document() output."""
 
     def __init__(self, database_url: str, batch_size: int = 500, max_connections: int = 4):
         self.batch_size = batch_size
