@@ -1,66 +1,38 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
-*.pyc
-*$py.class
-
-# C extensions
 *.so
-
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
-*.egg
-.pytest_cach
-.cpython-313
+/build/
+/dist/
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Environments
+# Environments and secrets
+.venv/
 .env
-.venv
-env/
-results/
-venv/
-ENV/
-env.bak/
-venv.bak/
 
-# Jupyter notebooks autosave
-*.ipynb_checkpoints
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
 
-# Project-specific ignores
-results/README.md
+# OS and editor
+.DS_Store
+.idea/
+.vscode/
 
-# Ignore earnings call XML files
-data/earnings_calls/
-
-# Licensed / private data (LSEG, CRSP, professor files): never commit
+# Licensed or private data: never commit (see docs/data.md)
 data/private/
-
-# Private machine-specific setup notes: never commit
+data/earnings_calls/
 db/WINDOWS_POSTGRES_SETUP.md
+
+# Outputs: regenerate them; firm-level outputs stay private
+results/
+output/
+tmp/
+
+# Claude Code local state (shared settings and hooks are tracked)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/hooks/*.log
