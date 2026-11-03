@@ -22,12 +22,12 @@ same 4pm New York rule that sets day 0 for the call, and early_release marks cal
 where it comes before day 0. Both are empty when I/B/E/S has no announcement time.
 
 Pulls everything in one WRDS connection (credentials from ~/.pgpass, as in
-fetch_crsp.py) and caches the raw tables as Parquet in --cache-dir, so a rerun
+wrds.py) and caches the raw tables as Parquet in --cache-dir, so a rerun
 does not reconnect. Writes one row per matched call to --out and the match rate
 by call year to --coverage. Nothing is written to the DB.
 
 Usage
-    uv run src/returns/earnings_surprise.py --returns results/event_returns/event_returns.csv.gz \\
+    uv run research returns surprise --returns results/event_returns/event_returns.csv.gz \\
         --cache-dir results/event_returns/ibes --out results/event_returns/earnings_surprise.csv \\
         --coverage results/event_returns/earnings_surprise_coverage.csv
 """
@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 import psycopg
 
-from research.returns.fetch_crsp import WRDS_HOST, WRDS_PORT, copy_frame, wrds_user
+from research.returns.wrds import WRDS_HOST, WRDS_PORT, copy_frame, wrds_user
 from research.returns.market_cap import LAG, TOLERANCE
 
 DAYS_BEFORE_CALL = 3

@@ -31,7 +31,7 @@ the delisting date (or the next trading day), so a stock that delists inside a
 window carries its last return instead of dropping out.
 
 Usage
-    uv run src/returns/event_returns.py --events results/event_returns/events.csv.gz \\
+    uv run research returns compute --events results/event_returns/events.csv.gz \\
         --crsp-dir results/event_returns/crsp --out results/event_returns/event_returns.csv.gz
 """
 
