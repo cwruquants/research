@@ -24,8 +24,9 @@ Inputs
                   comnam, permco, shrcd, st_date, end_date)
 
 Usage
-    uv run research link route-b --calls calls.csv \\
-        --stocknames stocknames.csv --out proposed_links.csv
+    uv run research link route-b --calls data/private/derived/acquirer_linking/calls.csv \\
+        --stocknames data/private/crsp/stocknames.csv \\
+        --out data/private/derived/acquirer_linking/proposed_links.csv
 """
 
 import argparse

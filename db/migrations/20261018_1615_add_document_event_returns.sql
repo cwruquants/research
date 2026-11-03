@@ -1,5 +1,5 @@
 -- Adds document_event_returns: event-window stock returns for each call in
--- document_crsp_links, from src/returns/event_returns.py. Day 0 is the first
+-- document_crsp_links, from `research returns compute`. Day 0 is the first
 -- trading session after the call (next day for calls at or after the 4pm New
 -- York close). Windows are trading days from day 0, labelled by their ends
 -- (m1_p1 = [-1,+1], p2_p121 = [+2,+121]). ret_ is the raw buy-and-hold return,

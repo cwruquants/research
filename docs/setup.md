@@ -22,7 +22,6 @@ Commands read these environment variables. `.env.example` lists them; uv does no
 | Variable | Needed by | Example |
 |---|---|---|
 | `DATABASE_URL` | `ingest`, `backfill` (write role); optional for `export` | `postgresql://research_app@<db-host>:5432/research` |
-| `RESEARCH_DATA_DIR` | anything that reads licensed data (default `data/private`) | `/path/to/research-data` |
 | `TEST_DATABASE_URL` | `pytest -m db` only; a throwaway database, never `research` | `postgresql://postgres@localhost:5432/scratch_test` |
 
 Keep passwords out of URLs. Put them in the PostgreSQL password file instead:

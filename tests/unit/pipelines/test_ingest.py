@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from research.pipelines import ingest as ingest_module
@@ -50,3 +52,22 @@ def test_ingest_refuses_an_empty_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
     with pytest.raises(FileNotFoundError):
         ingest_module.ingest(tmp_path, 2016, database_url="postgresql://fake")
+
+
+def test_stop_on_error_drops_queued_files(tmp_path, monkeypatch):
+    for i in range(20):
+        (tmp_path / f"{i:02d}_T.xml").write_text("<Event/>", encoding="utf-8")
+
+    def analyze(path, sentiment=None):
+        if path.name == "00_T.xml":
+            raise ValueError("bad file")
+        time.sleep(0.05)
+        return {"document": {"file_name": path.name}}
+
+    monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
+    monkeypatch.setattr(ingest_module, "analyze_document", analyze)
+    with pytest.raises(ValueError):
+        ingest_module.ingest(
+            tmp_path, 2016, database_url="postgresql://fake", num_threads=2, skip_on_error=False
+        )
+    assert len(FakeUploader.instances[-1].rows) < 5  # only the files already running
