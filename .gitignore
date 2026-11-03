@@ -27,6 +27,19 @@ data/private/
 data/earnings_calls/
 db/WINDOWS_POSTGRES_SETUP.md
 
+# Vendor files and firm-level data dropped anywhere else in the checkout
+/*.csv
+/*.csv.gz
+*.parquet
+*.zip
+*.dump
+QuoteFile*.txt
+CUSIPFile*.txt
+*_T.xml
+!tests/fixtures/**/*_T.xml
+.env.*
+!.env.example
+
 # Outputs: regenerate them; firm-level outputs stay private
 results/
 output/

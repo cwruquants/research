@@ -17,9 +17,12 @@ Read `README.md` first, then `docs/pipeline.md` (which code writes which table) 
 - Never commit licensed data or text from it: transcripts, CRSP, LSEG and I/B/E/S rows,
   firm-level outputs, or sentences quoted from calls. It lives in `data/private/`
   (git-ignored). Test fixtures are synthetic (`tests/fixtures/make_transcripts.py`).
-- The database is read-only unless the user approves a write. Read with the `research_ro`
-  role. Every approved change to rows or schema also gets a SQL file in `db/migrations/`
-  (schema) or `db/fixes/` (one-off data changes), so the repo can rebuild the database.
+- Read the database with the `research_ro` role, and write only the changes the user
+  asked for. The shared Claude Code hook (`.claude/hooks/db_write_guard.py`) lets routine
+  inserts and updates run but asks before drops, deletes, truncates, updates without a
+  WHERE and other destructive SQL. Every change to rows or schema also gets a SQL file in
+  `db/migrations/` (schema) or `db/fixes/` (one-off data changes), so the repo can
+  rebuild the database.
 - Refactors must not change stored numbers. Compare old and new outputs on real data
   before merging anything that touches parsing, matching, linking or returns.
 - No AI attribution lines (Co-Authored-By, "Generated with ...") in commits or PRs.

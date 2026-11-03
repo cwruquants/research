@@ -13,6 +13,7 @@ flowchart LR
     backfill --> exp[(exposure_runs<br/>keyword_matches)]
     docs -- db/queries/link_documents.sql --> linkA[research link route-a]
     lseg[(LSEG, CRSP stocknames)] --> linkA
+    calls[(acquirer and host calls<br/>hand-picked list)] --> linkB
     linkB[research link route-b] --> linkA
     linkA -- db/loads/document_crsp_links.sql --> links[(document_crsp_links)]
     links -- db/queries/events.sql --> fetch[research returns fetch]
@@ -27,10 +28,16 @@ flowchart LR
 |---|---|---|---|---|
 | Parse | `research ingest` | transcript XMLs | `companies`, `documents` | Oct 2026 migration from Supabase, plus fixes in `db/fixes/` |
 | Match | `research backfill` | XMLs, `documents`, word lists | `exposure_runs`, `keyword_matches` | `research backfill`, 2026-10-17 (before the Q&A parser fix) |
-| Link | `research link route-b`, then `route-a` | `db/queries/link_documents.sql` export, LSEG, CRSP stocknames | `proposed_links_all.csv` | loaded with `db/loads/document_crsp_links.sql` |
+| Link | `research link route-b`, then `route-a` | route B: a list of calls on acquirer and broker-host company rows (see below); route A: the `db/queries/link_documents.sql` export, LSEG, CRSP stocknames | `proposed_links_all.csv` | loaded with `db/loads/document_crsp_links.sql` |
 | Returns | `research returns fetch`, `compute` | `db/queries/events.sql` export, WRDS | `event_returns.csv.gz` | loaded with `db/loads/document_event_returns.sql` |
 | Size | `research returns mcap` | `event_returns.csv.gz`, WRDS | `mcap_pre.csv` | the same load script |
 | Surprise | `research returns surprise` | `event_returns.csv.gz`, WRDS | `earnings_surprise.csv` | not in the DB |
+
+Route B is only for company rows named after a later owner or a conference host,
+whose calls are about other companies. Its `--calls` file (document_id, company_id,
+company_name, call_date, event_title) was picked by hand on 2026-10-17, after the
+company cleanup, and no saved query reproduces it. Do not pass it every document: route A
+treats each document in `--route-b` as already linked and skips it.
 
 ## Database tables
 

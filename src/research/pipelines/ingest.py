@@ -27,6 +27,7 @@ from tqdm.auto import tqdm
 from research import config
 from research.db.documents import PostgresUploader
 from research.features.readability import readability_scores
+from research.transcripts._nltk import ensure_nltk_data
 from research.transcripts.models import DocumentAttr
 from research.transcripts.parse import clean_spoken_content, extract_full_body_text, get_company_metadata
 
@@ -138,6 +139,10 @@ def ingest(
         raise NotADirectoryError(f"Input directory not found: {input_dir}")
     files = _gather(input_dir, pattern, recursive, specific_files)
     threads = max(1, num_threads or 1)
+    # Fetch and load the NLTK data in this thread: the workers would race to download it,
+    # and NLTK's lazy cmudict loader fails when several threads touch it first
+    ensure_nltk_data()
+    readability_scores("Load the syllable dictionary.")
 
     uploader = PostgresUploader(database_url or config.database_url(), max_connections=threads)
     upload_results, errors = [], []
@@ -168,10 +173,15 @@ def ingest(
                 tqdm(**progress) as bar,
             ):
                 futures = {executor.submit(process, p): p for p in files}
-                for future in concurrent.futures.as_completed(futures):
-                    error = future.exception()
-                    record(futures[future], None if error else future.result(), error)
-                    bar.update(1)
+                try:
+                    for future in concurrent.futures.as_completed(futures):
+                        error = future.exception()
+                        record(futures[future], None if error else future.result(), error)
+                        bar.update(1)
+                except BaseException:
+                    # --stop-on-error: drop the queued files; ones already running still finish
+                    executor.shutdown(cancel_futures=True)
+                    raise
         else:
             for path in tqdm(files, **progress):
                 try:

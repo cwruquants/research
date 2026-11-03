@@ -3,9 +3,10 @@
 -- (mcap_pre.csv). Reconstructed 2026-11-03; it reproduces the live table. The original
 -- 2026-10-18 loads went through the DB tool's bulk CSV import, which logged no SQL.
 --
--- Run in psql from a folder holding both CSVs:
---   gzip -dk event_returns.csv.gz
---   psql "$DATABASE_URL" -f db/loads/document_event_returns.sql
+-- The \copy paths are relative, so run it in psql from the folder holding both CSVs
+-- (results/event_returns/ in the commands' usage examples; git-ignored):
+--   cd results/event_returns && gzip -dk event_returns.csv.gz
+--   psql "$DATABASE_URL" -f ../../db/loads/document_event_returns.sql
 
 BEGIN;
 

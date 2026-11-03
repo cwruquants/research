@@ -64,9 +64,11 @@ Documents already linked by title (route_b.py, acquirer and broker-host
 rows) are taken from --route-b and merged in with route=B.
 
 Usage
-    uv run research link route-a --docs documents_export.csv.gz \\
-        --stocknames stocknames.csv --quote QuoteFile.txt --cusip CUSIPFile.txt \\
-        --route-b proposed_links.csv --out proposed_links_all.csv
+    uv run research link route-a --docs data/private/derived/crsp_linking/documents_export.csv.gz \\
+        --stocknames data/private/crsp/stocknames.csv \\
+        --quote data/private/lseg/QuoteFile.txt --cusip data/private/lseg/CUSIPFile.txt \\
+        --route-b data/private/derived/acquirer_linking/proposed_links.csv \\
+        --out data/private/derived/crsp_linking/proposed_links_all.csv
 """
 
 import argparse

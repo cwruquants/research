@@ -39,6 +39,7 @@ from tqdm import tqdm
 from research import config
 from research.db.exposures import keyword_set_sizes, missing_runs, write_runs
 from research.matching.direct import MatchingAgent
+from research.transcripts._nltk import ensure_nltk_data
 from research.transcripts.parse import load_document
 from research.transcripts.sources import index_sources, open_transcript, resolve_location
 from research.transcripts.tokenize import document_to_sentence, document_to_word
@@ -195,6 +196,7 @@ def main() -> None:
         _write_failures(not_found, args.report_dir, f"dryrun_{run_timestamp}")
         return
 
+    ensure_nltk_data(("punkt_tab",))  # before the workers, which would race to download it
     batches = [todo[i : i + args.batch_size] for i in range(0, len(todo), args.batch_size)]
     totals = defaultdict(int)
     failures = list(not_found)

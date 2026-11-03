@@ -4,7 +4,6 @@ Paths are relative to the repo checkout, so run commands from anywhere inside it
 Settings come from environment variables (a `.env` file is not read automatically):
 
     DATABASE_URL       Postgres connection string for steps that write to the DB
-    RESEARCH_DATA_DIR  where licensed data lives (default: data/private)
 """
 
 import os
@@ -17,11 +16,6 @@ DATA_DIR = PROJECT_ROOT / "data"
 WORD_SETS_DIR = DATA_DIR / "word_sets"
 RESULTS_DIR = PROJECT_ROOT / "results"
 KEYWORD_SETS_FILE = PROJECT_ROOT / "config" / "keyword_sets.toml"
-
-
-def private_data_dir() -> Path:
-    """Root of the licensed data (LSEG, CRSP, WRDS caches, transcripts); never committed."""
-    return Path(os.environ.get("RESEARCH_DATA_DIR", DATA_DIR / "private"))
 
 
 def database_url() -> str:

@@ -1,12 +1,12 @@
 # Data sources
 
-Licensed data never goes into git. It lives under `data/private/` (or wherever
-`RESEARCH_DATA_DIR` points), which `.gitignore` excludes. Ask the maintainer for access;
+Licensed data never goes into git. It lives under `data/private/`, which `.gitignore`
+excludes, and every step takes its input paths as flags. Ask the maintainer for access;
 each source has its own license terms, and some come through Prof. Bae.
 
 | Source | What | Used by | Where it goes |
 |---|---|---|---|
-| Earnings-call transcripts (Thomson StreetEvents / LSEG) | one XML per call, 2002–2024, zipped by year | `ingest`, `backfill` | the group's shared drive; point `--source` / `--input-dir` at it |
+| Earnings-call transcripts (Thomson StreetEvents / LSEG) | one XML per call, 2002–2024, zipped by year | `ingest`, `backfill` | the group's shared drive; `backfill --source` reads the zips, `ingest --input-dir` needs an unzipped year folder |
 | LSEG QuoteFile, CUSIPFile | RIC → InstrumentPI → CUSIP bridge | `link route-a`, `link coverage` | `data/private/lseg/` |
 | CRSP stocknames (WRDS) | names, tickers and NCUSIPs with date ranges | `link route-a`, `link route-b` | `data/private/crsp/stocknames.csv` |
 | CRSP daily files (WRDS) | `dsf`, `dsi`, delistings | `returns fetch`, `returns compute` | `data/private/wrds/crsp/` |

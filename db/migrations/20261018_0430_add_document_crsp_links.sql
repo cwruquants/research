@@ -1,5 +1,5 @@
 -- Adds document_crsp_links: one row per earnings call linked to a CRSP security
--- (PERMNO) on the call date, from src/linking/crsp_link.py. Calls with no link
+-- (PERMNO) on the call date, from `research link route-a`. Calls with no link
 -- (foreign listings, no CRSP match, name mismatches, ambiguous) have no row.
 -- Returns join on permno; ncusip8 is the CRSP NCUSIP in effect on the call date.
 -- Created by the research agent for the CRSP linking work, 2026-10-18.

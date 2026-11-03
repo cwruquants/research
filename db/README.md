@@ -101,6 +101,15 @@ drop fails even if a statement gets past that check. `DELETE` and permission
 changes are not blocked in the database, so the agent's tooling must ask
 before those as well.
 
+For Claude Code that tooling is `.claude/hooks/db_write_guard.py`, which the shared
+`.claude/settings.json` runs before every research-db write tool call. Routine writes
+(inserts, updates with a WHERE, new tables and columns) run without a prompt; drops,
+truncates, deletes, updates without a WHERE, column type changes, permission changes,
+bulk CSV loads and COPY, EXECUTE, CALL and anything that can run code later need the
+user's approval. It logs each decision
+to `db_write_guard.log` beside it (git-ignored). The command calls `/usr/bin/python3`,
+which exists on macOS and Linux; on Windows, override it in `.claude/settings.local.json`.
+
 Tables that `postgres` creates stay owned by `postgres`, and the agent can't
 alter them. To hand one over, run
 `ALTER TABLE public.<table> OWNER TO research_agent;`.

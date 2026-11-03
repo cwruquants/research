@@ -217,8 +217,8 @@ def clean_spoken_content(raw_text: str) -> str:
 
 def load_document(file_path) -> DocumentAttr:
     """
-    Load a sample XML earnings call transcript and extract its text content
-    using the decompose_transcript functions.
+    Load an XML earnings call transcript and keep its Presentation and Q&A text with
+    speaker lines removed, or every spoken section if it has no such headings.
     file_path may be a path or a binary file object (e.g. a zip member).
     Returns a DocumentAttr object with the text.
     """

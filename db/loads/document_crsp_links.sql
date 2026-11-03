@@ -8,8 +8,10 @@
 --   * route B rows: method 'title_name:<status>' is stored as method 'title_name' and
 --     note 'route_b_<status>'; permco comes from CRSP stocknames (one permco per permno)
 --
--- Run in psql as a role that can write the table, from a folder holding both CSVs:
---   psql "$DATABASE_URL" -f db/loads/document_crsp_links.sql
+-- Run in psql as a role that can write the table. The \copy paths are relative, so
+-- run it from the private folder holding proposed_links_all.csv and stocknames.csv:
+--   cd data/private/derived/crsp_linking && cp ../../crsp/stocknames.csv .
+--   psql "$DATABASE_URL" -f ../../../../db/loads/document_crsp_links.sql
 
 BEGIN;
 
