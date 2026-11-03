@@ -10,10 +10,10 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 # Versions that affect stored numbers are pinned to what produced the current DB.
 dependencies = [
-    "nltk==3.9.1",
+    "nltk==3.10.4",
     "numpy==2.3.1",
     "pandas==2.3.0",
-    "pyarrow==21.0.0",
+    "pyarrow==26.0.1",
     "textstat==0.7.12",
     "word-forms==2.1.0",
     "psycopg[binary,pool]>=3.3.5,<3.4",
@@ -30,9 +30,10 @@ research = "research.cli:main"
 [project.optional-dependencies]
 # Sentiment scores and cosine matching. Heavy; not needed for direct matching, linking or returns.
 ml = [
-    "torch==2.7.1",
-    "transformers==4.53.0",
-    "sentence-transformers==4.1.0",
+    # Stored sentiment came from torch 2.7.1; torch 2.10+ moves it by up to 4e-8 (float32 rounding).
+    "torch==2.15.0",
+    "transformers==5.22.1",
+    "sentence-transformers==6.2.0",
     "pysentiment2==0.1.1",
     "datasets>=3.0",
 ]
