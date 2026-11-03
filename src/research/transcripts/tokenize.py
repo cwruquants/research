@@ -1,13 +1,7 @@
 from research.transcripts.models import SentenceAttr, ParagraphAttr, DocumentAttr
-import nltk
+from nltk.tokenize import RegexpTokenizer
 
-# Only download punkt if it's not already available
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', quiet=True)
-
-from nltk.tokenize import sent_tokenize, RegexpTokenizer
+from research.transcripts._nltk import sent_tokenize
 from nltk.util import bigrams
 
 __all__ = [

@@ -1,12 +1,4 @@
-import nltk
-
-# Only download punkt if it's not already available
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', quiet=True)
-
-from nltk.tokenize import sent_tokenize
+from research.transcripts._nltk import sent_tokenize
 
 class Attr:
     def __init__(self, text: str):
