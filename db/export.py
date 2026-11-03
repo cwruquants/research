@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["psycopg[binary]==3.3.5", "pyyaml==6.0.2"]
-# ///
 """Stream a read-only query from the `research` database to a local CSV file.
 
 Connects with the saved `research_ro` profile from postgres-mcp

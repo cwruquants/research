@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.12,<3.13"
-# dependencies = ["numpy==2.3.1", "pandas==2.3.0", "pyarrow==21.0.0"]
-# ///
 """
 Event-window stock returns around each linked earnings call.
 
