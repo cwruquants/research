@@ -1,83 +1,42 @@
-import os
-import shutil
-import pandas as pd
+"""Convert the word-list spreadsheets in data/word_sets/original_xlsx/ to CSV.
+
+This is how the CSVs in data/word_sets/ were made: one CSV per sheet, no header, one
+keyword per row. A workbook with several sheets (Garcia_MLWords.xlsx) gives one CSV per
+sheet, named <workbook>_<sheet>.csv. Existing files are never overwritten.
+
+Two CSVs were edited after conversion, so they differ from this output: Risk.csv
+(duplicate words removed) and LM_Negative.csv (question and ill removed, 2026-11-01).
+Activeness.xlsx became activeness.csv.
+
+    uv run python scripts/split_garcia_word_lists.py --out /tmp/word_sets_check
+"""
+import argparse
 from pathlib import Path
 
-def convert_and_organize_word_sets():
-    # Define paths
-    project_root = Path(__file__).parent.parent
-    word_sets_dir = project_root / "data" / "word_sets"
-    paper_word_sets_dir = project_root / "data" / "paper_word_sets"
-    
-    print(f"Project root: {project_root}")
-    print(f"Word sets dir: {word_sets_dir}")
-    print(f"Paper word sets dir: {paper_word_sets_dir}")
-    
-    if not word_sets_dir.exists():
-        print(f"Creating {word_sets_dir}...")
-        word_sets_dir.mkdir(parents=True, exist_ok=True)
-        
-    # 1. Convert .xlsx in data/word_sets to .csv
-    print("\n--- Converting .xlsx to .csv in word_sets ---")
-    xlsx_files = list(word_sets_dir.glob("*.xlsx"))
-    if not xlsx_files:
-        print("No .xlsx files found in word_sets.")
-    
-    for xlsx_path in xlsx_files:
-        try:
-            # Read excel; the lists have no header row, and each sheet of a workbook is its own list
-            sheets = pd.read_excel(xlsx_path, sheet_name=None, header=None)
-            
-            for sheet_name, df in sheets.items():
-                # Construct csv path
-                csv_name = f"{xlsx_path.stem}.csv" if len(sheets) == 1 else f"{xlsx_path.stem}_{sheet_name}.csv"
-                csv_path = word_sets_dir / csv_name
-                
-                # Save as csv
-                df.to_csv(csv_path, index=False, header=False)
-                print(f"Converted: {xlsx_path.name} [{sheet_name}] -> {csv_name}")
-            
-        except Exception as e:
-            print(f"Error converting {xlsx_path.name}: {e}")
+import pandas as pd
 
-    # 2. Move files from data/paper_word_sets to data/word_sets
-    print("\n--- Moving files from paper_word_sets to word_sets ---")
-    if paper_word_sets_dir.exists():
-        paper_files = list(paper_word_sets_dir.glob("*"))
-        if not paper_files:
-            print("No files found in paper_word_sets.")
-        
-        for file_path in paper_files:
-            if file_path.is_file():
-                dest_path = word_sets_dir / file_path.name
-                
-                # Handle collision
-                if dest_path.exists():
-                    print(f"Warning: {file_path.name} already exists in word_sets. Skipping move to avoid overwrite.")
-                    # Optional: append suffix?
-                    # new_name = f"{file_path.stem}_paper{file_path.suffix}"
-                    # dest_path = word_sets_dir / new_name
-                    # shutil.move(str(file_path), str(dest_path))
-                    # print(f"Moved (renamed): {file_path.name} -> {new_name}")
-                else:
-                    try:
-                        shutil.move(str(file_path), str(dest_path))
-                        print(f"Moved: {file_path.name}")
-                    except Exception as e:
-                        print(f"Error moving {file_path.name}: {e}")
-            else:
-                 print(f"Skipping directory/other: {file_path.name}")
-        
-        # Check if empty and remove
-        if not any(paper_word_sets_dir.iterdir()):
-             print("paper_word_sets is empty. Removing directory.")
-             paper_word_sets_dir.rmdir()
-        else:
-             print("paper_word_sets is not empty. Left as is.")
-    else:
-        print("data/paper_word_sets does not exist.")
+from research.config import WORD_SETS_DIR
 
-    print("\nDone.")
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--xlsx-dir", type=Path, default=WORD_SETS_DIR / "original_xlsx")
+    parser.add_argument("--out", type=Path, required=True, help="Folder for the CSVs")
+    args = parser.parse_args()
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    for xlsx_path in sorted(args.xlsx_dir.glob("*.xlsx")):
+        # The lists have no header row, and each sheet of a workbook is its own list
+        sheets = pd.read_excel(xlsx_path, sheet_name=None, header=None)
+        for sheet_name, df in sheets.items():
+            csv_name = f"{xlsx_path.stem}.csv" if len(sheets) == 1 else f"{xlsx_path.stem}_{sheet_name}.csv"
+            csv_path = args.out / csv_name
+            if csv_path.exists():
+                print(f"Skipped {csv_name}: already exists")
+                continue
+            df.to_csv(csv_path, index=False, header=False)
+            print(f"{xlsx_path.name} [{sheet_name}] -> {csv_name}")
+
 
 if __name__ == "__main__":
-    convert_and_organize_word_sets()
+    main()

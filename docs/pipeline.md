@@ -1,0 +1,72 @@
+# The pipeline
+
+Each step reads files or tables and writes files or tables. Steps run by hand, in this
+order; nothing schedules them. Run any step with `uv run research <step> --help`.
+
+```mermaid
+flowchart LR
+    xml[(Transcript XMLs<br/>data/private)] --> ingest
+    xml --> backfill
+    ingest[research ingest] --> docs[(companies<br/>documents)]
+    docs --> backfill[research backfill]
+    kw[config/keyword_sets.toml<br/>data/word_sets] --> backfill
+    backfill --> exp[(exposure_runs<br/>keyword_matches)]
+    docs -- db/queries/link_documents.sql --> linkA[research link route-a]
+    lseg[(LSEG, CRSP stocknames)] --> linkA
+    linkB[research link route-b] --> linkA
+    linkA -- db/loads/document_crsp_links.sql --> links[(document_crsp_links)]
+    links -- db/queries/events.sql --> fetch[research returns fetch]
+    wrds[(WRDS: CRSP, I/B/E/S)] --> fetch
+    fetch --> compute[research returns compute]
+    compute -- db/loads/document_event_returns.sql --> ret[(document_event_returns)]
+    wrds --> mcap[research returns mcap] --> ret
+    compute --> sue[research returns surprise] --> suecsv[earnings_surprise.csv]
+```
+
+| Step | Command | Reads | Writes | How the DB table was last filled |
+|---|---|---|---|---|
+| Parse | `research ingest` | transcript XMLs | `companies`, `documents` | Oct 2026 migration from Supabase, plus fixes in `db/fixes/` |
+| Match | `research backfill` | XMLs, `documents`, word lists | `exposure_runs`, `keyword_matches` | `research backfill`, 2026-10-17 (before the Q&A parser fix) |
+| Link | `research link route-b`, then `route-a` | `db/queries/link_documents.sql` export, LSEG, CRSP stocknames | `proposed_links_all.csv` | loaded with `db/loads/document_crsp_links.sql` |
+| Returns | `research returns fetch`, `compute` | `db/queries/events.sql` export, WRDS | `event_returns.csv.gz` | loaded with `db/loads/document_event_returns.sql` |
+| Size | `research returns mcap` | `event_returns.csv.gz`, WRDS | `mcap_pre.csv` | the same load script |
+| Surprise | `research returns surprise` | `event_returns.csv.gz`, WRDS | `earnings_surprise.csv` | not in the DB |
+
+## Database tables
+
+| Table | Rows | One row per |
+|---|---|---|
+| `companies` | ~19k | company name and RIC as the vendor files it |
+| `documents` | ~507k | transcript: metadata, word and sentence counts, readability, sentiment |
+| `keyword_sets` | 2 | word list run against the corpus (`risk`, `activeness`) |
+| `exposure_runs` | ~1.0M | (document, keyword set): counts of matches and sentences |
+| `keyword_matches` | ~50.6M | keyword hit, with the matched sentence; about 98% of the DB |
+| `document_crsp_links` | ~352k | call linked to a CRSP security on the call date |
+| `document_event_returns` | ~352k | linked call: day 0, window returns, market-model fit, `mcap_pre` |
+
+Two more tables, `company_cleanup_20261017` and `sentiment_recompute_20261017`, are audit
+records of the October 2026 fixes in `db/fixes/`.
+
+## Where the numbers come from
+
+- `documents.num_words`, `num_sentences` and readability: the whole XML body with speaker
+  lines removed (`research.pipelines.ingest.analyze_document`).
+- `documents.sentiment`: a financial-news DistilRoBERTa model scores each sentence
+  (+score positive, −score negative, 0 neutral); that is averaged within each paragraph,
+  then across paragraphs.
+- `lm_score`, `hiv4_score`: per sentence, positive minus negative word counts from the
+  Loughran–McDonald and Harvard IV dictionaries (pysentiment2), summed over the call.
+- `ml_score`: per sentence, +1 for every adjacent word pair where both words are on the
+  Garcia positive unigram list and −1 where both are on the negative list, summed.
+  These three are sums, so they grow with call length.
+- `exposure_runs`, `keyword_matches`: Presentation and Q&A text only
+  (`research.transcripts.parse.load_document`), direct matching.
+
+## Rerunning a step
+
+- New transcripts: `research ingest`, then `research backfill` for every keyword set.
+- A new keyword set: add it to `config/keyword_sets.toml` and a `keyword_sets` row (with
+  `total_keywords`), then `research backfill`. Don't change the options of a set that
+  already has runs; add a new set.
+- New links or returns: run the step, then the matching `db/loads/` script. Both load
+  scripts expect empty tables; replacing rows is a DB change that needs approval.
