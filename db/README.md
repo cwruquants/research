@@ -1,8 +1,18 @@
 # Local research database
 
-PostgreSQL 18 runs on a Windows desktop. It is reachable from approved
-Tailscale devices using that desktop's Tailscale hostname and locally as
-`localhost:5432`. The source Supabase project remains a separate fallback.
+PostgreSQL 18 runs on a group machine, reachable from approved devices on the
+group's private network and locally as `localhost:5432`. See
+[docs/setup.md](../docs/setup.md) for getting access.
+
+| Folder or file | What |
+|---|---|
+| `schema.sql` (`tables.sql`, `constraints.sql`) | builds the current schema on an empty database |
+| `migrations/` | one file per schema change since the migration from Supabase |
+| `roles.sql`, `agent_schema_access.sql`, `agent_guards.sql` | roles and the AI-agent guards, applied once by an administrator |
+| `queries/` | saved export queries; run with `research export --sql-file` |
+| `loads/` | how the tables filled from CSV files were loaded |
+| `fixes/` | one-off data changes, as run |
+| `verify.sql`, `backup.ps1` | post-restore checks and the nightly backup |
 
 ## Schema and migration
 
@@ -38,10 +48,24 @@ on another Tailscale device. Store the password in that machine's PostgreSQL
 password file rather than in the URL. On Windows, this file is
 `%APPDATA%\postgresql\pgpass.conf`; on macOS, it is `~/.pgpass`.
 
-The uploader is `PostgresUploader` in `src/analysis/postgres_uploader.py`, or
-call `BatchRunner.process_batch_to_postgres(...)`. The Supabase uploader is
-still available. The `research_ro` account can read the database but cannot
-upload or change rows.
+`research ingest` writes companies and documents (`research.db.documents`), and
+`research backfill` writes exposure runs and keyword matches (`research.db.exposures`).
+The `research_ro` account can read the database but cannot upload or change rows.
+
+## Changing data
+
+Every change to rows or schema is a SQL file in the repo, so the database can be rebuilt:
+a schema change goes in `migrations/` (and is folded into `tables.sql` or
+`constraints.sql`), a one-off fix in `fixes/` with a guard that makes it a no-op if the
+rows drifted, and a table filled from a CSV gets a script in `loads/`. Back up the rows a
+fix changes under `data/private/db_fixes/` first.
+
+## Tests
+
+`pytest -m db` runs the integration tests against `TEST_DATABASE_URL`, which must be a
+throwaway database built with `schema.sql` (the tests refuse a database named
+`research`). A local Postgres works:
+`createdb scratch_test && psql -d scratch_test -f db/schema.sql`.
 
 ## Agent access
 

@@ -28,7 +28,7 @@ by call year to --coverage. Nothing is written to the DB.
 
 Usage
     uv run research returns surprise --returns results/event_returns/event_returns.csv.gz \\
-        --cache-dir results/event_returns/ibes --out results/event_returns/earnings_surprise.csv \\
+        --cache-dir data/private/wrds/ibes --out results/event_returns/earnings_surprise.csv \\
         --coverage results/event_returns/earnings_surprise_coverage.csv
 """
 

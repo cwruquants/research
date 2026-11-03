@@ -32,7 +32,7 @@ window carries its last return instead of dropping out.
 
 Usage
     uv run research returns compute --events results/event_returns/events.csv.gz \\
-        --crsp-dir results/event_returns/crsp --out results/event_returns/event_returns.csv.gz
+        --crsp-dir data/private/wrds/crsp --out results/event_returns/event_returns.csv.gz
 """
 
 import argparse

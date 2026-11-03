@@ -14,7 +14,7 @@ send a Duo push when the connection opens.
 
 Usage
     uv run research returns fetch --events results/event_returns/events.csv.gz \\
-        --out-dir results/event_returns/crsp
+        --out-dir data/private/wrds/crsp
 """
 
 import argparse

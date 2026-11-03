@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__research-db__postgres_mcp_(modify|bulk_load_csv)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/db_write_guard.py\"",
+            "timeout": 10,
+            "onFailure": "block",
+            "statusMessage": "Checking SQL for destructive changes"
+          }
+        ]
+      }
+    ]
+  }
+}
