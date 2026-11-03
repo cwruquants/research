@@ -1,61 +1,16 @@
-from research.transcripts.models import SentenceAttr, ParagraphAttr, DocumentAttr
+from research.transcripts.models import DocumentAttr
 from nltk.tokenize import RegexpTokenizer
 
 from research.transcripts._nltk import sent_tokenize
 from nltk.util import bigrams
 
 __all__ = [
-    "par_to_sentence",
-    "sentence_to_word",
-    "sentence_to_bigram",
     "document_to_word",
     "document_to_sentence",
-    "document_to_bigram"
+    "document_to_bigram",
+    "is_bigram",
 ]
 
-
-def par_to_sentence(par: ParagraphAttr):
-    """
-        Input: 
-        - par: ParagraphAttr
-
-        Output:
-        - sentence_strings: List[String]
-    """
-    sentences = sent_tokenize(par.text)
-    return sentences
-
-def sentence_to_word(sentence: SentenceAttr):
-    """
-        Input:
-        - sentence: SentenceAttr
-
-        Output:
-        - tokens: List[String] # List of words with all of the punctuation removed
-    """
-    tokenizer = RegexpTokenizer(r'\w+')
-    tokens = tokenizer.tokenize(sentence.text)
-
-    return tokens
-
-
-def sentence_to_bigram(sentence: SentenceAttr):
-    """
-        Input:
-        - sentence: SentenceAttr
-
-        Output:
-        - bigram_strings: List[String]
-
-        Returns a list of bigram strings for us to initialize as BigramAttr objects
-    """
-    tokenizer = RegexpTokenizer(r'\w+')
-    tokens = tokenizer.tokenize(sentence.text)
-
-    bigram_tuples = list(bigrams(tokens))
-    bigram_strings = [" ".join(pair) for pair in bigram_tuples]
-
-    return bigram_strings # List[string]
 
 def document_to_word(document: DocumentAttr):
     """
