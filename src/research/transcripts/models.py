@@ -79,31 +79,6 @@ class ParagraphAttr(Attr):
             data["sentences"] = [s.to_dict() for s in self.sentences]
         return data
 
-# class DocumentAttr(Attr):
-#     def __init__(self, document: str = "", store_paragraphs: bool = False, store_sentences: bool = False, store_words: bool = False):
-#         super().__init__(document)
-#         self.paragraphs = []
-#         self.store_paragraphs = store_paragraphs
-#         self.store_sentences = store_sentences
-#         self.store_words = store_words
-
-#         if self.store_paragraphs:
-#             raw_paragraphs = document.split('\n\n')
-#             self.paragraphs = [
-#                 ParagraphAttr(p.strip(), store_sentences=self.store_sentences, store_words=self.store_words)
-#                 for p in raw_paragraphs if p.strip()
-#             ]
-
-#     def get_paragraph_texts(self):
-#         return [p.text for p in self.paragraphs] if self.paragraphs else []
-
-#     def to_dict(self):
-#         data = super().to_dict()
-#         if self.paragraphs:
-#             data["paragraphs"] = [p.to_dict() for p in self.paragraphs]
-#         return data
-    
-
 class DocumentAttr(Attr):
     def __init__(self, document: str = "", store_paragraphs: bool = False, store_sentences: bool = False, store_words: bool = False):
         super().__init__(document)
