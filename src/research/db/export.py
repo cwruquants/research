@@ -1,15 +1,19 @@
 """Stream a read-only query from the `research` database to a local CSV file.
 
-Connects with the saved `research_ro` profile from postgres-mcp
-(~/.postgres-mcp/connections.yaml) and reads its password from the macOS
-Keychain, so no secret is ever typed, passed as an argument, or printed.
+Where the connection comes from, first match wins:
 
-The session is forced read-only, the role itself has no write grants, and the
-output file is never overwritten.
+  1. DATABASE_URL, e.g. postgresql://research_ro@<db-host>:5432/research
+  2. libpq environment variables (PGHOST, PGUSER, PGDATABASE, ...), with the
+     password in ~/.pgpass (%APPDATA%\\postgresql\\pgpass.conf on Windows)
+  3. the `research_ro` profile in ~/.postgres-mcp/connections.yaml, with its
+     password read from the macOS Keychain
+
+No secret is ever typed, passed as an argument, or printed. The session is forced
+read-only and the output file is never overwritten. Saved queries live in db/queries/.
 
 Usage:
-    uv run db/export.py --out results/documents.csv --sql "select * from public.documents"
-    uv run db/export.py --out results/q.csv.gz --sql-file my_query.sql
+    uv run research export --out results/documents.csv --sql "select * from public.documents"
+    uv run research export --out results/events.csv.gz --sql-file db/queries/events.sql
 """
 
 from __future__ import annotations
@@ -57,27 +61,35 @@ def keychain_password() -> str:
     return result.stdout.rstrip("\n")
 
 
-def main() -> None:
+def connection_kwargs() -> dict:
+    """Connection settings from DATABASE_URL, libpq variables, or the postgres-mcp profile."""
+    if os.environ.get("DATABASE_URL"):
+        return {"conninfo": os.environ["DATABASE_URL"]}
+    if os.environ.get("PGHOST") or os.environ.get("PGSERVICE"):
+        return {"conninfo": ""}
+    if CONFIG.exists():
+        profile = load_profile()
+        return {"host": profile["host"], "port": profile["port"], "dbname": profile["database"],
+                "user": PROFILE, "password": keychain_password()}
+    sys.exit("No database connection configured: set DATABASE_URL (see docs/setup.md).")
+
+
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--sql", help="query to export (SELECT, WITH, VALUES, TABLE)")
     source.add_argument("--sql-file", type=Path, help="file containing the query to export")
     parser.add_argument("--out", type=Path, required=True, help="output CSV path; .gz compresses; must not exist")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     query = (args.sql if args.sql is not None else args.sql_file.read_text()).strip().rstrip(";").strip()
     if args.out.exists():
         sys.exit(f"{args.out} already exists; choose a new path (files are never overwritten)")
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
-    profile = load_profile()
     started = time.monotonic()
     with psycopg.connect(
-        host=profile["host"],
-        port=profile["port"],
-        dbname=profile["database"],
-        user=PROFILE,
-        password=keychain_password(),
+        **connection_kwargs(),
         options="-c default_transaction_read_only=on",
         application_name="research-db-export",
     ) as conn:
