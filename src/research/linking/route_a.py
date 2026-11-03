@@ -33,7 +33,7 @@ Matching, per document (call date = event date in New York time)
     (note=share_class_pick). The first method whose CRSP name fits the call wins.
 
     When no method fits, the event title is matched to CRSP names on the call date
-    with title_crsp_match.py (method=title_name): Thomson files old calls under
+    with crsp_names.py (method=title_name): Thomson files old calls under
     the current owner (Grant Prideco calls under NOV) and tickers get reused (EPC
     was EPCOS before Edgewell). Clean title matches are accepted, as are prefix
     matches whose CRSP name fits the company row or that clean matches on the
@@ -60,11 +60,11 @@ Status
     foreign_listing  non-U.S. exchange suffix
     blank            no ticker
 
-Documents already linked by title (title_crsp_match.py, acquirer and broker-host
+Documents already linked by title (route_b.py, acquirer and broker-host
 rows) are taken from --route-b and merged in with route=B.
 
 Usage
-    python -I src/linking/crsp_link.py --docs documents_export.csv.gz \\
+    uv run research link route-a --docs documents_export.csv.gz \\
         --stocknames stocknames.csv --quote QuoteFile.txt --cusip CUSIPFile.txt \\
         --route-b proposed_links.csv --out proposed_links_all.csv
 """
@@ -76,12 +76,11 @@ import unicodedata
 from difflib import SequenceMatcher
 from collections import defaultdict
 from datetime import date, timedelta
-from pathlib import Path
 
 import pandas as pd
 
-from research.linking.cusip_coverage import CUSIP_COLS, DELIST_RE, MONTHS, QUOTE_COLS, US_SUFFIXES, read_lseg
-from research.linking.route_b import BOUNDARY, DROP, FOLD, load_crsp, match_one, title_core, tokens
+from research.linking.lseg import CUSIP_COLS, DELIST_RE, MONTHS, QUOTE_COLS, US_SUFFIXES, read_lseg
+from research.linking.crsp_names import BOUNDARY, DROP, FOLD, load_crsp, match_one, title_core, tokens
 
 CRSP_END = date(2024, 12, 31)
 COMMON = ("10", "11")
@@ -436,7 +435,7 @@ def main():
 
     def title_fallback(rec, title, d):
         """When the ticker gives nothing or the wrong company, link by the company
-        the event title names (title_crsp_match.py) if that match is clean, or a
+        the event title names (crsp_names.py) if that match is clean, or a
         prefix match whose CRSP name also fits the company row (Limited Brands July
         Sales under L Brands)."""
         st, r, _ = match_one(title, d, tb_first, tb_permno)

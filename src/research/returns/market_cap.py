@@ -7,21 +7,20 @@ day at least 2 calendar days before day 0, looking back at most 30 days. A
 negative CRSP price is a bid/ask midpoint, so its absolute value is used.
 
 Pulls permno, date, prc, shrout for the linked PERMNOs from WRDS in one
-connection (credentials from ~/.pgpass, as in fetch_crsp.py), and writes a CSV
+connection (credentials from ~/.pgpass, as in wrds.py), and writes a CSV
 of document_id, mcap_pre for the calls that have one. Nothing is written to the DB.
 
 Usage
-    uv run src/returns/market_cap.py --returns results/event_returns/event_returns.csv.gz \\
+    uv run research returns mcap --returns results/event_returns/event_returns.csv.gz \\
         --out results/event_returns/mcap_pre.csv
 """
 
 import argparse
-from pathlib import Path
 
 import pandas as pd
 import psycopg
 
-from research.returns.fetch_crsp import WRDS_HOST, WRDS_PORT, copy_frame, wrds_user
+from research.returns.wrds import WRDS_HOST, WRDS_PORT, copy_frame, wrds_user
 
 LAG = pd.Timedelta(days=2)
 TOLERANCE = pd.Timedelta(days=30)
