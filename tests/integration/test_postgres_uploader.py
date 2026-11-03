@@ -1,7 +1,6 @@
-"""Integration checks against a dedicated local test database."""
+"""Integration checks against a throwaway Postgres (TEST_DATABASE_URL); rows are removed afterwards."""
 
 from concurrent.futures import ThreadPoolExecutor
-import os
 from uuid import uuid4
 
 import psycopg
@@ -24,9 +23,9 @@ def _document(company: str, source_file: str, score: float):
     }
 
 
-@pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="TEST_DATABASE_URL is not set")
-def test_upsert_and_concurrent_uploads():
-    database_url = os.environ["TEST_DATABASE_URL"]
+@pytest.mark.db
+def test_upsert_and_concurrent_uploads(test_database_url):
+    database_url = test_database_url
     prefix = f"uploader_test_{uuid4().hex}"
     company = f"{prefix}_company"
     uploader = PostgresUploader(database_url, max_connections=4)
@@ -62,3 +61,7 @@ def test_upsert_and_concurrent_uploads():
         assert score == 0.8
     finally:
         uploader.finalize()
+        with psycopg.connect(database_url) as conn:
+            conn.execute("""DELETE FROM public.documents WHERE company_id IN
+                            (SELECT id FROM public.companies WHERE name = %s)""", (company,))
+            conn.execute("DELETE FROM public.companies WHERE name = %s", (company,))

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Event Id="9000003" eventTypeId="1" eventTypeName="Earnings Conference Call">
+<eventTitle>Q4 2016 Example Industries Inc Earnings Conference Call</eventTitle>
+<city>SPRINGFIELD</city>
+<companyName>Example Industries Inc</companyName>
+<companyTicker>EXMPL.OQ</companyTicker>
+<startDate>02-Feb-17 1:30pm GMT</startDate>
+<EventStory Id="9000003.F" storyType="transcript" version="Final">
+<Headline><![CDATA[Edited Transcript of EXMPL.OQ earnings conference call or presentation 2-Feb-17 1:30pm GMT]]></Headline>
+<Body>Example Industries Inc Q4 2016 Earnings Call
+
+SPRINGFIELD Feb 2, 2017 (Example Wire) -- Edited Transcript of Example Industries Inc earnings conference call
+
+TEXT version of Transcript
+
+================================================================================
+Corporate Participants
+================================================================================
+   *  Dana Park
+      Example Industries Inc - CEO
+   *  Lee Moran
+      Example Industries Inc - CFO
+
+================================================================================
+Conference Call Participants
+================================================================================
+   *  Sam Ortiz
+      Harbor Securities - Analyst
+
+================================================================================
+Transcript
+--------------------------------------------------------------------------------
+Operator   [1]
+--------------------------------------------------------------------------------
+
+Good day and welcome to the Example Industries fourth quarter earnings call. Today's call is being recorded.
+
+--------------------------------------------------------------------------------
+Dana Park, Example Industries Inc - CEO   [2]
+--------------------------------------------------------------------------------
+
+Thank you, and good morning. Before we start, our remarks include forward-looking statements, and actual results may differ materially from those described. Revenue grew 8% this quarter on strong demand for our pumps. Trade policy remains the main risk we see, and new taxes on imported steel could raise our costs. We have a plan to manage that risk with a second supplier.
+
+--------------------------------------------------------------------------------
+Lee Moran, Example Industries Inc - CFO   [3]
+--------------------------------------------------------------------------------
+
+Gross margin improved to 34%. We expect government infrastructure spending to support orders next year, although the timing is uncertain.
+
+--------------------------------------------------------------------------------
+Operator   [4]
+--------------------------------------------------------------------------------
+
+Our first question comes from Sam Ortiz with Harbor Securities.
+
+--------------------------------------------------------------------------------
+Sam Ortiz, Harbor Securities - Analyst   [5]
+--------------------------------------------------------------------------------
+
+Thanks. How exposed are you if the trade war gets worse?
+
+--------------------------------------------------------------------------------
+Dana Park, Example Industries Inc - CEO   [6]
+--------------------------------------------------------------------------------
+
+About a fifth of our steel is imported. A broader trade war would be a real risk, but our risk management team has contracts in place through the summer.
+
+--------------------------------------------------------------------------------
+Sam Ortiz, Harbor Securities - Analyst   [7]
+--------------------------------------------------------------------------------
+
+And on taxes?
+
+--------------------------------------------------------------------------------
+Lee Moran, Example Industries Inc - CFO   [8]
+--------------------------------------------------------------------------------
+
+The new taxes would cost us about two cents a share. There is little politics in our guidance; we simply assume current rules hold.
+
+</Body>
+</EventStory>
+</Event>

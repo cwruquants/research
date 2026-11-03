@@ -1,18 +1,15 @@
+"""
+Onboarding demo: find keywords in one earnings-call transcript.
+
+    uv run research demo                       # synthetic transcript, no licensed data needed
+    uv run research demo path/to/123_T.xml     # any transcript XML you have access to
+
+Cosine matching runs only when the [ml] extra is installed (uv sync --extra ml).
+"""
+import importlib.util
 import sys
-import os
-from pathlib import Path
 
-# ==========================================
-# SETUP: Add project root to Python path
-# ==========================================
-# This section ensures that Python can find the 'src' directory.
-# In Python, you need to tell the interpreter where to look for your modules 
-# if they are not in standard locations.
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-# Now we can import from our own source code!
+from research.config import DATA_DIR, PROJECT_ROOT
 from research.matching.direct import MatchingAgent
 
 def run_onboarding_demo():
@@ -30,17 +27,11 @@ def run_onboarding_demo():
     # 1. Keywords file: A CSV containing words we want to search for.
     # 2. Document file: The text file (XML in this case) we want to search in.
     
-    # Using os.path.join helps make paths work on both Windows and Mac/Linux
-    keywords_path = os.path.join(project_root, "data", "test_sets", "politics.csv")
-    document_path = os.path.join(project_root, "data", "earnings_calls", "ex1.xml")
-
-    # Always good practice to check if files exist!
-    if not os.path.exists(keywords_path):
-        print(f"Error: Keywords file not found at {keywords_path}")
-        return
-    if not os.path.exists(document_path):
-        print(f"Error: Document file not found at {document_path}")
-        return
+    # pathlib paths work on both Windows and Mac/Linux.
+    # The default transcript is synthetic (tests/fixtures), so the demo runs without licensed data.
+    keywords_path = DATA_DIR / "test_sets" / "politics.csv"
+    document_path = sys.argv[1] if len(sys.argv) > 1 else PROJECT_ROOT / "tests" / "fixtures" / "transcripts" / "spaced_T.xml"
+    keywords_path, document_path = str(keywords_path), str(document_path)
 
     print(f"Using keywords from: {keywords_path}")
     print(f"Scanning document:   {document_path}")
@@ -103,6 +94,11 @@ def run_onboarding_demo():
     # It can find 'automobile' if you search for 'car'.
     # This is slower but much more powerful.
     
+    if importlib.util.find_spec("sentence_transformers") is None:
+        print("Skipping cosine matching: install the [ml] extra with `uv sync --extra ml`.")
+        print("=" * 60)
+        return
+
     print("Running COSINE matching (semantic/meaning matches)...")
     print("This might take a moment to load the model...")
     

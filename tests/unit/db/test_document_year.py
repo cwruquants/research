@@ -1,7 +1,6 @@
 """Checks that the uploader stores the call-date year rather than the batch year."""
 
 from contextlib import contextmanager
-from pathlib import Path
 import threading
 
 import pytest
@@ -9,7 +8,6 @@ import pytest
 from research.db.document_year import resolve_document_year
 from research.db.documents import PostgresUploader
 
-SAMPLE_DIR = Path(__file__).resolve().parents[3] / "data" / "earnings_calls" / "2016"
 
 
 def _document(start_date, source_file="1020948_T.xml"):
@@ -90,13 +88,12 @@ def test_uploader_falls_back_to_batch_year(start_date):
     assert result["year_fallback"] is True
 
 
-@pytest.mark.skipif(not SAMPLE_DIR.exists(), reason="sample transcripts not present")
-def test_sample_transcripts_round_trip_to_their_own_year():
+def test_sample_transcripts_round_trip_to_their_own_year(transcripts):
     """Parser output fed through the uploader gives the startDate's year."""
     from research.transcripts.parse import get_company_metadata
 
     uploader, _ = _uploader()
-    files = sorted(SAMPLE_DIR.glob("*.xml"))
+    files = sorted(transcripts.glob("*.xml"))
     assert files
     for path in files:
         start_date = get_company_metadata(path)["startDate"]
@@ -105,7 +102,7 @@ def test_sample_transcripts_round_trip_to_their_own_year():
         year, fallback = resolve_document_year(event_date, 1999)
         assert not fallback
         assert year == int(event_date[:4])
-        assert year in (2015, 2016, 2017), (path.name, start_date)
+        assert year == 2017, (path.name, start_date)
 
 
 def test_offset_start_date_uses_utc_year(tmp_path):
