@@ -22,7 +22,6 @@ Matching
     is one, since CUSIPs change over time.
 """
 
-
 import re
 from collections import defaultdict
 from datetime import timedelta
@@ -39,33 +38,126 @@ PERIOD_RE = re.compile(
 
 # Words dropped from names on both sides, wherever they appear.
 DROP = {
-    "INC", "INCORPORATED", "CORP", "CORPORATION", "CO", "COMPANY", "COS", "COMPANIES", "LTD",
-    "LIMITED", "LLC", "LP", "PLC", "NV", "SA", "AG", "HOLDINGS", "HOLDING", "HLDGS", "GROUP",
-    "GRP", "THE", "AND", "COM", "NEW", "DE", "DEL",
+    "INC",
+    "INCORPORATED",
+    "CORP",
+    "CORPORATION",
+    "CO",
+    "COMPANY",
+    "COS",
+    "COMPANIES",
+    "LTD",
+    "LIMITED",
+    "LLC",
+    "LP",
+    "PLC",
+    "NV",
+    "SA",
+    "AG",
+    "HOLDINGS",
+    "HOLDING",
+    "HLDGS",
+    "GROUP",
+    "GRP",
+    "THE",
+    "AND",
+    "COM",
+    "NEW",
+    "DE",
+    "DEL",
 }
 
 # Spelled-out word -> CRSP abbreviation, so both sides fold to the same token.
 FOLD = {
-    "INTERNATIONAL": "INTL", "TECHNOLOGIES": "TECH", "TECHNOLOGY": "TECH", "TECHS": "TECH",
-    "SYSTEMS": "SYS", "SYSTEM": "SYS", "FINANCIAL": "FINL", "SERVICES": "SVCS", "SERVICE": "SVCS",
-    "PHARMACEUTICALS": "PHARM", "PHARMACEUTICAL": "PHARM", "PHARMS": "PHARM",
-    "COMMUNICATIONS": "COMM", "COMMUNICATION": "COMM", "COMMUNICATNS": "COMM", "COMMS": "COMM",
-    "BANCORPORATION": "BANCORP", "MANAGEMENT": "MGMT", "ENTERPRISES": "ENT", "INDUSTRIES": "IND",
-    "INDS": "IND", "LABORATORIES": "LABS", "AMERICA": "AMER", "AMERICAN": "AMERN",
-    "NATIONAL": "NATL", "PRODUCTS": "PRODS", "RESOURCES": "RES", "SOLUTIONS": "SOLS",
-    "ASSOCIATES": "ASSOC", "INVESTMENTS": "INVTS", "MEDICAL": "MED", "ENTERTAINMENT": "ENTMT",
-    "ELECTRONICS": "ELECTRS", "INSURANCE": "INS", "SEMICONDUCTOR": "SEMICON",
+    "INTERNATIONAL": "INTL",
+    "TECHNOLOGIES": "TECH",
+    "TECHNOLOGY": "TECH",
+    "TECHS": "TECH",
+    "SYSTEMS": "SYS",
+    "SYSTEM": "SYS",
+    "FINANCIAL": "FINL",
+    "SERVICES": "SVCS",
+    "SERVICE": "SVCS",
+    "PHARMACEUTICALS": "PHARM",
+    "PHARMACEUTICAL": "PHARM",
+    "PHARMS": "PHARM",
+    "COMMUNICATIONS": "COMM",
+    "COMMUNICATION": "COMM",
+    "COMMUNICATNS": "COMM",
+    "COMMS": "COMM",
+    "BANCORPORATION": "BANCORP",
+    "MANAGEMENT": "MGMT",
+    "ENTERPRISES": "ENT",
+    "INDUSTRIES": "IND",
+    "INDS": "IND",
+    "LABORATORIES": "LABS",
+    "AMERICA": "AMER",
+    "AMERICAN": "AMERN",
+    "NATIONAL": "NATL",
+    "PRODUCTS": "PRODS",
+    "RESOURCES": "RES",
+    "SOLUTIONS": "SOLS",
+    "ASSOCIATES": "ASSOC",
+    "INVESTMENTS": "INVTS",
+    "MEDICAL": "MED",
+    "ENTERTAINMENT": "ENTMT",
+    "ELECTRONICS": "ELECTRS",
+    "INSURANCE": "INS",
+    "SEMICONDUCTOR": "SEMICON",
     "MANUFACTURING": "MFG",
 }
 
 # Title words that may follow a company name; a match ending right before one is clean.
 BOUNDARY = {
-    "EARNINGS", "CONFERENCE", "CALL", "AT", "TO", "DISCUSSING", "DISCUSS", "ANNOUNCES", "ANNOUNCE",
-    "PLANS", "MERGER", "ACQUISITION", "ANALYST", "ANALYSTS", "INVESTOR", "INVESTORS", "ANNUAL",
-    "SHAREHOLDER", "SHAREHOLDERS", "BUSINESS", "GUIDANCE", "SALES", "PRESENTATION", "SPECIAL",
-    "WEBCAST", "MEETING", "PRE", "PRERECORDED", "UPDATE", "FINL", "RESULTS", "STRATEGIC",
-    "INVESTMENT", "FY", "Q1", "Q2", "Q3", "Q4", "PRELIMINARY", "OPERATING", "FIRST", "SECOND",
-    "THIRD", "FOURTH", "STATUS", "CORPORATE", "VIRTUAL", "FIRESIDE", "HOSTED",
+    "EARNINGS",
+    "CONFERENCE",
+    "CALL",
+    "AT",
+    "TO",
+    "DISCUSSING",
+    "DISCUSS",
+    "ANNOUNCES",
+    "ANNOUNCE",
+    "PLANS",
+    "MERGER",
+    "ACQUISITION",
+    "ANALYST",
+    "ANALYSTS",
+    "INVESTOR",
+    "INVESTORS",
+    "ANNUAL",
+    "SHAREHOLDER",
+    "SHAREHOLDERS",
+    "BUSINESS",
+    "GUIDANCE",
+    "SALES",
+    "PRESENTATION",
+    "SPECIAL",
+    "WEBCAST",
+    "MEETING",
+    "PRE",
+    "PRERECORDED",
+    "UPDATE",
+    "FINL",
+    "RESULTS",
+    "STRATEGIC",
+    "INVESTMENT",
+    "FY",
+    "Q1",
+    "Q2",
+    "Q3",
+    "Q4",
+    "PRELIMINARY",
+    "OPERATING",
+    "FIRST",
+    "SECOND",
+    "THIRD",
+    "FOURTH",
+    "STATUS",
+    "CORPORATE",
+    "VIRTUAL",
+    "FIRESIDE",
+    "HOSTED",
     "ANNOUNCEMENT",
 }
 
@@ -151,8 +243,13 @@ def prefix_len(toks, r):
     if tuple(toks[:n]) == r.toks:
         return n
     # CRSP cuts names at 32 characters; accept a truncated last token.
-    if n > 1 and len(r.comnam) >= 30 and len(toks) >= n and tuple(toks[: n - 1]) == r.toks[:-1] \
-            and toks[n - 1].startswith(r.toks[-1]):
+    if (
+        n > 1
+        and len(r.comnam) >= 30
+        and len(toks) >= n
+        and tuple(toks[: n - 1]) == r.toks[:-1]
+        and toks[n - 1].startswith(r.toks[-1])
+    ):
         return n
     return 0
 

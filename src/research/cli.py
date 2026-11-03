@@ -1,4 +1,5 @@
 """`research`: one command for every pipeline step. Run `research <step> --help` for options."""
+
 import argparse
 import importlib
 import runpy
@@ -11,7 +12,10 @@ COMMANDS = {
     ("ingest",): ("research.pipelines.ingest", "Parse transcript XMLs into companies and documents rows"),
     ("backfill",): ("research.pipelines.backfill_exposures", "Write missing keyword exposure runs"),
     ("link", "route-a"): ("research.linking.route_a", "Link documents to CRSP PERMNOs by RIC and call date"),
-    ("link", "route-b"): ("research.linking.route_b", "Link documents to CRSP by event title (acquirer/host rows)"),
+    ("link", "route-b"): (
+        "research.linking.route_b",
+        "Link documents to CRSP by event title (acquirer/host rows)",
+    ),
     ("link", "coverage"): ("research.linking.cusip_coverage", "Report how many DB tickers map to a CUSIP"),
     ("returns", "fetch"): ("research.returns.fetch_crsp", "Pull CRSP daily files from WRDS"),
     ("returns", "compute"): ("research.returns.event_returns", "Compute event-window returns"),
@@ -48,7 +52,9 @@ def main(argv: list[str] | None = None) -> None:
     group = [p for p in COMMANDS if p[0] == argv[0]]
     if group:
         sys.exit(f"research {argv[0]}: choose one of {', '.join(p[1] for p in group)}")
-    raise SystemExit(argparse.ArgumentParser(prog="research").error(f"unknown step {argv[0]!r}\n\n{_usage()}"))
+    raise SystemExit(
+        argparse.ArgumentParser(prog="research").error(f"unknown step {argv[0]!r}\n\n{_usage()}")
+    )
 
 
 if __name__ == "__main__":

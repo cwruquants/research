@@ -42,10 +42,17 @@ import numpy as np
 import pandas as pd
 
 WINDOWS = [
-    (-20, -2),                      # pre-call run-up
-    (0, 0), (0, 1), (-1, 1), (-1, 2), (0, 2),  # reaction
-    (2, 21), (22, 42), (43, 63),    # drift, month by month
-    (2, 61), (2, 121),              # drift, three and six months
+    (-20, -2),  # pre-call run-up
+    (0, 0),
+    (0, 1),
+    (-1, 1),
+    (-1, 2),
+    (0, 2),  # reaction
+    (2, 21),
+    (22, 42),
+    (43, 63),  # drift, month by month
+    (2, 61),
+    (2, 121),  # drift, three and six months
 ]
 ESTIMATION = (-250, -30)
 MIN_EST_DAYS = 100
@@ -55,6 +62,7 @@ CLOSE_HOUR = 16  # New York, 4pm
 def window_label(start: int, end: int) -> str:
     def one(x):
         return f"m{-x}" if x < 0 else f"p{x}"
+
     return f"{one(start)}_{one(end)}"
 
 
@@ -62,8 +70,9 @@ def call_timing(event_date: pd.Series) -> tuple[np.ndarray, np.ndarray]:
     """New York call date and timing label (pre_open, market_hours, after_close)."""
     ny = pd.to_datetime(event_date, utc=True).dt.tz_convert("America/New_York")
     minutes = ny.dt.hour * 60 + ny.dt.minute
-    timing = np.where(minutes >= CLOSE_HOUR * 60, "after_close",
-                      np.where(minutes < 9 * 60 + 30, "pre_open", "market_hours"))
+    timing = np.where(
+        minutes >= CLOSE_HOUR * 60, "after_close", np.where(minutes < 9 * 60 + 30, "pre_open", "market_hours")
+    )
     return ny.dt.tz_localize(None).dt.normalize().to_numpy("datetime64[D]"), timing
 
 
@@ -100,8 +109,14 @@ def _span_sum(c: np.ndarray, start: np.ndarray, end: np.ndarray) -> np.ndarray:
     return c[np.maximum(e, s)] - c[s]
 
 
-def stock_windows(r: np.ndarray, m: np.ndarray, idx0: np.ndarray,
-                  windows=WINDOWS, estimation=ESTIMATION, min_est=MIN_EST_DAYS) -> dict:
+def stock_windows(
+    r: np.ndarray,
+    m: np.ndarray,
+    idx0: np.ndarray,
+    windows=WINDOWS,
+    estimation=ESTIMATION,
+    min_est=MIN_EST_DAYS,
+) -> dict:
     """All window statistics for one stock's events.
 
     r is the stock's daily return on every calendar trading day (NaN when CRSP
@@ -149,8 +164,13 @@ def stock_windows(r: np.ndarray, m: np.ndarray, idx0: np.ndarray,
     return out
 
 
-def compute(events: pd.DataFrame, dsf: pd.DataFrame, dsi: pd.DataFrame,
-            delist: pd.DataFrame | None = None, windows=WINDOWS) -> pd.DataFrame:
+def compute(
+    events: pd.DataFrame,
+    dsf: pd.DataFrame,
+    dsi: pd.DataFrame,
+    delist: pd.DataFrame | None = None,
+    windows=WINDOWS,
+) -> pd.DataFrame:
     dsi = dsi.sort_values("date")
     cal = pd.to_datetime(dsi["date"]).to_numpy("datetime64[D]")
     m = dsi["vwretd"].to_numpy(float)
@@ -194,19 +214,23 @@ def main():
 
     crsp = Path(args.crsp_dir)
     events = pd.read_csv(args.events)
-    out = compute(events,
-                  pd.read_parquet(crsp / "dsf.parquet"),
-                  pd.read_parquet(crsp / "dsi.parquet"),
-                  pd.read_parquet(crsp / "delist.parquet"))
+    out = compute(
+        events,
+        pd.read_parquet(crsp / "dsf.parquet"),
+        pd.read_parquet(crsp / "dsi.parquet"),
+        pd.read_parquet(crsp / "delist.parquet"),
+    )
     out.to_csv(args.out, index=False)
 
     print(f"events {len(out):,} | day 0 found {out['day0'].notna().sum():,}")
     print(out["call_timing"].value_counts().to_string())
     for a, b in WINDOWS:
         lab = window_label(a, b)
-        print(f"{lab:>7}: ret {out[f'ret_{lab}'].notna().sum():,} | "
-              f"car_mm {out[f'car_mm_{lab}'].notna().sum():,} | "
-              f"mean bhar {out[f'bhar_{lab}'].mean():.4f}")
+        print(
+            f"{lab:>7}: ret {out[f'ret_{lab}'].notna().sum():,} | "
+            f"car_mm {out[f'car_mm_{lab}'].notna().sum():,} | "
+            f"mean bhar {out[f'bhar_{lab}'].mean():.4f}"
+        )
     print(f"saved {args.out}")
 
 

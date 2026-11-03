@@ -1,4 +1,5 @@
 """Read and write exposure_runs and keyword_matches."""
+
 from typing import Dict, List, Optional, Tuple
 
 import psycopg
@@ -53,14 +54,23 @@ def missing_runs(conn: psycopg.Connection, names: List[str], years: Optional[Lis
         cur.execute(MISSING_RUNS_SQL, {"names": names, "years": years})
         docs: Dict[int, dict] = {}
         for document_id, source_file, year, event_title, keyword_set_id, name in cur.fetchall():
-            doc = docs.setdefault(document_id, {"document_id": document_id, "source_file": source_file,
-                                                "year": year, "event_title": event_title,
-                                                "keyword_sets": []})
+            doc = docs.setdefault(
+                document_id,
+                {
+                    "document_id": document_id,
+                    "source_file": source_file,
+                    "year": year,
+                    "event_title": event_title,
+                    "keyword_sets": [],
+                },
+            )
             doc["keyword_sets"].append((keyword_set_id, name))
     return list(docs.values())
 
 
-def write_runs(conn, run_rows: List[tuple], match_rows: Dict[Tuple[int, int], List[tuple]]) -> Tuple[int, int]:
+def write_runs(
+    conn, run_rows: List[tuple], match_rows: Dict[Tuple[int, int], List[tuple]]
+) -> Tuple[int, int]:
     """
     Insert exposure runs and the matches of the runs that were new, in one transaction.
     run_rows follow INSERT_RUNS_SQL's columns; match_rows are keyed by (document_id,

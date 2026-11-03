@@ -47,11 +47,12 @@ def main():
     queries = {
         "dsi": f"select date, vwretd from crsp.dsi where date between '{START}' and '{END}' order by date",
         "dsf": f"select permno, date, ret from crsp.dsf where permno in ({permno_list}) "
-               f"and date between '{START}' and '{END}'",
+        f"and date between '{START}' and '{END}'",
         "delist": f"select permno, dlstdt, dlret, dlstcd from crsp.dsedelist where permno in ({permno_list})",
     }
-    with psycopg.connect(host=WRDS_HOST, port=WRDS_PORT, dbname="wrds", user=wrds_user(),
-                         sslmode="require", connect_timeout=60) as conn:
+    with psycopg.connect(
+        host=WRDS_HOST, port=WRDS_PORT, dbname="wrds", user=wrds_user(), sslmode="require", connect_timeout=60
+    ) as conn:
         conn.read_only = True
         for name, query in queries.items():
             t0 = time.time()

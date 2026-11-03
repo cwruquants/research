@@ -1,13 +1,12 @@
 """Checks that the uploader stores the call-date year rather than the batch year."""
 
-from contextlib import contextmanager
 import threading
+from contextlib import contextmanager
 
 import pytest
 
 from research.db.document_year import resolve_document_year
 from research.db.documents import PostgresUploader
-
 
 
 def _document(start_date, source_file="1020948_T.xml"):

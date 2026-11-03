@@ -37,10 +37,18 @@ def main():
     permnos = sorted(calls.permno.astype(int).unique())
     start = (calls.size_date.min() - TOLERANCE).date()
     end = calls.size_date.max().date()
-    query = (f"select permno, date, prc, shrout from crsp.dsf where permno in ({','.join(map(str, permnos))}) "
-             f"and date between '{start}' and '{end}' and prc is not null and shrout is not null")
-    with psycopg.connect(host=WRDS_HOST, port=WRDS_PORT, dbname="wrds", user=wrds_user(),
-                         sslmode="require", connect_timeout=120) as conn:
+    query = (
+        f"select permno, date, prc, shrout from crsp.dsf where permno in ({','.join(map(str, permnos))}) "
+        f"and date between '{start}' and '{end}' and prc is not null and shrout is not null"
+    )
+    with psycopg.connect(
+        host=WRDS_HOST,
+        port=WRDS_PORT,
+        dbname="wrds",
+        user=wrds_user(),
+        sslmode="require",
+        connect_timeout=120,
+    ) as conn:
         conn.read_only = True
         dsf = copy_frame(conn, query)
     print(f"dsf: {len(dsf):,} rows for {dsf.permno.nunique():,} of {len(permnos):,} PERMNOs")
@@ -48,9 +56,15 @@ def main():
     dsf["mcap_pre"] = dsf.prc.abs() * dsf.shrout / 1000  # shrout is in thousands
     dsf = dsf[dsf.mcap_pre > 0]
     dsf["date"] = pd.to_datetime(dsf.date).astype("datetime64[ns]")
-    merged = pd.merge_asof(calls.sort_values("size_date"), dsf.sort_values("date")[["permno", "date", "mcap_pre"]],
-                           left_on="size_date", right_on="date", by="permno",
-                           direction="backward", tolerance=TOLERANCE)
+    merged = pd.merge_asof(
+        calls.sort_values("size_date"),
+        dsf.sort_values("date")[["permno", "date", "mcap_pre"]],
+        left_on="size_date",
+        right_on="date",
+        by="permno",
+        direction="backward",
+        tolerance=TOLERANCE,
+    )
     out = merged.dropna(subset=["mcap_pre"])[["document_id", "mcap_pre"]].sort_values("document_id")
     out["mcap_pre"] = out.mcap_pre.round(4)
     out.to_csv(args.out, index=False)

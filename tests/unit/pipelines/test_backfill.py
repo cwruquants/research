@@ -49,8 +49,14 @@ def test_process_batch_writes_one_run_per_set(transcripts, tmp_path):
     words = tmp_path / "words.csv"
     words.write_text("risk\ntrade war\ntaxes\n", encoding="utf-8")
     agents = {"demo": MatchingAgent(keywords_path=str(words))}
-    batch = [{"document_id": 7, "source_file": "spaced_T.xml", "keyword_sets": [(3, "demo")],
-              "location": ("dir", str(transcripts / "spaced_T.xml"), None)}]
+    batch = [
+        {
+            "document_id": 7,
+            "source_file": "spaced_T.xml",
+            "keyword_sets": [(3, "demo")],
+            "location": ("dir", str(transcripts / "spaced_T.xml"), None),
+        }
+    ]
 
     conn = FakeConn()
     result = process_batch(batch, "20260101_000000", agents=agents, conn=conn)
@@ -67,7 +73,13 @@ def test_process_batch_writes_one_run_per_set(transcripts, tmp_path):
 def test_process_batch_reports_empty_transcripts(tmp_path):
     empty = tmp_path / "empty_T.xml"
     empty.write_text("<Event><EventStory><Body></Body></EventStory></Event>", encoding="utf-8")
-    batch = [{"document_id": 1, "source_file": "empty_T.xml", "keyword_sets": [(1, "x")],
-              "location": ("dir", str(empty), None)}]
+    batch = [
+        {
+            "document_id": 1,
+            "source_file": "empty_T.xml",
+            "keyword_sets": [(1, "x")],
+            "location": ("dir", str(empty), None),
+        }
+    ]
     result = process_batch(batch, "ts", agents={}, conn=FakeConn())
     assert result["runs_written"] == 0 and len(result["failures"]) == 1

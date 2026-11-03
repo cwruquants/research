@@ -1,8 +1,8 @@
-from research.transcripts.models import DocumentAttr
 from nltk.tokenize import RegexpTokenizer
+from nltk.util import bigrams
 
 from research.transcripts._nltk import sent_tokenize
-from nltk.util import bigrams
+from research.transcripts.models import DocumentAttr
 
 __all__ = [
     "document_to_word",
@@ -14,45 +14,48 @@ __all__ = [
 
 def document_to_word(document: DocumentAttr):
     """
-        Input:
-        - document: DocumentAttr
+    Input:
+    - document: DocumentAttr
 
-        Output:
-        - word_strings: List[String]
+    Output:
+    - word_strings: List[String]
     """
-    tokenizer = RegexpTokenizer(r'\w+')
+    tokenizer = RegexpTokenizer(r"\w+")
     tokens = tokenizer.tokenize(document.text)
 
     return tokens
 
+
 def document_to_sentence(document: DocumentAttr):
     """
-        Input:
-        - document: DocumentAttr
+    Input:
+    - document: DocumentAttr
 
-        Output:
-        - sentence_strings: List[String]
+    Output:
+    - sentence_strings: List[String]
     """
     sentences = sent_tokenize(document.text)
     return sentences
 
+
 def document_to_bigram(document: DocumentAttr):
     """
-        Input:
-        - document: DocumentAttr
+    Input:
+    - document: DocumentAttr
 
-        Output:
-        - bigram_strings: List[String]
+    Output:
+    - bigram_strings: List[String]
 
-        Returns a list of bigram strings from the document text
+    Returns a list of bigram strings from the document text
     """
-    tokenizer = RegexpTokenizer(r'\w+')
+    tokenizer = RegexpTokenizer(r"\w+")
     tokens = tokenizer.tokenize(document.text)
 
     bigram_tuples = list(bigrams(tokens))
     bigram_strings = [" ".join(pair) for pair in bigram_tuples]
 
     return bigram_strings
+
 
 def is_bigram(text: str) -> bool:
     """

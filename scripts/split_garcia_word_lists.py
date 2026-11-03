@@ -10,6 +10,7 @@ Activeness.xlsx became activeness.csv.
 
     uv run python scripts/split_garcia_word_lists.py --out /tmp/word_sets_check
 """
+
 import argparse
 from pathlib import Path
 

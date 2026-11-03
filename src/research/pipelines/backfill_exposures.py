@@ -21,6 +21,7 @@ The keyword sets and their matching options come from config/keyword_sets.toml.
 
 Start with --dry-run to see how many documents were found without writing anything.
 """
+
 import argparse
 import csv
 import multiprocessing
@@ -53,8 +54,9 @@ def _init_worker(database_url: str) -> None:
     _agents = {name: MatchingAgent(**ks.matching_options()) for name, ks in config.keyword_sets().items()}
 
 
-def process_batch(batch: List[dict], run_timestamp: str, agents: Optional[Dict[str, MatchingAgent]] = None,
-                  conn=None) -> dict:
+def process_batch(
+    batch: List[dict], run_timestamp: str, agents: Optional[Dict[str, MatchingAgent]] = None, conn=None
+) -> dict:
     """Match one batch of documents and write it in a single transaction."""
     agents = _agents if agents is None else agents
     conn = _conn if conn is None else conn
@@ -66,7 +68,9 @@ def process_batch(batch: List[dict], run_timestamp: str, agents: Optional[Dict[s
         with open_transcript(doc["location"]) as fh:
             document = load_document(fh)
         if not document.text:
-            failures.append((doc["document_id"], doc["source_file"], "transcript has no presentation or Q&A text"))
+            failures.append(
+                (doc["document_id"], doc["source_file"], "transcript has no presentation or Q&A text")
+            )
             continue
 
         # Load and tokenize once for every keyword set this document needs
@@ -76,17 +80,27 @@ def process_batch(batch: List[dict], run_timestamp: str, agents: Optional[Dict[s
         shared_seconds = time.time() - start
 
         for keyword_set_id, name in doc["keyword_sets"]:
-            results = agents[name].match_document(document, doc["source_file"],
-                                                  document_words=words, sentences=sentences)
+            results = agents[name].match_document(
+                document, doc["source_file"], document_words=words, sentences=sentences
+            )
 
-            run_rows.append((
-                doc["document_id"], keyword_set_id, "direct", None,
-                results.runtime_seconds + shared_seconds,
-                results.total_keywords_searched, results.total_keywords_with_matches,
-                results.total_direct_matches, results.total_cosine_matches,
-                results.total_sentences_in_document, results.total_sentences_with_match,
-                results.percent_sentences_with_match, run_timestamp,
-            ))
+            run_rows.append(
+                (
+                    doc["document_id"],
+                    keyword_set_id,
+                    "direct",
+                    None,
+                    results.runtime_seconds + shared_seconds,
+                    results.total_keywords_searched,
+                    results.total_keywords_with_matches,
+                    results.total_direct_matches,
+                    results.total_cosine_matches,
+                    results.total_sentences_in_document,
+                    results.total_sentences_with_match,
+                    results.percent_sentences_with_match,
+                    run_timestamp,
+                )
+            )
             match_rows[(doc["document_id"], keyword_set_id)] = [
                 (keyword, "direct", m.matched_text, m.context, m.position)
                 for keyword, km in results.keyword_matches.items()
@@ -111,8 +125,10 @@ def _load_missing(conn: psycopg.Connection, years: Optional[List[int]]) -> List[
             raise SystemExit(f"keyword_sets has no row named {name!r}")
         local_count = len(MatchingAgent(**ks.matching_options()).keywords_list)
         if db_sizes[name] != local_count:
-            raise SystemExit(f"{ks.file.name} has {local_count} keywords but keyword_sets.{name} "
-                             f"says {db_sizes[name]}; refusing to mix word lists")
+            raise SystemExit(
+                f"{ks.file.name} has {local_count} keywords but keyword_sets.{name} "
+                f"says {db_sizes[name]}; refusing to mix word lists"
+            )
     return missing_runs(conn, list(sets), years)
 
 
@@ -130,9 +146,15 @@ def _write_failures(failures: List[tuple], report_dir: str, suffix: str) -> None
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--source", action="append", required=True,
-                        help="Folder of transcript XMLs or a zip of them; repeat for several")
-    parser.add_argument("--years", type=int, nargs="+", help="Only documents with these documents.year values")
+    parser.add_argument(
+        "--source",
+        action="append",
+        required=True,
+        help="Folder of transcript XMLs or a zip of them; repeat for several",
+    )
+    parser.add_argument(
+        "--years", type=int, nargs="+", help="Only documents with these documents.year values"
+    )
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 2))
     parser.add_argument("--batch-size", type=int, default=100, help="Documents per transaction")
     parser.add_argument("--limit", type=int, help="Process at most this many documents (for a trial run)")
@@ -161,22 +183,28 @@ def main() -> None:
     # Keep each archive's members together and in order so reads stay sequential
     todo.sort(key=lambda d: d["location"])
     if args.limit:
-        todo = todo[:args.limit]
+        todo = todo[: args.limit]
 
     pairs = sum(len(d["keyword_sets"]) for d in todo)
-    print(f"{len(missing)} documents missing runs, {len(todo)} to process ({pairs} runs), "
-          f"{len(not_found)} with no usable transcript in the sources")
+    print(
+        f"{len(missing)} documents missing runs, {len(todo)} to process ({pairs} runs), "
+        f"{len(not_found)} with no usable transcript in the sources"
+    )
     run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.dry_run:
         _write_failures(not_found, args.report_dir, f"dryrun_{run_timestamp}")
         return
 
-    batches = [todo[i:i + args.batch_size] for i in range(0, len(todo), args.batch_size)]
+    batches = [todo[i : i + args.batch_size] for i in range(0, len(todo), args.batch_size)]
     totals = defaultdict(int)
     failures = list(not_found)
 
-    with ProcessPoolExecutor(max_workers=args.workers, mp_context=multiprocessing.get_context("spawn"),
-                             initializer=_init_worker, initargs=(database_url,)) as pool:
+    with ProcessPoolExecutor(
+        max_workers=args.workers,
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=_init_worker,
+        initargs=(database_url,),
+    ) as pool:
         futures = {pool.submit(process_batch, batch, run_timestamp): batch for batch in batches}
         with tqdm(total=len(todo), unit="doc") as progress:
             for future in as_completed(futures):
@@ -184,15 +212,19 @@ def main() -> None:
                 try:
                     result = future.result()
                 except Exception as e:  # the batch's transaction was rolled back
-                    failures.extend((d["document_id"], d["source_file"], f"batch failed: {e!r}") for d in batch)
+                    failures.extend(
+                        (d["document_id"], d["source_file"], f"batch failed: {e!r}") for d in batch
+                    )
                 else:
                     for key in ("runs_written", "runs_skipped", "matches_written"):
                         totals[key] += result[key]
                     failures.extend(result["failures"])
                 progress.update(len(batch))
 
-    print(f"Wrote {totals['runs_written']} runs and {totals['matches_written']} matches; "
-          f"{totals['runs_skipped']} runs already existed")
+    print(
+        f"Wrote {totals['runs_written']} runs and {totals['matches_written']} matches; "
+        f"{totals['runs_skipped']} runs already existed"
+    )
     _write_failures(failures, args.report_dir, run_timestamp)
 
 

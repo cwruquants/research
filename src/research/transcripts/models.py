@@ -1,5 +1,6 @@
 from research.transcripts._nltk import sent_tokenize
 
+
 class Attr:
     def __init__(self, text: str):
         self.text = text
@@ -14,19 +15,15 @@ class Attr:
             "sentiment": self.sentiment,
             "ML": self.ML,
             "LM": self.LM,
-            "HIV4": self.HIV4
+            "HIV4": self.HIV4,
         }
-    
+
     def __str__(self):
         return str(self.to_dict())
 
     def get_sentiment(self):
-        return {
-            "sentiment": self.sentiment,
-            "ML": self.ML,
-            "LM": self.LM,
-            "HIV4": self.HIV4
-        }
+        return {"sentiment": self.sentiment, "ML": self.ML, "LM": self.LM, "HIV4": self.HIV4}
+
 
 class WordAttr(Attr):
     def __init__(self, word: str = ""):
@@ -39,8 +36,9 @@ class WordAttr(Attr):
             "word_sentiment": self.word_sentiment,
             "ML": self.ML,
             "LM": self.LM,
-            "HIV4": self.HIV4
+            "HIV4": self.HIV4,
         }
+
 
 class SentenceAttr(Attr):
     def __init__(self, sentence: str = "", store_words: bool = False):
@@ -58,9 +56,11 @@ class SentenceAttr(Attr):
             data["words"] = [w.to_dict() for w in self.words]
         return data
 
+
 class BigramAttr(Attr):
     def __init__(self, bigram: str = ""):
         super().__init__(bigram)
+
 
 class ParagraphAttr(Attr):
     def __init__(self, paragraph: str = "", store_sentences: bool = False, store_words: bool = False):
@@ -71,7 +71,9 @@ class ParagraphAttr(Attr):
 
         if self.store_sentences:
             raw_sentences = sent_tokenize(paragraph)
-            self.sentences = [SentenceAttr(s.strip(), store_words=self.store_words) for s in raw_sentences if s.strip()]
+            self.sentences = [
+                SentenceAttr(s.strip(), store_words=self.store_words) for s in raw_sentences if s.strip()
+            ]
 
     def to_dict(self):
         data = super().to_dict()
@@ -79,8 +81,15 @@ class ParagraphAttr(Attr):
             data["sentences"] = [s.to_dict() for s in self.sentences]
         return data
 
+
 class DocumentAttr(Attr):
-    def __init__(self, document: str = "", store_paragraphs: bool = False, store_sentences: bool = False, store_words: bool = False):
+    def __init__(
+        self,
+        document: str = "",
+        store_paragraphs: bool = False,
+        store_sentences: bool = False,
+        store_words: bool = False,
+    ):
         super().__init__(document)
         self.paragraphs = []
         self.store_paragraphs = store_paragraphs
@@ -93,14 +102,11 @@ class DocumentAttr(Attr):
         self.num_words = 0
 
         if self.store_paragraphs:
-            raw_paragraphs = document.split('\n\n')
+            raw_paragraphs = document.split("\n\n")
             self.paragraphs = [
-                ParagraphAttr(
-                    p.strip(),
-                    store_sentences=self.store_sentences,
-                    store_words=self.store_words
-                )
-                for p in raw_paragraphs if p.strip()
+                ParagraphAttr(p.strip(), store_sentences=self.store_sentences, store_words=self.store_words)
+                for p in raw_paragraphs
+                if p.strip()
             ]
             self.num_paragraphs = len(self.paragraphs)
 
@@ -118,13 +124,13 @@ class DocumentAttr(Attr):
 
     def to_dict(self):
         data = super().to_dict()
-        data.update({
-            "num_paragraphs": self.num_paragraphs,
-            "num_sentences": self.num_sentences,
-            "num_words": self.num_words
-        })
+        data.update(
+            {
+                "num_paragraphs": self.num_paragraphs,
+                "num_sentences": self.num_sentences,
+                "num_words": self.num_words,
+            }
+        )
         if self.paragraphs:
             data["paragraphs"] = [p.to_dict() for p in self.paragraphs]
         return data
-    
-

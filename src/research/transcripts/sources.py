@@ -1,4 +1,5 @@
 """Find transcript XMLs by file name in folders and zip archives, read in place."""
+
 import zipfile
 from collections import defaultdict
 from pathlib import Path
@@ -75,4 +76,7 @@ def resolve_location(doc: dict, candidates: List[Location]) -> Tuple[Optional[Lo
     same_year = [loc for loc in candidates if _folder_year(loc) == doc["year"]]
     if len(same_year) == 1:
         return same_year[0], ""
-    return None, f"{len(candidates)} transcripts named {doc['source_file']}; none uniquely matches its title or year"
+    return (
+        None,
+        f"{len(candidates)} transcripts named {doc['source_file']}; none uniquely matches its title or year",
+    )

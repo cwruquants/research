@@ -40,7 +40,10 @@ def test_ingest_uploads_every_file(transcripts, monkeypatch, threads):
     assert summary["num_files_processed"] == summary["num_uploaded"] == 3
     assert summary["num_errors"] == 0
     assert sorted(FakeUploader.instances[-1].rows) == [
-        ("no_headings_T.xml", 2016), ("spaced_T.xml", 2016), ("tight_T.xml", 2016)]
+        ("no_headings_T.xml", 2016),
+        ("spaced_T.xml", 2016),
+        ("tight_T.xml", 2016),
+    ]
 
 
 def test_ingest_refuses_an_empty_folder(tmp_path, monkeypatch):

@@ -73,14 +73,14 @@ import argparse
 import os
 import re
 import unicodedata
-from difflib import SequenceMatcher
 from collections import defaultdict
 from datetime import date, timedelta
+from difflib import SequenceMatcher
 
 import pandas as pd
 
-from research.linking.lseg import CUSIP_COLS, DELIST_RE, MONTHS, QUOTE_COLS, US_SUFFIXES, read_lseg
 from research.linking.crsp_names import BOUNDARY, DROP, FOLD, load_crsp, match_one, title_core, tokens
+from research.linking.lseg import CUSIP_COLS, DELIST_RE, MONTHS, QUOTE_COLS, US_SUFFIXES, read_lseg
 
 CRSP_END = date(2024, 12, 31)
 COMMON = ("10", "11")
@@ -94,8 +94,28 @@ AT_HOST = re.compile(r"^(.*?\w.*?)\s+at\s+.*$", re.I)
 # Berkshire class A, not AMEX; BF.B is Brown-Forman class B).
 CLASS_SUFFIXES = {"A", "B"}
 # Words too common to count as evidence that a title names the company.
-WEAK = {"AMERN", "AMER", "NATL", "INTL", "FIRST", "UNITED", "GENERAL", "BANCORP", "BANK", "TRUST",
-        "FINL", "IND", "SYS", "TECH", "SVCS", "RES", "ENERGY", "CAPITAL", "US", "USA"}
+WEAK = {
+    "AMERN",
+    "AMER",
+    "NATL",
+    "INTL",
+    "FIRST",
+    "UNITED",
+    "GENERAL",
+    "BANCORP",
+    "BANK",
+    "TRUST",
+    "FINL",
+    "IND",
+    "SYS",
+    "TECH",
+    "SVCS",
+    "RES",
+    "ENERGY",
+    "CAPITAL",
+    "US",
+    "USA",
+}
 
 
 def parse_ric(raw):
@@ -151,10 +171,14 @@ class Crsp:
                 if c:
                     self.permnos_by_cusip6[c[:6]].add(r.permno)
             self.by_permno[r.permno].append(r)
-        self.comnams = {p: sorted({(min(x.namedt for x in rs if x.comnam == r.comnam), r.comnam) for r in rs})
-                        for p, rs in self.by_permno.items()}
+        self.comnams = {
+            p: sorted({(min(x.namedt for x in rs if x.comnam == r.comnam), r.comnam) for r in rs})
+            for p, rs in self.by_permno.items()
+        }
         self.tickers = {p: {r.ticker for r in rs if r.ticker} for p, rs in self.by_permno.items()}
-        self.span = {p: (min(r.st_date for r in rs), max(r.end_date for r in rs)) for p, rs in self.by_permno.items()}
+        self.span = {
+            p: (min(r.st_date for r in rs), max(r.end_date for r in rs)) for p, rs in self.by_permno.items()
+        }
 
     def on(self, rows, d):
         return [r for r in rows if r.namedt <= d <= r.nameenddt]
@@ -185,15 +209,33 @@ def pick(rows, cls):
 
 
 # Legal forms ignored when comparing a company row name with a CRSP name exactly.
-LEGAL = {"INC", "INCORPORATED", "CORP", "CORPORATION", "CO", "COMPANY", "LTD", "LIMITED", "LLC", "LP",
-         "PLC", "THE", "AND", "DE", "DEL", "NEW"}
+LEGAL = {
+    "INC",
+    "INCORPORATED",
+    "CORP",
+    "CORPORATION",
+    "CO",
+    "COMPANY",
+    "LTD",
+    "LIMITED",
+    "LLC",
+    "LP",
+    "PLC",
+    "THE",
+    "AND",
+    "DE",
+    "DEL",
+    "NEW",
+}
 
 
 def same_name(a, b):
     """True when two names have the same words apart from legal forms (SANDISK LLC
     ~ SANDISK CORP, but EQUITABLE GROUP is not EQUITABLE HOLDINGS)."""
+
     def words(s):
         return {w for w in tokens(norm(s), keep_drop=True) if w not in LEGAL}
+
     return bool(words(a)) and words(a) == words(b)
 
 
@@ -244,12 +286,20 @@ def same_word(a, b, first=False):
     if len(short) >= 4 and n >= 4 and n >= 0.75 * len(short):
         return True
     # CRSP abbreviations keep the letters in order: INVT ~ INVESTMENT, CKG ~ COOKING.
-    if a[0] == b[0] and len(short) >= (4 if first else 3) and len(long_) <= 3 * len(short) \
-            and is_subsequence(short, long_):
+    if (
+        a[0] == b[0]
+        and len(short) >= (4 if first else 3)
+        and len(long_) <= 3 * len(short)
+        and is_subsequence(short, long_)
+    ):
         return True
     # Spelling slips: BANKFINACIAL ~ BANKFINANCIAL.
-    return (len(short) >= 5 and a[0] == b[0] and len(long_) - len(short) <= 3
-            and SequenceMatcher(None, a, b).ratio() >= 0.8)
+    return (
+        len(short) >= 5
+        and a[0] == b[0]
+        and len(long_) - len(short) <= 3
+        and SequenceMatcher(None, a, b).ratio() >= 0.8
+    )
 
 
 def coverage(name, words):
@@ -274,7 +324,9 @@ def part_in_name(crsp, permno, parts, d):
         if since > d + NAME_LEAD:
             continue
         for name in variants(comnam):
-            joined = {"".join(name[i:j]) for i in range(len(name)) for j in range(i + 1, min(len(name), i + 4) + 1)}
+            joined = {
+                "".join(name[i:j]) for i in range(len(name)) for j in range(i + 1, min(len(name), i + 4) + 1)
+            }
             for part in parts:
                 strong = [t for t in part if t not in WEAK and len(t) > 2]
                 if strong and all(t in joined or any(same_word(t, w) for w in name) for t in strong):
@@ -286,7 +338,7 @@ def spelled_in(compact, words):
     """True when a run of consecutive words spells compact (BBT in "BB T")."""
     for i in range(len(words)):
         acc = ""
-        for w in words[i: i + 5]:
+        for w in words[i : i + 5]:
             acc += w
             if acc == compact:
                 return True
@@ -332,13 +384,29 @@ def name_score(crsp, permno, text, name_part=None, d=None, title=False):
 
 
 ORDINAL_PERIOD = re.compile(
-    r"^\s*(?:first|second|third|fourth|1st|2nd|3rd|4th)[\s-]+(?:fiscal\s+)?(?:quarter|half)\b", re.I)
-MONTHS_WORDS = {"JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER",
-                "OCTOBER", "NOVEMBER", "DECEMBER"}
+    r"^\s*(?:first|second|third|fourth|1st|2nd|3rd|4th)[\s-]+(?:fiscal\s+)?(?:quarter|half)\b", re.I
+)
+MONTHS_WORDS = {
+    "JANUARY",
+    "FEBRUARY",
+    "MARCH",
+    "APRIL",
+    "MAY",
+    "JUNE",
+    "JULY",
+    "AUGUST",
+    "SEPTEMBER",
+    "OCTOBER",
+    "NOVEMBER",
+    "DECEMBER",
+}
 # BOUNDARY without the ordinals, which start names too (First Health, Fourth Shift).
 NAME_STOP = (BOUNDARY - {"FIRST", "SECOND", "THIRD", "FOURTH"}) | MONTHS_WORDS
 # A title that names the company it is about: "<name> Earnings ...", "<name> at <conference>".
-NAMED_CALL = re.compile(r"^(?P<name>.+?)\s+(?:earnings|results|sales|reports?|announces?|to\s+discuss|at|investor|analyst)\b", re.I)
+NAMED_CALL = re.compile(
+    r"^(?P<name>.+?)\s+(?:earnings|results|sales|reports?|announces?|to\s+discuss|at|investor|analyst)\b",
+    re.I,
+)
 
 
 def strip_period(title):
@@ -386,8 +454,11 @@ def main():
     crsp = Crsp(args.stocknames)
 
     quote = read_lseg(args.quote, QUOTE_COLS)
-    quote = quote[(quote.AssetCategory == "ORD") & (quote.AssetType == "EQUITY")
-                  & (quote.ExchangeCountry == "United States")]
+    quote = quote[
+        (quote.AssetCategory == "ORD")
+        & (quote.AssetType == "EQUITY")
+        & (quote.ExchangeCountry == "United States")
+    ]
     quote = quote.assign(ric=quote.RIC.str.upper(), ric_root=[parse_ric(r)[0] for r in quote.RIC])
     pis_by_ric = quote.groupby("ric").InstrumentPI.agg(lambda s: sorted(set(s))).to_dict()
     pis_by_root = quote.groupby("ric_root").InstrumentPI.agg(lambda s: sorted(set(s))).to_dict()
@@ -430,8 +501,14 @@ def main():
     b_ids = set(route_b.document_id)
 
     tb_first, tb_permno = load_crsp(args.stocknames)
-    clean_title = {"matched", "matched_other_name", "matched_near_date", "matched_multiclass",
-                   "matched_other_name_multiclass", "matched_near_date_multiclass"}
+    clean_title = {
+        "matched",
+        "matched_other_name",
+        "matched_near_date",
+        "matched_multiclass",
+        "matched_other_name_multiclass",
+        "matched_near_date_multiclass",
+    }
 
     def title_fallback(rec, title, d):
         """When the ticker gives nothing or the wrong company, link by the company
@@ -439,18 +516,36 @@ def main():
         prefix match whose CRSP name also fits the company row (Limited Brands July
         Sales under L Brands)."""
         st, r, _ = match_one(title, d, tb_first, tb_permno)
-        rec.update(title_status=st, title_permno=r.permno if r is not None else "",
-                   title_comnam=r.comnam if r is not None else "")
+        rec.update(
+            title_status=st,
+            title_permno=r.permno if r is not None else "",
+            title_comnam=r.comnam if r is not None else "",
+        )
         accept = st in clean_title or (
-            st.startswith("matched_prefix") and "near_date" not in st
-            and name_score(crsp, r.permno, rec["company_name"], variants(rec["company_name"])) >= NAME_OK)
+            st.startswith("matched_prefix")
+            and "near_date" not in st
+            and name_score(crsp, r.permno, rec["company_name"], variants(rec["company_name"])) >= NAME_OK
+        )
         if accept:
             if rec.get("permno"):
-                rec["other_methods"] = "; ".join(filter(None, [f"{rec['method']}:{rec['permno']}",
-                                                               rec.get("other_methods", "")]))
-            rec.update(status="matched", method="title_name", permno=r.permno, permco=r.permco,
-                       ncusip8=r.ncusip[:8], crsp_ticker=r.ticker, comnam=r.comnam, shrcd=r.shrcd,
-                       exchcd=r.exchcd, title_score=1.0, n_candidates=1, candidates="", note=rec.get("note", ""))
+                rec["other_methods"] = "; ".join(
+                    filter(None, [f"{rec['method']}:{rec['permno']}", rec.get("other_methods", "")])
+                )
+            rec.update(
+                status="matched",
+                method="title_name",
+                permno=r.permno,
+                permco=r.permco,
+                ncusip8=r.ncusip[:8],
+                crsp_ticker=r.ticker,
+                comnam=r.comnam,
+                shrcd=r.shrcd,
+                exchcd=r.exchcd,
+                title_score=1.0,
+                n_candidates=1,
+                candidates="",
+                note=rec.get("note", ""),
+            )
         return rec
 
     out = []
@@ -461,10 +556,20 @@ def main():
         after_end = d_call > CRSP_END
         d = min(d_call, CRSP_END)
         root, cls, suffix, delist, foreign = parse_ric(c.ticker)
-        rec = dict(document_id=c.document_id, company_id=c.company_id, company_name=c.company_name,
-                   ric=c.ticker, root=root, share_class=cls, exch_suffix=suffix, delist=delist,
-                   call_date=c.call_date_ny, event_title=c.event_title, route="A",
-                   after_crsp_end=int(after_end))
+        rec = dict(
+            document_id=c.document_id,
+            company_id=c.company_id,
+            company_name=c.company_name,
+            ric=c.ticker,
+            root=root,
+            share_class=cls,
+            exch_suffix=suffix,
+            delist=delist,
+            call_date=c.call_date_ny,
+            event_title=c.event_title,
+            route="A",
+            after_crsp_end=int(after_end),
+        )
         t_parts = title_parts(c.event_title)
         t_named = any(t_parts)
 
@@ -477,14 +582,29 @@ def main():
             # targets filed under a foreign acquirer (Genentech under Roche) stay out.
             st, r, _ = match_one(c.event_title, d, tb_first, tb_permno)
             if st in clean_title and r.shrcd in COMMON and same_name(c.company_name, r.comnam):
-                rec.update(status="matched", method="title_name", permno=r.permno, permco=r.permco,
-                           ncusip8=r.ncusip[:8], crsp_ticker=r.ticker, comnam=r.comnam, shrcd=r.shrcd,
-                           exchcd=r.exchcd, title_score=1.0, n_candidates=1, title_status=st,
-                           title_permno=r.permno, title_comnam=r.comnam, note="foreign_ric_us_company")
+                rec.update(
+                    status="matched",
+                    method="title_name",
+                    permno=r.permno,
+                    permco=r.permco,
+                    ncusip8=r.ncusip[:8],
+                    crsp_ticker=r.ticker,
+                    comnam=r.comnam,
+                    shrcd=r.shrcd,
+                    exchcd=r.exchcd,
+                    title_score=1.0,
+                    n_candidates=1,
+                    title_status=st,
+                    title_permno=r.permno,
+                    title_comnam=r.comnam,
+                    note="foreign_ric_us_company",
+                )
             out.append(rec)
             continue
         if not root or not re.fullmatch(r"[A-Z0-9]{1,8}", root):
-            rec.update(status="blank" if not root else "no_crsp_match", note="" if not root else "invalid_ticker")
+            rec.update(
+                status="blank" if not root else "no_crsp_match", note="" if not root else "invalid_ticker"
+            )
             out.append(title_fallback(rec, c.event_title, d))
             continue
 
@@ -506,7 +626,9 @@ def main():
                 else:
                     # Same issuer (CUSIP6), new issue number after a reorganisation.
                     c6s = {c8[:6] for c8 in c8s}
-                    ps = sorted({p for c6 in c6s for p in crsp.permnos_by_cusip6.get(c6, ()) if crsp.listed(p, d)})
+                    ps = sorted(
+                        {p for c6 in c6s for p in crsp.permnos_by_cusip6.get(c6, ()) if crsp.listed(p, d)}
+                    )
                     rows = pick([crsp.row_on(p, d) for p in ps], cls)
                     if rows:
                         tries.append(("lseg_cusip6", rows))
@@ -529,13 +651,17 @@ def main():
             return max(ts, 0.8) if permno in own else ts
 
         def judge(rows):
-            sc = [(title_fit(r.permno),
-                   name_score(crsp, r.permno, c.company_name, variants(c.company_name)), r)
-                  for r in rows]
+            sc = [
+                (title_fit(r.permno), name_score(crsp, r.permno, c.company_name, variants(c.company_name)), r)
+                for r in rows
+            ]
             sc.sort(key=lambda x: (-x[0], -x[1]))
             ts, cs, r = sc[0]
-            ok = (ts >= NAME_OK or (not t_named and cs >= NAME_OK)
-                  or (ts >= 0.5 and part_in_name(crsp, r.permno, t_parts, d)))
+            ok = (
+                ts >= NAME_OK
+                or (not t_named and cs >= NAME_OK)
+                or (ts >= 0.5 and part_in_name(crsp, r.permno, t_parts, d))
+            )
             if len(rows) > 1:
                 # Keep only the candidates whose name fits, if that settles it.
                 fit = [x for t, k, x in sc if t >= NAME_OK or (not t_named and k >= NAME_OK)]
@@ -563,12 +689,27 @@ def main():
             status = "multiple"
         else:
             status = "matched" if ok else "name_mismatch"
-        rec.update(status=status, method=method, permno=r.permno, permco=r.permco, ncusip8=r.ncusip[:8],
-                   crsp_ticker=r.ticker, comnam=r.comnam, shrcd=r.shrcd, exchcd=r.exchcd,
-                   title_score=ts, company_score=cs, n_candidates=len(rows), note=note,
-                   candidates="; ".join(f"{x.permno} {x.ticker} {x.shrcls} {x.comnam}".replace("  ", " ") for x in rows),
-                   other_methods="; ".join(f"{m}:{'/'.join(sorted({x.permno for x in rs}))}"
-                                           for m, rs in tries if m != method))
+        rec.update(
+            status=status,
+            method=method,
+            permno=r.permno,
+            permco=r.permco,
+            ncusip8=r.ncusip[:8],
+            crsp_ticker=r.ticker,
+            comnam=r.comnam,
+            shrcd=r.shrcd,
+            exchcd=r.exchcd,
+            title_score=ts,
+            company_score=cs,
+            n_candidates=len(rows),
+            note=note,
+            candidates="; ".join(
+                f"{x.permno} {x.ticker} {x.shrcls} {x.comnam}".replace("  ", " ") for x in rows
+            ),
+            other_methods="; ".join(
+                f"{m}:{'/'.join(sorted({x.permno for x in rs}))}" for m, rs in tries if m != method
+            ),
+        )
         if status == "name_mismatch":
             rec = title_fallback(rec, c.event_title, d)
             # A title that names no company ("Connections 2014: Investor Session",
@@ -585,29 +726,79 @@ def main():
     # as route B does.
     title_linked = res[res.method == "title_name"]
     seen = set(zip(title_linked.company_id, title_linked.permno))
-    later = (res.status.isin(["name_mismatch", "no_crsp_match", "blank"])
-             & res.title_status.str.startswith("matched_prefix")
-             & pd.Series([(co, p) in seen for co, p in zip(res.company_id, res.title_permno)], index=res.index))
+    later = (
+        res.status.isin(["name_mismatch", "no_crsp_match", "blank"])
+        & res.title_status.str.startswith("matched_prefix")
+        & pd.Series([(co, p) in seen for co, p in zip(res.company_id, res.title_permno)], index=res.index)
+    )
     for i in res.index[later]:
         r = crsp.row_on(res.at[i, "title_permno"], min(date.fromisoformat(res.at[i, "call_date"]), CRSP_END))
         if res.at[i, "permno"]:
-            res.at[i, "other_methods"] = "; ".join(filter(None, [f"{res.at[i, 'method']}:{res.at[i, 'permno']}",
-                                                                 res.at[i, "other_methods"]]))
-        res.loc[i, ["status", "method", "permno", "permco", "ncusip8", "crsp_ticker", "comnam", "shrcd", "exchcd",
-                    "title_score", "n_candidates", "candidates", "note"]] = [
-            "matched", "title_name", r.permno, r.permco, r.ncusip[:8], r.ticker, r.comnam, r.shrcd, r.exchcd,
-            1.0, 1, "", "title_prefix_same_row"]
+            res.at[i, "other_methods"] = "; ".join(
+                filter(None, [f"{res.at[i, 'method']}:{res.at[i, 'permno']}", res.at[i, "other_methods"]])
+            )
+        res.loc[
+            i,
+            [
+                "status",
+                "method",
+                "permno",
+                "permco",
+                "ncusip8",
+                "crsp_ticker",
+                "comnam",
+                "shrcd",
+                "exchcd",
+                "title_score",
+                "n_candidates",
+                "candidates",
+                "note",
+            ],
+        ] = [
+            "matched",
+            "title_name",
+            r.permno,
+            r.permco,
+            r.ncusip[:8],
+            r.ticker,
+            r.comnam,
+            r.shrcd,
+            r.exchcd,
+            1.0,
+            1,
+            "",
+            "title_prefix_same_row",
+        ]
 
     # Route B: title-matched calls on acquirer and broker-host rows.
-    b_status = {"needs_review": "name_mismatch", "ambiguous": "multiple", "no_match": "no_crsp_match",
-                "no_name": "no_crsp_match"}
-    rb = route_b.merge(docs[["document_id", "ticker"]].rename(columns={"ticker": "ric"}), on="document_id", how="left")
-    b = pd.DataFrame(dict(
-        document_id=rb.document_id, company_id=rb.company_id, company_name=rb.company_name, ric=rb.ric,
-        call_date=rb.call_date, event_title=rb.event_title, route="B",
-        status=[s if s in b_status else ("matched" if s.startswith("matched") else s) for s in rb.status],
-        method="title_name:" + rb.status, permno=rb.permno, ncusip8=rb.ncusip.str[:8], crsp_ticker=rb.ticker, comnam=rb.comnam, candidates=rb.candidates,
-        after_crsp_end=[int(date.fromisoformat(x) > CRSP_END) for x in rb.call_date]))
+    b_status = {
+        "needs_review": "name_mismatch",
+        "ambiguous": "multiple",
+        "no_match": "no_crsp_match",
+        "no_name": "no_crsp_match",
+    }
+    rb = route_b.merge(
+        docs[["document_id", "ticker"]].rename(columns={"ticker": "ric"}), on="document_id", how="left"
+    )
+    b = pd.DataFrame(
+        dict(
+            document_id=rb.document_id,
+            company_id=rb.company_id,
+            company_name=rb.company_name,
+            ric=rb.ric,
+            call_date=rb.call_date,
+            event_title=rb.event_title,
+            route="B",
+            status=[s if s in b_status else ("matched" if s.startswith("matched") else s) for s in rb.status],
+            method="title_name:" + rb.status,
+            permno=rb.permno,
+            ncusip8=rb.ncusip.str[:8],
+            crsp_ticker=rb.ticker,
+            comnam=rb.comnam,
+            candidates=rb.candidates,
+            after_crsp_end=[int(date.fromisoformat(x) > CRSP_END) for x in rb.call_date],
+        )
+    )
     b["status"] = [b_status.get(s, s) for s in b.status]
     res = pd.concat([res, b], ignore_index=True)
     res = res.sort_values("document_id", key=lambda s: s.astype(int)).reset_index(drop=True)
@@ -615,7 +806,12 @@ def main():
 
     n = len(res)
     print(f"{n:,} documents ({(res.route == 'B').sum():,} from route B)\n")
-    print(res.status.value_counts().to_frame("docs").assign(pct=lambda x: (100 * x.docs / n).round(1)).to_string())
+    print(
+        res.status.value_counts()
+        .to_frame("docs")
+        .assign(pct=lambda x: (100 * x.docs / n).round(1))
+        .to_string()
+    )
     print()
     print(res[res.permno.fillna("") != ""].groupby(["status", "method"]).size().to_string())
 

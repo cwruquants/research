@@ -1,5 +1,10 @@
 from research.transcripts.models import DocumentAttr, ParagraphAttr, SentenceAttr, WordAttr
-from research.transcripts.tokenize import document_to_bigram, document_to_sentence, document_to_word, is_bigram
+from research.transcripts.tokenize import (
+    document_to_bigram,
+    document_to_sentence,
+    document_to_word,
+    is_bigram,
+)
 
 TEXT = "Revenue grew this quarter. Costs fell.\n\nWe expect growth next year."
 
