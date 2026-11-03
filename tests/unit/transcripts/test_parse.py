@@ -34,7 +34,9 @@ def test_unreadable_file_gives_empty_document(tmp_path):
     assert load_document(bad).text == ""
 
 
-@pytest.mark.parametrize("raw, expected", [("AAPL.OQ", "AAPL.OQ"), ("  ", None), ("\\n  ", None), (None, None)])
+@pytest.mark.parametrize(
+    "raw, expected", [("AAPL.OQ", "AAPL.OQ"), ("  ", None), ("\\n  ", None), (None, None)]
+)
 def test_clean_ticker(raw, expected):
     assert clean_ticker(raw) == expected
 
@@ -48,8 +50,11 @@ def test_sources_find_files_in_folders_and_zips(transcripts, tmp_path):
     index = index_sources([str(transcripts), str(archive)])
     assert {kind for kind, _, _ in index["tight_T.xml"]} == {"dir", "zip"}
 
-    doc = {"source_file": "tight_T.xml", "year": 2017,
-           "event_title": "Q4 2016 Example Industries Inc Earnings Conference Call"}
+    doc = {
+        "source_file": "tight_T.xml",
+        "year": 2017,
+        "event_title": "Q4 2016 Example Industries Inc Earnings Conference Call",
+    }
     location, problem = resolve_location(doc, index["tight_T.xml"])
     # both copies carry the same title, so the year folder decides
     assert location[0] == "zip" and problem == ""

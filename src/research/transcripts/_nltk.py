@@ -1,4 +1,5 @@
 """NLTK sentence splitting, fetching the punkt_tab model the first time it is needed."""
+
 import nltk
 
 _ready = False

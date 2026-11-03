@@ -69,17 +69,26 @@ def connection_kwargs() -> dict:
         return {"conninfo": ""}
     if CONFIG.exists():
         profile = load_profile()
-        return {"host": profile["host"], "port": profile["port"], "dbname": profile["database"],
-                "user": PROFILE, "password": keychain_password()}
+        return {
+            "host": profile["host"],
+            "port": profile["port"],
+            "dbname": profile["database"],
+            "user": PROFILE,
+            "password": keychain_password(),
+        }
     sys.exit("No database connection configured: set DATABASE_URL (see docs/setup.md).")
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--sql", help="query to export (SELECT, WITH, VALUES, TABLE)")
     source.add_argument("--sql-file", type=Path, help="file containing the query to export")
-    parser.add_argument("--out", type=Path, required=True, help="output CSV path; .gz compresses; must not exist")
+    parser.add_argument(
+        "--out", type=Path, required=True, help="output CSV path; .gz compresses; must not exist"
+    )
     args = parser.parse_args(argv)
 
     query = (args.sql if args.sql is not None else args.sql_file.read_text()).strip().rstrip(";").strip()
@@ -110,7 +119,10 @@ def main(argv: list[str] | None = None) -> None:
             raise
 
     size_mb = os.path.getsize(args.out) / 1e6
-    print(f"Wrote {rows} rows ({size_mb:.1f} MB) to {args.out} in {time.monotonic() - started:.1f}s", file=sys.stderr)
+    print(
+        f"Wrote {rows} rows ({size_mb:.1f} MB) to {args.out} in {time.monotonic() - started:.1f}s",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

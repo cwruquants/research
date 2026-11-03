@@ -6,6 +6,7 @@ Settings come from environment variables (a `.env` file is not read automaticall
     DATABASE_URL       Postgres connection string for steps that write to the DB
     RESEARCH_DATA_DIR  where licensed data lives (default: data/private)
 """
+
 import os
 import tomllib
 from dataclasses import dataclass

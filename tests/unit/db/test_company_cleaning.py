@@ -1,7 +1,7 @@
 """Checks that PostgresUploader cleans company names and tickers before writing rows."""
 
-from contextlib import contextmanager
 import threading
+from contextlib import contextmanager
 
 import pytest
 
@@ -75,10 +75,16 @@ def test_clean_ticker_keeps_real_tickers(raw, expected):
     assert clean_ticker(raw) == expected
 
 
-@pytest.mark.parametrize("raw, expected", [
-    (None, None), ("", None), ("  \n ", None),
-    ("QUAKER OATS                   ", "QUAKER OATS"), ("Lexent Inc. ", "Lexent Inc."),
-])
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, None),
+        ("", None),
+        ("  \n ", None),
+        ("QUAKER OATS                   ", "QUAKER OATS"),
+        ("Lexent Inc. ", "Lexent Inc."),
+    ],
+)
 def test_clean_text(raw, expected):
     assert clean_text(raw) == expected
 
@@ -93,7 +99,9 @@ def test_empty_tickers_are_stored_as_null(ticker):
 
 def test_padded_name_and_ticker_are_stripped():
     uploader = _uploader()
-    uploader.upload_document(_document(company_name="  Alexander & Baldwin Inc\n", company_ticker=" ALEX "), 2005)
+    uploader.upload_document(
+        _document(company_name="  Alexander & Baldwin Inc\n", company_ticker=" ALEX "), 2005
+    )
     assert _company_params(uploader) == [("Alexander & Baldwin Inc", "ALEX")]
 
 
@@ -113,8 +121,12 @@ def test_missing_name_is_skipped_not_stored_as_none_string(name):
 
 def test_cleaned_variants_share_one_company_row():
     uploader = _uploader()
-    for i, (name, ticker) in enumerate([("Lexent Inc.", None), ("Lexent Inc. ", "\\n  "), ("Lexent Inc.\n", "\n  ")]):
-        uploader.upload_document(_document(company_name=name, company_ticker=ticker, file_name=f"{i}.xml"), 2005)
+    for i, (name, ticker) in enumerate(
+        [("Lexent Inc.", None), ("Lexent Inc. ", "\\n  "), ("Lexent Inc.\n", "\n  ")]
+    ):
+        uploader.upload_document(
+            _document(company_name=name, company_ticker=ticker, file_name=f"{i}.xml"), 2005
+        )
     assert _company_params(uploader) == [("Lexent Inc.", None)]
     assert uploader.company_cache == {("Lexent Inc.", None): 1}
 

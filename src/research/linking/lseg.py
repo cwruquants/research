@@ -9,7 +9,14 @@ import pandas as pd
 # CUSIPFile columns 1/2 count from 1 (checked against the sample files with --peek:
 # QuoteFile[1] joins to CUSIPFile[0]). QuoteFile[2] is the full RIC, including the
 # ^ delisting code, which is the same format as the DB's companies.ticker.
-QUOTE_COLS = {"InstrumentPI": 1, "RIC": 2, "AssetCategory": 3, "AssetType": 4, "Ticker": 8, "ExchangeCountry": 23}
+QUOTE_COLS = {
+    "InstrumentPI": 1,
+    "RIC": 2,
+    "AssetCategory": 3,
+    "AssetType": 4,
+    "Ticker": 8,
+    "ExchangeCountry": 23,
+}
 CUSIP_COLS = {"InstrumentPI": 0, "CUSIP": 1}
 
 # Refinitiv RIC suffixes for U.S. venues (incl. OTC). Anything else is a foreign
@@ -23,8 +30,14 @@ MONTHS = "ABCDEFGHIJKL"
 
 def read_lseg(path, cols):
     """Read a header-less pipe file as text, keeping only the named positions."""
-    kwargs = dict(sep="|", header=None, dtype=str, usecols=list(cols.values()),
-                  keep_default_na=False, quoting=csv.QUOTE_NONE)
+    kwargs = dict(
+        sep="|",
+        header=None,
+        dtype=str,
+        usecols=list(cols.values()),
+        keep_default_na=False,
+        quoting=csv.QUOTE_NONE,
+    )
     try:
         df = pd.read_csv(path, **kwargs)
     except (pd.errors.ParserError, ValueError):

@@ -1,9 +1,10 @@
-import xml.etree.ElementTree as ET
 import re
-from typing import Dict, Any, Union, Optional
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from dateutil import parser as date_parser
+from typing import Any, Dict, Optional, Union
+
 import pytz
+from dateutil import parser as date_parser
 
 from research.transcripts.models import DocumentAttr
 
@@ -14,13 +15,14 @@ __all__ = [
     "get_company_metadata",
     "clean_text",
     "clean_ticker",
-    "extract_full_body_text"
+    "extract_full_body_text",
 ]
 
 # Headlines look like "Edited Transcript of LLOY.L M&A conference call or presentation ...".
 # The ticker token is upper-case letters/digits plus RIC punctuation (., ^ delisting codes);
 # anything else (e.g. a company name) is not treated as a ticker.
 HEADLINE_TICKER_RE = re.compile(r"Transcript of ([A-Z0-9][A-Z0-9.^*&\-]*) ")
+
 
 def clean_text(value: Optional[str]) -> Optional[str]:
     """Strip whitespace; empty tags become None instead of '' or '\\n  '."""
@@ -187,10 +189,10 @@ def extract_qa_section(xml_path):
 def clean_spoken_content(raw_text: str) -> str:
     """
     Removes speaker names and dashed section separators from transcript sections.
-    
+
     Args:
         raw_text (str): The raw extracted transcript section (e.g., from presentation or Q&A).
-    
+
     Returns:
         str: Cleaned text with only spoken content.
     """
@@ -202,7 +204,7 @@ def clean_spoken_content(raw_text: str) -> str:
         line = lines[i].strip()
 
         # Skip lines that are separator dashes (---- or ====)
-        if re.fullmatch(r'[-=]{5,}', line):
+        if re.fullmatch(r"[-=]{5,}", line):
             # Skip the next line too (speaker name), and next separator
             i += 3  # jump over separator, speaker, separator
             continue
@@ -225,10 +227,12 @@ def load_document(file_path) -> DocumentAttr:
         lines = _body_lines(file_path)
         presentation_text = _presentation_from_lines(lines)
         qa_text = _qa_from_lines(lines)
-        
+
         # Clean each section on its own to remove speaker tags and separators: the ==== rule
         # ending the Presentation would otherwise put clean_spoken_content one line off in Q&A
-        cleaned_text = (clean_spoken_content(presentation_text) + "\n\n" + clean_spoken_content(qa_text)).strip()
+        cleaned_text = (
+            clean_spoken_content(presentation_text) + "\n\n" + clean_spoken_content(qa_text)
+        ).strip()
 
         if not cleaned_text:
             # No Presentation / Q&A headings found: fall back to the generic section layout

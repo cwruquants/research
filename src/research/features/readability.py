@@ -1,4 +1,5 @@
 """Readability scores for a transcript's text (textstat)."""
+
 from typing import Any, Dict
 
 import textstat

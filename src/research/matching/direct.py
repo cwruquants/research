@@ -1,15 +1,18 @@
-from research.matching.cosine import CosineMatchingMixin
-from research.matching.results import ExposureResults, MatchInstance
-import os, csv, re
+import csv
+import os
+import re
+import time
 from bisect import bisect_right
-from word_forms.word_forms import get_word_forms
-from typing import List
-from research.transcripts.tokenize import document_to_word, document_to_sentence
-from research.transcripts.parse import load_document
+from typing import Dict, List, Tuple
+
 from nltk.tokenize import RegexpTokenizer
 from tqdm import tqdm
-import time
-from typing import Tuple, Dict
+from word_forms.word_forms import get_word_forms
+
+from research.matching.cosine import CosineMatchingMixin
+from research.matching.results import ExposureResults, MatchInstance
+from research.transcripts.parse import load_document
+from research.transcripts.tokenize import document_to_sentence, document_to_word
 
 # Dropped from the document for normalized phrase matching. Negations stay: "impact not" is a real entry
 PHRASE_STOPWORDS = frozenset(
@@ -26,13 +29,21 @@ SAFE_HARBOR_RE = re.compile(
 )
 SAFE_HARBOR_WINDOW = 2
 
+
 def _strip_plural(word: str) -> str:
     return word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
 
+
 class MatchingAgent(CosineMatchingMixin):
-    def __init__(self, keywords_path: str, cos_threshold: float = 0.7, find_keyword_variations: bool = False,
-                 normalize_phrases: bool = False, exclude_phrases_path: str | None = None,
-                 exclude_safe_harbor: bool = False):
+    def __init__(
+        self,
+        keywords_path: str,
+        cos_threshold: float = 0.7,
+        find_keyword_variations: bool = False,
+        normalize_phrases: bool = False,
+        exclude_phrases_path: str | None = None,
+        exclude_safe_harbor: bool = False,
+    ):
         """
         Initialize a MatchingAgent that analyzes document exposure based on keywords.
 
@@ -51,11 +62,13 @@ class MatchingAgent(CosineMatchingMixin):
         self.exclude_safe_harbor = exclude_safe_harbor
         self.excluded_phrases = set()
         if exclude_phrases_path:
-            tokenizer = RegexpTokenizer(r'\w+')
-            with open(exclude_phrases_path, 'r', encoding='utf-8') as file:
+            tokenizer = RegexpTokenizer(r"\w+")
+            with open(exclude_phrases_path, "r", encoding="utf-8") as file:
                 self.excluded_phrases = {
                     tuple(token.lower() for token in tokenizer.tokenize(cell))
-                    for row in csv.reader(file) for cell in row if cell.strip()
+                    for row in csv.reader(file)
+                    for cell in row
+                    if cell.strip()
                 }
         self.keywords_path = keywords_path
         self._load_keywords(keywords_path)
@@ -72,7 +85,6 @@ class MatchingAgent(CosineMatchingMixin):
         self.model = None
         self.device = None
 
-
     def _load_keywords(self, keywords_path: str) -> None:
         """
         Load and process exposure words from a CSV file.
@@ -85,7 +97,7 @@ class MatchingAgent(CosineMatchingMixin):
         self.keywords_list = []
 
         try:
-            with open(keywords_path, 'r', encoding='utf-8') as file:
+            with open(keywords_path, "r", encoding="utf-8") as file:
                 csv_reader = csv.reader(file)
                 for row in csv_reader:
                     for cell in row:
@@ -97,8 +109,11 @@ class MatchingAgent(CosineMatchingMixin):
 
         # Remove duplicates
         seen = set()
-        self.keywords_list = [keyword for keyword in self.keywords_list
-                              if keyword.lower() not in seen and not seen.add(keyword.lower())]
+        self.keywords_list = [
+            keyword
+            for keyword in self.keywords_list
+            if keyword.lower() not in seen and not seen.add(keyword.lower())
+        ]
 
     def _load_keyword_variations(self, keywords: list) -> None:
         """
@@ -117,12 +132,15 @@ class MatchingAgent(CosineMatchingMixin):
                 all_variations.extend(variations)
             except Exception as e:
                 print(f"Warning: Could not get variations for '{word}': {e}")
-        
+
         # Add variations and remove duplicates
         self.keywords_list.extend(all_variations)
         seen = set()
-        self.keywords_list = [keyword for keyword in self.keywords_list
-                              if keyword.lower() not in seen and not seen.add(keyword.lower())]
+        self.keywords_list = [
+            keyword
+            for keyword in self.keywords_list
+            if keyword.lower() not in seen and not seen.add(keyword.lower())
+        ]
 
     @staticmethod
     def _sentence_word_ends(sentences: List[str]) -> List[int]:
@@ -130,7 +148,7 @@ class MatchingAgent(CosineMatchingMixin):
         Cumulative word counts per sentence: entry i is the document word index
         just past the last word of sentence i.
         """
-        tokenizer = RegexpTokenizer(r'\w+')
+        tokenizer = RegexpTokenizer(r"\w+")
         ends = []
         word_count = 0
         for sentence in sentences:
@@ -138,8 +156,13 @@ class MatchingAgent(CosineMatchingMixin):
             ends.append(word_count)
         return ends
 
-    def _get_context(self, word_index: int, sentences: List[str], context_size: int = 0,
-                     sentence_ends: List[int] | None = None) -> str:
+    def _get_context(
+        self,
+        word_index: int,
+        sentences: List[str],
+        context_size: int = 0,
+        sentence_ends: List[int] | None = None,
+    ) -> str:
         """
         Extract sentence-based context around a match.
         Args:
@@ -165,14 +188,14 @@ class MatchingAgent(CosineMatchingMixin):
         # Get context sentences
         start = max(0, sentence_index - context_size)
         end = min(len(sentences), sentence_index + context_size + 1)
-        
+
         context_sentences = sentences[start:end]
-        
+
         return " ".join(context_sentences).strip()
 
     def _load_phrases(self) -> None:
         """Index multi-word keywords by their lowercase tokens, for _phrase_spans."""
-        tokenizer = RegexpTokenizer(r'\w+')
+        tokenizer = RegexpTokenizer(r"\w+")
         exact: Dict[Tuple[str, ...], str] = {}
         normalized: Dict[Tuple[str, ...], str] = {}
         for keyword in self.keywords_list:
@@ -197,7 +220,7 @@ class MatchingAgent(CosineMatchingMixin):
         def scan(words: List[str], positions: List[int], phrases: Dict[Tuple[str, ...], str]) -> None:
             for size in {len(phrase) for phrase in phrases}:
                 for i in range(len(words) - size + 1):
-                    keyword = phrases.get(tuple(words[i:i + size]))
+                    keyword = phrases.get(tuple(words[i : i + size]))
                     if keyword is not None:
                         spans.setdefault(keyword, []).append((positions[i], positions[i + size - 1] + 1))
 
@@ -208,26 +231,33 @@ class MatchingAgent(CosineMatchingMixin):
             scan([_strip_plural(lowered[i]) for i in kept], kept, self.normalized_phrases)
         return spans
 
-    def _excluded_positions(self, document_words: List[str], sentences: List[str],
-                            sentence_ends: List[int]) -> set:
+    def _excluded_positions(
+        self, document_words: List[str], sentences: List[str], sentence_ends: List[int]
+    ) -> set:
         """Document word indexes that direct matching must skip."""
         excluded = set()
         lowered = [word.lower() for word in document_words]
         for size in {len(phrase) for phrase in self.excluded_phrases}:
             for i in range(len(lowered) - size + 1):
-                if tuple(lowered[i:i + size]) in self.excluded_phrases:
+                if tuple(lowered[i : i + size]) in self.excluded_phrases:
                     excluded.update(range(i, i + size))
 
         if self.exclude_safe_harbor:
             starts = [0] + sentence_ends[:-1]
             for i, sentence in enumerate(sentences):
                 if SAFE_HARBOR_RE.search(sentence):
-                    for j in range(max(0, i - SAFE_HARBOR_WINDOW), min(len(sentences), i + SAFE_HARBOR_WINDOW + 1)):
+                    for j in range(
+                        max(0, i - SAFE_HARBOR_WINDOW), min(len(sentences), i + SAFE_HARBOR_WINDOW + 1)
+                    ):
                         excluded.update(range(starts[j], sentence_ends[j]))
         return excluded
 
-    def _direct_match(self, show_progress: bool = False, document_words: List[str] | None = None,
-                      sentences: List[str] | None = None) -> ExposureResults:
+    def _direct_match(
+        self,
+        show_progress: bool = False,
+        document_words: List[str] | None = None,
+        sentences: List[str] | None = None,
+    ) -> ExposureResults:
         """
         Find exact matches between keywords and document text.
         Args:
@@ -253,7 +283,7 @@ class MatchingAgent(CosineMatchingMixin):
             earnings_call=self.document,
             earnings_call_name=self.document_name,
             total_sentences_in_document=total_sentences,
-            cosine_threshold=None
+            cosine_threshold=None,
         )
 
         # One pass over the document: positions of every word that is a keyword (case-insensitive)
@@ -275,7 +305,7 @@ class MatchingAgent(CosineMatchingMixin):
                     keyword=keyword,
                     matched_text=document_words[i],
                     context=self._get_context(i, sentences, sentence_ends=sentence_ends),
-                    position=i
+                    position=i,
                 )
                 for i in positions_by_keyword.get(keyword.lower(), [])
                 if i not in excluded
@@ -285,21 +315,25 @@ class MatchingAgent(CosineMatchingMixin):
                     keyword=keyword,
                     matched_text=" ".join(document_words[start:end]),
                     context=self._get_context(start, sentences, sentence_ends=sentence_ends),
-                    position=start
+                    position=start,
                 )
                 for start, end in phrase_spans.get(keyword, [])
                 if start not in excluded
             ]
 
             results.add_direct_matches(keyword, direct_matches)
-        
+
         end_time = time.time()
         results.runtime_seconds = end_time - start_time
         return results
 
-    def match_document(self, document, document_name: str | None = None,
-                       document_words: List[str] | None = None,
-                       sentences: List[str] | None = None) -> ExposureResults:
+    def match_document(
+        self,
+        document,
+        document_name: str | None = None,
+        document_words: List[str] | None = None,
+        sentences: List[str] | None = None,
+    ) -> ExposureResults:
         """
         Direct-match one already-loaded document (a DocumentAttr from load_document).
         Pass document_words / sentences from document_to_word / document_to_sentence to
@@ -346,7 +380,12 @@ class MatchingAgent(CosineMatchingMixin):
         self.document_name = os.path.basename(document_path)
 
         if matching_function == "cosine":
-            results = self._cos_similarity(match_type=match_type, threshold=threshold, exclude_duplicates=exclude_duplicates, show_progress=show_progress)
+            results = self._cos_similarity(
+                match_type=match_type,
+                threshold=threshold,
+                exclude_duplicates=exclude_duplicates,
+                show_progress=show_progress,
+            )
         elif matching_function == "direct":
             results = self._direct_match(show_progress=show_progress)
         else:

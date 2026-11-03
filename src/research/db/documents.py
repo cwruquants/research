@@ -1,8 +1,8 @@
 """Write companies and documents rows to Postgres."""
 
-from datetime import datetime, timezone
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import psycopg
@@ -139,9 +139,14 @@ class PostgresUploader:
         )
         with self.pool.connection() as conn:
             document_id = conn.execute(statement, tuple(doc_row.values())).fetchone()[0]
-        return {"status": "success", "document_id": document_id,
-                "company_id": company_id, "source_file": source_file,
-                "year": doc_year, "year_fallback": year_fallback}
+        return {
+            "status": "success",
+            "document_id": document_id,
+            "company_id": company_id,
+            "source_file": source_file,
+            "year": doc_year,
+            "year_fallback": year_fallback,
+        }
 
     def upload_document(self, data: Dict[str, Any], year: int) -> Dict[str, Any]:
         """Upload one document, retrying a transient connection failure."""

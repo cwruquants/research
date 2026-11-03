@@ -39,8 +39,11 @@ def test_upsert_and_concurrent_uploads(test_database_url):
 
         files = [f"{prefix}_{n}.xml" for n in range(4)]
         with ThreadPoolExecutor(max_workers=4) as executor:
-            results = list(executor.map(lambda path: uploader.upload_document(
-                _document(company, path, 0.5), 2020), files))
+            results = list(
+                executor.map(
+                    lambda path: uploader.upload_document(_document(company, path, 0.5), 2020), files
+                )
+            )
         assert all(result["status"] == "success" for result in results)
 
         with psycopg.connect(database_url) as conn:
@@ -50,7 +53,8 @@ def test_upsert_and_concurrent_uploads(test_database_url):
             document_count = conn.execute(
                 """SELECT count(*) FROM public.documents d
                    JOIN public.companies c ON c.id = d.company_id
-                   WHERE c.name = %s""", (company,)
+                   WHERE c.name = %s""",
+                (company,),
             ).fetchone()[0]
             score = conn.execute(
                 "SELECT sentiment FROM public.documents WHERE source_file = %s",
@@ -62,6 +66,9 @@ def test_upsert_and_concurrent_uploads(test_database_url):
     finally:
         uploader.finalize()
         with psycopg.connect(database_url) as conn:
-            conn.execute("""DELETE FROM public.documents WHERE company_id IN
-                            (SELECT id FROM public.companies WHERE name = %s)""", (company,))
+            conn.execute(
+                """DELETE FROM public.documents WHERE company_id IN
+                            (SELECT id FROM public.companies WHERE name = %s)""",
+                (company,),
+            )
             conn.execute("DELETE FROM public.companies WHERE name = %s", (company,))

@@ -83,27 +83,34 @@ def main():
     # --- LSEG bridge tables -------------------------------------------------
     quote = read_lseg(args.quote, QUOTE_COLS)
     n_quote = len(quote)
-    quote = quote[(quote.AssetCategory == "ORD") & (quote.AssetType == "EQUITY")
-                  & (quote.ExchangeCountry == "United States")]
-    quote = quote.assign(ric=quote.RIC.str.upper(),
-                         ric_root=[parse_ticker(r)[0] for r in quote.RIC],
-                         readme_root=quote.Ticker.str.upper().str.split(".").str[0])
+    quote = quote[
+        (quote.AssetCategory == "ORD")
+        & (quote.AssetType == "EQUITY")
+        & (quote.ExchangeCountry == "United States")
+    ]
+    quote = quote.assign(
+        ric=quote.RIC.str.upper(),
+        ric_root=[parse_ticker(r)[0] for r in quote.RIC],
+        readme_root=quote.Ticker.str.upper().str.split(".").str[0],
+    )
 
     def pis_by(col):
         q = quote[quote[col] != ""]
         return q.groupby(col).InstrumentPI.agg(lambda s: sorted(set(s)))
 
-    pis_by_ric = pis_by("ric")                  # exact RIC, incl. ^ delist code
-    pis_by_root = pis_by("ric_root")            # RIC with suffix and ^ code removed
-    pis_by_readme = pis_by("readme_root")       # README: Ticker column, split on '.'
+    pis_by_ric = pis_by("ric")  # exact RIC, incl. ^ delist code
+    pis_by_root = pis_by("ric_root")  # RIC with suffix and ^ code removed
+    pis_by_readme = pis_by("readme_root")  # README: Ticker column, split on '.'
 
     cusip = read_lseg(args.cusip, CUSIP_COLS)
     cusip = cusip[cusip.CUSIP != ""]
     cusips_by_pi = cusip.groupby("InstrumentPI").CUSIP.agg(lambda s: sorted(set(s)))
 
-    print(f"QuoteFile: {n_quote:,} rows, {len(quote):,} U.S. ordinary equity, "
-          f"{len(pis_by_ric):,} distinct RICs, {len(pis_by_root):,} distinct roots, "
-          f"{(quote.Ticker == '').sum():,} with empty Ticker column")
+    print(
+        f"QuoteFile: {n_quote:,} rows, {len(quote):,} U.S. ordinary equity, "
+        f"{len(pis_by_ric):,} distinct RICs, {len(pis_by_root):,} distinct roots, "
+        f"{(quote.Ticker == '').sum():,} with empty Ticker column"
+    )
     print(f"CUSIPFile: {len(cusip):,} rows, {len(cusips_by_pi):,} distinct InstrumentPIs")
     if len(quote) == 0:
         sys.exit("No QuoteFile rows passed the U.S. equity filter: check column positions with --peek.")
@@ -143,11 +150,22 @@ def main():
         if status not in ("matched", "ambiguous"):
             method = ""
 
-        rows.append(dict(ticker=raw, n_docs=n_docs, root=root, suffix=suffix, delist=delist,
-                         status=status, method=method, n_instruments=len(pis),
-                         n_cusip8=len(cusip8s), cusip8s=";".join(cusip8s),
-                         readme_matched=has_cusip(pis_by_readme.get(readme_root(raw), [])),
-                         ric_matched=has_cusip(pis_by_ric.get(ric, []))))
+        rows.append(
+            dict(
+                ticker=raw,
+                n_docs=n_docs,
+                root=root,
+                suffix=suffix,
+                delist=delist,
+                status=status,
+                method=method,
+                n_instruments=len(pis),
+                n_cusip8=len(cusip8s),
+                cusip8s=";".join(cusip8s),
+                readme_matched=has_cusip(pis_by_readme.get(readme_root(raw), [])),
+                ric_matched=has_cusip(pis_by_ric.get(ric, [])),
+            )
+        )
 
     res = pd.DataFrame(rows)
 
@@ -175,9 +193,11 @@ def main():
     print(table(linked, ["method", "status"]).to_string())
 
     print("\n== Methods compared (tickers / calls with any CUSIP)")
-    for label, mask in [("README (Ticker column, split on '.')", res.readme_matched),
-                        ("Exact RIC only", res.ric_matched),
-                        ("This script (exact RIC, then root)", res.status.isin(["matched", "ambiguous"]))]:
+    for label, mask in [
+        ("README (Ticker column, split on '.')", res.readme_matched),
+        ("Exact RIC only", res.ric_matched),
+        ("This script (exact RIC, then root)", res.status.isin(["matched", "ambiguous"])),
+    ]:
         print(f"  {label:<38} {mask.sum():>7,} / {res.n_docs[mask].sum():>9,}")
 
     if args.out:

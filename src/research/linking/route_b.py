@@ -49,20 +49,22 @@ def main():
     for c in calls.itertuples(index=False):
         d = pd.to_datetime(c.call_date).date()
         status, r, rows = match_one(c.event_title, d, by_first, by_permno)
-        out.append({
-            "document_id": c.document_id,
-            "company_id": c.company_id,
-            "company_name": c.company_name,
-            "call_date": c.call_date,
-            "event_title": c.event_title,
-            "title_name": " ".join(tokens(title_core(c.event_title))),
-            "status": status,
-            "permno": r.permno if r is not None else "",
-            "ncusip": r.ncusip if r is not None else "",
-            "ticker": r.ticker if r is not None else "",
-            "comnam": r.comnam if r is not None else "",
-            "candidates": "; ".join(sorted({f"{x.permno} {x.ticker} {x.comnam}" for x in rows})),
-        })
+        out.append(
+            {
+                "document_id": c.document_id,
+                "company_id": c.company_id,
+                "company_name": c.company_name,
+                "call_date": c.call_date,
+                "event_title": c.event_title,
+                "title_name": " ".join(tokens(title_core(c.event_title))),
+                "status": status,
+                "permno": r.permno if r is not None else "",
+                "ncusip": r.ncusip if r is not None else "",
+                "ticker": r.ticker if r is not None else "",
+                "comnam": r.comnam if r is not None else "",
+                "candidates": "; ".join(sorted({f"{x.permno} {x.ticker} {x.comnam}" for x in rows})),
+            }
+        )
     res = pd.DataFrame(out)
 
     # A loose prefix match to a company that no clean call on the same row matched

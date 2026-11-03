@@ -1,11 +1,13 @@
-from typing import List, Dict, Any, Optional, Union
-from transformers import pipeline
+import json
+import re
+from typing import List, Union
+
 import numpy as np
 import pandas as pd
-import re
-import json
 import pysentiment2 as ps
-from research.transcripts.models import Attr, ParagraphAttr, SentenceAttr, DocumentAttr
+from transformers import pipeline
+
+from research.transcripts.models import Attr, DocumentAttr, SentenceAttr
 
 try:
     import torch
@@ -22,21 +24,21 @@ class SentimentSetup:
         hf_model: str = "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis",
         device: int = -1,
         batch_size: Union[int, str] = "auto",
-        max_length: int = 512
+        max_length: int = 512,
     ):
         """
         Args:
-            sheet_name_positive (str): Excel sheet name for list of positive unigrams (for ML sentiment). 
+            sheet_name_positive (str): Excel sheet name for list of positive unigrams (for ML sentiment).
                 Default is "ML_positive_unigram".
-            sheet_name_negative (str): Excel sheet name for list of negative unigrams (for ML sentiment). 
+            sheet_name_negative (str): Excel sheet name for list of negative unigrams (for ML sentiment).
                 Default is "ML_negative_unigram".
-            ml_wordlist_path (str): Path to Excel wordlist file (MLWords). 
+            ml_wordlist_path (str): Path to Excel wordlist file (MLWords).
                 Default is "data/word_sets/original_xlsx/Garcia_MLWords.xlsx".
-            hf_model (str): Huggingface model name for transformer-based sentiment analysis. 
+            hf_model (str): Huggingface model name for transformer-based sentiment analysis.
                 Default is "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis".
-            device (int): Device for transformer inference. -1 for CPU, 0 for first CUDA GPU, etc. 
+            device (int): Device for transformer inference. -1 for CPU, 0 for first CUDA GPU, etc.
                 Default is -1 (CPU).
-            batch_size (Union[int, str]): Batch size for transformer model. Set "auto" to determine dynamically. 
+            batch_size (Union[int, str]): Batch size for transformer model. Set "auto" to determine dynamically.
                 Default is "auto".
             max_length (int): Maximum sequence length for transformer inputs. Default is 512.
         """
@@ -51,25 +53,25 @@ class SentimentSetup:
         self.hiv4 = ps.HIV4()
         self.batch_size = batch_size
         self.max_length = max_length
-        
+
         self.ml_words_positive = self.excel_to_list(ml_wordlist_path, sheet_name_positive)
         self.ml_words_negative = self.excel_to_list(ml_wordlist_path, sheet_name_negative)
 
         # Resolve auto batch size after pipeline is initialized (so device info is available)
         if isinstance(self.batch_size, str) and self.batch_size.lower() == "auto":
             self.batch_size = self._auto_determine_batch_size()
-        
+
         print(f"[SentimentSetup] Using HuggingFace model: {hf_model}")
         print(f"[SentimentSetup] Resolved batch_size: {self.batch_size}")
 
     def _hf_infer(self, texts: List[str]):
         if not texts:
             return []
-        
+
         try:
             from datasets import Dataset
             from transformers.pipelines.pt_utils import KeyDataset
-            
+
             # Create a dataset to avoid "using pipelines sequentially on gpu" warning
             dataset = Dataset.from_dict({"text": texts})
             # Convert to list to ensure it's consumable/indexable (needed for single-item access in fit())
@@ -94,7 +96,7 @@ class SentimentSetup:
         # Heuristic initial estimate based on free memory and sequence length
         try:
             free_bytes, _ = torch.cuda.mem_get_info()  # type: ignore[attr-defined]
-            free_gb = free_bytes / (1024 ** 3)
+            free_gb = free_bytes / (1024**3)
         except Exception:
             free_gb = 4.0
 
@@ -108,8 +110,8 @@ class SentimentSetup:
         best_working = 1
         candidate = max(1, min(initial_guess, upper_cap))
         attempts = 0
-        
-        # Use a dummy text roughly the size of max_length to ensure the batch size 
+
+        # Use a dummy text roughly the size of max_length to ensure the batch size
         # is safe for worst-case inputs (assuming ~4 chars per token)
         test_text = "word " * max(1, int(self.max_length))
 
@@ -177,7 +179,7 @@ class SentimentSetup:
         attr_obj.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
 
         # ML sentiment
-        ml_tokens = re.findall(r'\b\w+\b', text.lower())
+        ml_tokens = re.findall(r"\b\w+\b", text.lower())
         attr_obj.ML = 0
         for i in range(len(ml_tokens) - 1):
             if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
@@ -230,7 +232,7 @@ class SentimentSetup:
                 s.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
 
                 # ML sentiment (custom bigram-based)
-                ml_tokens = re.findall(r'\b\w+\b', s.text.lower())
+                ml_tokens = re.findall(r"\b\w+\b", s.text.lower())
                 s.ML = 0
                 for i in range(len(ml_tokens) - 1):
                     if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
@@ -267,8 +269,8 @@ class SentimentSetup:
                 result["sentences"] = [serialize(s) for s in attr_obj.sentences]
 
             return result
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
+
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(serialize(attr_obj), f, indent=2, ensure_ascii=False)
 
     def excel_to_list(self, file_path, sheet_name) -> list:
@@ -276,13 +278,11 @@ class SentimentSetup:
         values = df[0].tolist()
         normalized_list = []
         for val in values:
-            if pd.isna(val) or str(val).strip() == '':
+            if pd.isna(val) or str(val).strip() == "":
                 continue
-            normalized_list.append(str(val).replace('_', ' ').lower())
+            normalized_list.append(str(val).replace("_", " ").lower())
         return normalized_list
 
-    #TODO: Diliya
+    # TODO: Diliya
     def find_weight(corpus: DocumentAttr = None):
         pass
-
-

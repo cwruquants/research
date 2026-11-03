@@ -14,6 +14,7 @@ Usage (DATABASE_URL set to a role that can write companies and documents):
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --threads 4
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment   # needs --extra ml
 """
+
 import argparse
 import concurrent.futures
 import os
@@ -72,8 +73,12 @@ def analyze_document(path: Union[str, Path], sentiment=None) -> Dict[str, Any]:
     doc_fit = None
     if sentiment is not None:
         doc_fit = sentiment.fit_all(doc)
-        for key, value in (("sentiment", doc_fit.sentiment), ("ML", doc_fit.ML),
-                           ("LM", doc_fit.LM), ("HIV4", doc_fit.HIV4)):
+        for key, value in (
+            ("sentiment", doc_fit.sentiment),
+            ("ML", doc_fit.ML),
+            ("LM", doc_fit.LM),
+            ("HIV4", doc_fit.HIV4),
+        ):
             measures[key] = float(value) if value is not None else 0.0
 
     metadata = {
@@ -93,8 +98,9 @@ def analyze_document(path: Union[str, Path], sentiment=None) -> Dict[str, Any]:
     return {"document": metadata, "document_attr": measures, "doc_fit": doc_fit}
 
 
-def _gather(input_dir: Path, pattern: str, recursive: bool,
-            specific_files: Optional[Sequence[Union[str, Path]]]) -> List[Path]:
+def _gather(
+    input_dir: Path, pattern: str, recursive: bool, specific_files: Optional[Sequence[Union[str, Path]]]
+) -> List[Path]:
     if specific_files is not None:
         files = []
         for path_like in specific_files:
@@ -103,7 +109,9 @@ def _gather(input_dir: Path, pattern: str, recursive: bool,
                 raise FileNotFoundError(f"Specified file not found: {candidate}")
             files.append(candidate)
     else:
-        files = [p for p in (input_dir.rglob(pattern) if recursive else input_dir.glob(pattern)) if p.is_file()]
+        files = [
+            p for p in (input_dir.rglob(pattern) if recursive else input_dir.glob(pattern)) if p.is_file()
+        ]
     if not files:
         raise FileNotFoundError(f"No files matched pattern '{pattern}' in {input_dir}")
     return sorted(files)
@@ -151,10 +159,14 @@ def ingest(
             if result["status"] != "success":
                 errors.append({"file": str(path), "reason": result.get("reason", "Unknown")})
 
-        progress = dict(total=len(files), desc="Processing & Uploading", unit="file", dynamic_ncols=True,
-                        file=sys.stderr)
+        progress = dict(
+            total=len(files), desc="Processing & Uploading", unit="file", dynamic_ncols=True, file=sys.stderr
+        )
         if threads > 1:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor, tqdm(**progress) as bar:
+            with (
+                concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor,
+                tqdm(**progress) as bar,
+            ):
                 futures = {executor.submit(process, p): p for p in files}
                 for future in concurrent.futures.as_completed(futures):
                     error = future.exception()
@@ -188,8 +200,9 @@ def ingest(
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--input-dir", required=True, help="Folder of transcript XMLs")
-    parser.add_argument("--year", type=int, required=True,
-                        help="Year stored for transcripts with no parseable start date")
+    parser.add_argument(
+        "--year", type=int, required=True, help="Year stored for transcripts with no parseable start date"
+    )
     parser.add_argument("--pattern", default="*.xml")
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--threads", type=int, default=max(1, (os.cpu_count() or 2) // 2))
@@ -197,11 +210,19 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--stop-on-error", action="store_true")
     args = parser.parse_args(argv)
 
-    summary = ingest(args.input_dir, args.year, sentiment=default_sentiment_setup() if args.sentiment else None,
-                     pattern=args.pattern, recursive=args.recursive, skip_on_error=not args.stop_on_error,
-                     num_threads=args.threads)
-    print(f"{summary['num_uploaded']} of {summary['num_files_processed']} documents uploaded, "
-          f"{summary['num_errors']} errors")
+    summary = ingest(
+        args.input_dir,
+        args.year,
+        sentiment=default_sentiment_setup() if args.sentiment else None,
+        pattern=args.pattern,
+        recursive=args.recursive,
+        skip_on_error=not args.stop_on_error,
+        num_threads=args.threads,
+    )
+    print(
+        f"{summary['num_uploaded']} of {summary['num_files_processed']} documents uploaded, "
+        f"{summary['num_errors']} errors"
+    )
     for err in summary["errors"][:20]:
         print(f"  {err['file']}: {err['reason']}")
 
