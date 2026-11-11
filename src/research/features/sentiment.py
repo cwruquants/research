@@ -53,6 +53,7 @@ class SentimentSetup:
         self.hiv4 = ps.HIV4()
         self.batch_size = batch_size
         self.max_length = max_length
+        self._prefetched = None  # transformer results by id(sentence) during fit_all
 
         self.ml_words_positive = self.excel_to_list(ml_wordlist_path, sheet_name_positive)
         self.ml_words_negative = self.excel_to_list(ml_wordlist_path, sheet_name_negative)
@@ -65,8 +66,21 @@ class SentimentSetup:
         print(f"[SentimentSetup] Resolved batch_size: {self.batch_size}")
 
     def _hf_infer(self, texts: List[str]):
+        """Score texts with the transformer, returning results in input order.
+
+        Texts are run shortest first so each batch holds texts of similar length and
+        needs little padding; the results are then put back in the original order.
+        """
         if not texts:
             return []
+        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+        scored = self._hf_infer_ordered([texts[i] for i in order])
+        results = [None] * len(texts)
+        for position, index in enumerate(order):
+            results[index] = scored[position]
+        return results
+
+    def _hf_infer_ordered(self, texts: List[str]):
 
         try:
             from datasets import Dataset
@@ -190,9 +204,25 @@ class SentimentSetup:
         return attr_obj
 
     def fit_all(self, attr_obj: Attr):
+        """Score attr_obj and everything under it.
+
+        All sentences under attr_obj go through the transformer in one call, so a whole
+        transcript is batched together instead of one paragraph at a time.
+        """
+        if self._prefetched is not None:
+            return self._fit_all(attr_obj)
+        sentences = list(_batched_sentences(attr_obj))
+        hf_results = self._hf_infer([getattr(s, "text", "") for s in sentences])
+        self._prefetched = {id(s): r for s, r in zip(sentences, hf_results)}
+        try:
+            return self._fit_all(attr_obj)
+        finally:
+            self._prefetched = None
+
+    def _fit_all(self, attr_obj: Attr):
         if hasattr(attr_obj, "paragraphs") and attr_obj.paragraphs:
             for paragraph in attr_obj.paragraphs:
-                self.fit_all(paragraph)
+                self._fit_all(paragraph)
 
             # Average sentiment
             sentiments = [p.sentiment for p in attr_obj.paragraphs if p.sentiment is not None]
@@ -204,11 +234,9 @@ class SentimentSetup:
                 setattr(attr_obj, score, float(total))
 
         elif hasattr(attr_obj, "sentences") and attr_obj.sentences:
-            # Batch Hugging Face inference over all sentences to avoid sequential GPU calls
+            # Transformer results were computed for the whole tree in fit_all
             sentence_objs = list(attr_obj.sentences)
-            texts = [getattr(s, "text", "") for s in sentence_objs]
-            # Run transformer in batch (no-op on CPU, efficient on GPU)
-            hf_results = self._hf_infer(texts)
+            hf_results = [self._prefetched[id(s)] for s in sentence_objs]
 
             # Assign HF sentiment and compute lexicon-based scores per sentence
             for s, hf_res in zip(sentence_objs, hf_results):
@@ -286,3 +314,13 @@ class SentimentSetup:
     # TODO: Diliya
     def find_weight(corpus: DocumentAttr = None):
         pass
+
+
+def _batched_sentences(attr_obj):
+    """Yield, in order, the sentences that fit_all scores in batch (those it reaches
+    through a `sentences` list rather than as a lone leaf)."""
+    if hasattr(attr_obj, "paragraphs") and attr_obj.paragraphs:
+        for paragraph in attr_obj.paragraphs:
+            yield from _batched_sentences(paragraph)
+    elif hasattr(attr_obj, "sentences") and attr_obj.sentences:
+        yield from attr_obj.sentences
