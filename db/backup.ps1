@@ -1,7 +1,7 @@
 param(
     [string]$BackupDir = 'G:\pg_backups',
     [string]$PgPassFile = 'G:\pg_backups\pgpass.conf',
-    [int]$RetentionDays = 14
+    [int]$RetentionDays = 7
 )
 
 $ErrorActionPreference = 'Stop'

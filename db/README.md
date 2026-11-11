@@ -117,7 +117,7 @@ alter them. To hand one over, run
 ## Backups
 
 `backup.ps1` makes a compressed custom-format dump of `research` and keeps
-successful dumps for 14 days. Its default destination is `G:\pg_backups`;
+successful dumps for 7 days. Its default destination is `G:\pg_backups`;
 pass `-BackupDir` to select another location. The script uses a restricted
 password file at `G:\pg_backups\pgpass.conf` containing only the local
 `postgres` login entry. If that password changes, update this file too.
