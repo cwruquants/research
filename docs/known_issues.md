@@ -164,13 +164,19 @@ The event type in each XML is parsed but not stored. `is_earnings_call` in
 
 ## Calls end in 2021
 
-Calls in the database run from 2002-01-14 to 2021-12-31. The raw files go on to 2024:
-about 122,800 transcripts for 2022–2024 (43,578, 46,260 and 32,977 files) were never
-loaded. The 2021 folder also holds 41,975 files against 39,130 documents with a 2021
-call date; that gap is not explained yet.
+Calls in `documents` run from 2002-01-14 to 2021-12-31. The raw files go on to 2024, and
+since 2026-11-11 all of them are in `transcript_files`. 109,908 calls there have no
+`documents` row:
 
-January to March 2002 is thin, and December 2018 has about half the calls of the
-Decembers either side.
+- about 108,000 whose files sit only in the 2022–2024 folders. Those folders hold
+  122,815 files, but many are later revisions of older calls, which is also why the
+  2021 folder has more files (41,975) than 2021 has documents (39,130);
+- 1,978 older published transcripts that were never ingested: 709 in the 2018 folder,
+  mostly dated December 2018 and January 2019, 586 in 2011 and 250 in 2020. This is
+  why December 2018 has about half the calls of the Decembers either side.
+
+None of these calls has text measures, exposures, links or returns. January to March
+2002 is thin in the vendor files themselves.
 
 ## Links and returns
 

@@ -58,7 +58,7 @@ def _normalize_title(title: Optional[str]) -> str:
 def resolve_location(doc: dict, candidates: List[Location]) -> Tuple[Optional[Location], str]:
     """
     Pick the transcript for a document when its file name is in more than one folder
-    (the same name in two year folders is usually a different transcript): the one whose
+    (the same name in two year folders is a later revision of the same call): the one whose
     eventTitle matches documents.event_title, then the one in the document's year folder.
     """
     if len(candidates) == 1:

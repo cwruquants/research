@@ -27,6 +27,10 @@ ALTER TABLE public.keyword_matches
     ADD CONSTRAINT keyword_matches_pkey PRIMARY KEY (id),
     ADD CONSTRAINT keyword_matches_unique UNIQUE (exposure_run_id, keyword, match_type, matched_text, "position");
 
+ALTER TABLE public.transcript_files
+    ADD CONSTRAINT transcript_files_pkey PRIMARY KEY (id),
+    ADD CONSTRAINT transcript_files_source_file_sha256_key UNIQUE (source_file, sha256);
+
 CREATE INDEX idx_documents_company ON public.documents (company_id);
 CREATE INDEX idx_documents_event_date ON public.documents (event_date);
 CREATE INDEX idx_documents_year ON public.documents (year);
@@ -54,3 +58,31 @@ ALTER TABLE public.document_crsp_links
 ALTER TABLE public.document_event_returns
     ADD CONSTRAINT document_event_returns_document_id_fkey FOREIGN KEY (document_id)
     REFERENCES public.documents(id) ON DELETE CASCADE;
+
+-- One row per call: the latest published transcript. Ties on last_update go to the
+-- later year folder, then to the hash, so the choice never depends on load order.
+-- withdrawn_at is set when the vendor sent a delete stub after that revision.
+CREATE VIEW public.transcript_files_latest AS
+SELECT DISTINCT ON (f.source_file)
+    f.id,
+    f.source_file,
+    f.sha256,
+    f.byte_length,
+    f.xml,
+    f.last_update,
+    f.story_version,
+    f.folder_year,
+    f.archive,
+    f.member,
+    f.loaded_at,
+    (
+        SELECT max(d.last_update)
+        FROM public.transcript_files d
+        WHERE d.source_file = f.source_file
+            AND d.story_action = 'delete'
+            AND d.last_update > f.last_update
+    ) AS withdrawn_at
+FROM public.transcript_files f
+WHERE f.story_action = 'publish'
+    AND f.story_type = 'transcript'
+ORDER BY f.source_file, f.last_update DESC NULLS LAST, f.folder_year DESC NULLS LAST, f.sha256 DESC;

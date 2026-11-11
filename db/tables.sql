@@ -154,3 +154,20 @@ CREATE TABLE public.document_event_returns (
     CONSTRAINT document_event_returns_call_timing_check
         CHECK (call_timing IN ('pre_open', 'market_hours', 'after_close'))
 );
+
+-- Raw vendor transcript XMLs, one row per file revision (a working copy of the zips).
+CREATE TABLE public.transcript_files (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    source_file text NOT NULL,
+    sha256 bytea NOT NULL,  -- of the original file bytes
+    byte_length integer NOT NULL,
+    xml text COMPRESSION lz4 NOT NULL,
+    last_update timestamptz,
+    story_action text,
+    story_version text,
+    story_type text,
+    folder_year integer,
+    archive text NOT NULL,
+    member text NOT NULL,
+    loaded_at timestamptz NOT NULL DEFAULT now()
+);

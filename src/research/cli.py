@@ -9,6 +9,14 @@ from research import config
 
 # command path -> (module whose main() runs it, one-line summary)
 COMMANDS = {
+    ("transcripts", "load"): (
+        "research.pipelines.load_transcript_files",
+        "Store the raw transcript XMLs from the vendor zips in transcript_files",
+    ),
+    ("transcripts", "verify"): (
+        "research.pipelines.verify_transcript_files",
+        "Check transcript_files against the zips it was loaded from",
+    ),
     ("ingest",): ("research.pipelines.ingest", "Parse transcript XMLs into companies and documents rows"),
     ("backfill",): ("research.pipelines.backfill_exposures", "Write missing keyword exposure runs"),
     ("link", "route-a"): ("research.linking.route_a", "Link documents to CRSP PERMNOs by RIC and call date"),

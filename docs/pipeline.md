@@ -26,6 +26,7 @@ flowchart LR
 
 | Step | Command | Reads | Writes | How the DB table was last filled |
 |---|---|---|---|---|
+| Store | `research transcripts load`, then `verify` | the vendor zips | `transcript_files` | `research transcripts load` on the six vendor zips (2002–2024), 2026-11-11; `verify` passed |
 | Parse | `research ingest` | transcript XMLs | `companies`, `documents` | Oct 2026 migration from Supabase, plus fixes in `db/fixes/` |
 | Match | `research backfill` | XMLs, `documents`, word lists | `exposure_runs`, `keyword_matches` | `research backfill`, 2026-10-17 (before the Q&A parser fix) |
 | Link | `research link route-b`, then `route-a` | route B: a list of calls on acquirer and broker-host company rows (see below); route A: the `db/queries/link_documents.sql` export, LSEG, CRSP stocknames | `proposed_links_all.csv` | loaded with `db/loads/document_crsp_links.sql` |
@@ -51,8 +52,38 @@ treats each document in `--route-b` as already linked and skips it.
 | `document_crsp_links` | ~352k | call linked to a CRSP security on the call date |
 | `document_event_returns` | ~352k | linked call: day 0, window returns, market-model fit, `mcap_pre` |
 
+| `transcript_files` | ~635k | raw vendor XML file revision, 2002–2024 (see below); 15 GB |
+
 Two more tables, `company_cleanup_20261017` and `sentiment_recompute_20261017`, are audit
 records of the October 2026 fixes in `db/fixes/`.
+
+### `transcript_files`: the raw XMLs
+
+A working copy of the vendor files, so recomputes and checks need no files on disk. The
+zips stay the record of truth; the table can be rebuilt from them.
+
+- **One row per file revision.** The vendor re-issues a call under the same file name
+  with a later `lastUpdate` stamp: 17,481 calls have two or more revisions. Every
+  revision is kept. A byte-identical second copy is not.
+- **Everything the vendor sent is stored**, including stubs, files that are not
+  well-formed XML, briefs (`story_type = 'brief'`, named `<id>_B.xml`) and the empty
+  stubs that withdraw a call (`story_action = 'delete'`). Only macOS resource files,
+  empty files and files that are not valid UTF-8 are left out.
+- **What it holds:** 635,490 revisions of 617,821 file names. 459 are withdrawal stubs
+  (440 calls exist only as a stub), 24 are briefs and 185 are marked Preliminary.
+  109,908 calls in the view have no `documents` row yet: the 2022–2024 calls and about
+  2,000 older ones that were never ingested.
+- **`transcript_files_latest`** is the view to read: one row per call, the latest
+  published transcript by `last_update` (ties go to the later year folder, then to the
+  hash). `withdrawn_at` is set when the vendor pulled the call after that revision;
+  nothing is excluded for it.
+- **Append-only.** The pipeline and agent logins can insert and read. Only `postgres`
+  can update or delete.
+- **Name a revision by its `sha256`, not its `id`.** The hash is the same however the
+  table is restored or rebuilt from the zips; the `id` is not guaranteed to be.
+- **Backed up once per load**, not nightly (see `db/README.md`).
+- `sha256` is the hash of the original file, and the stored text reproduces the file
+  byte for byte. `research transcripts verify` checks both against the zips.
 
 ## Where the numbers come from
 
