@@ -6,6 +6,12 @@ with --sentiment, the transformer, LM, HIV4 and Garcia ML sentiment scores. Rows
 upserted on documents.source_file, so re-running a folder updates it in place. Keyword
 exposures are a separate step: `research backfill`.
 
+To recompute the measures of calls already in the database, pass --measures-only. A plain
+re-run also rewrites company, year, title, date and city from the file, which would undo
+hand fixes such as the October 2026 company cleanup. --measures-only updates only the
+measure columns, never creates a row or a company, and skips files with no row. Without
+--sentiment it leaves the stored sentiment scores as they are.
+
 Every text measure uses the spoken text (Presentation and Q&A with speaker lines removed),
 the same text keyword matching reads. Rows stored before 2026-11-11 used the whole XML
 body and have not been recomputed (see docs/known_issues.md).
@@ -14,6 +20,7 @@ Usage (DATABASE_URL set to a role that can write companies and documents):
 
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --threads 4
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment   # needs --extra ml
+    uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment --measures-only
 """
 
 import argparse
@@ -129,6 +136,7 @@ def ingest(
     skip_on_error: bool = True,
     specific_files: Optional[Sequence[Union[str, Path]]] = None,
     num_threads: int = 1,
+    measures_only: bool = False,
 ) -> Dict[str, Any]:
     """
     Analyze every matching XML in input_dir and upsert its companies and documents rows.
@@ -148,10 +156,12 @@ def ingest(
     uploader = PostgresUploader(database_url or config.database_url(), max_connections=threads)
     upload_results, errors = [], []
     try:
-        print(f"Loaded {uploader.initialize_company_cache()} existing companies")
+        if not measures_only:
+            print(f"Loaded {uploader.initialize_company_cache()} existing companies")
 
         def process(path: Path) -> Dict[str, Any]:
-            result = uploader.upload_document({"doc_attrs": analyze_document(path, sentiment)}, year)
+            data = {"doc_attrs": analyze_document(path, sentiment)}
+            result = uploader.update_measures(data) if measures_only else uploader.upload_document(data, year)
             result["file_path"] = str(path)
             return result
 
@@ -219,6 +229,12 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--threads", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--sentiment", action="store_true", help="Also score sentiment (needs --extra ml)")
     parser.add_argument("--stop-on-error", action="store_true")
+    parser.add_argument(
+        "--measures-only",
+        action="store_true",
+        help="Only overwrite the text measures of existing documents rows; never change company, "
+        "year, title, date or city, and skip files that have no row",
+    )
     args = parser.parse_args(argv)
 
     summary = ingest(
@@ -229,6 +245,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         recursive=args.recursive,
         skip_on_error=not args.stop_on_error,
         num_threads=args.threads,
+        measures_only=args.measures_only,
     )
     print(
         f"{summary['num_uploaded']} of {summary['num_files_processed']} documents uploaded, "

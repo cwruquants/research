@@ -49,8 +49,31 @@ class FakeUploader:
         self.rows.append((data["doc_attrs"]["document"]["file_name"], year))
         return {"status": "success", "year": 2017, "year_fallback": False}
 
+    def update_measures(self, data):
+        self.rows.append((data["doc_attrs"]["document"]["file_name"], "measures only"))
+        return {"status": "success", "year": 2017, "year_fallback": False}
+
     def finalize(self):
         pass
+
+
+def test_measures_only_never_upserts(transcripts, monkeypatch):
+    monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
+    summary = ingest_module.ingest(transcripts, 2016, database_url="postgresql://fake", measures_only=True)
+    assert summary["num_uploaded"] == 3
+    assert {how for _, how in FakeUploader.instances[-1].rows} == {"measures only"}
+
+
+def test_measure_columns_leave_out_what_was_not_computed():
+    from research.db.documents import PostgresUploader
+
+    uploader = object.__new__(PostgresUploader)
+    without_sentiment = uploader._measure_columns(
+        {"num_words": 100, "num_sentences": 9, "flesch_reading_ease": 55.0}, only_present=True
+    )
+    assert set(without_sentiment) == {"num_words", "num_sentences", "flesch_reading_ease"}
+    full = uploader._measure_columns({"num_words": 100})
+    assert full["sentiment"] is None and len(full) == len(PostgresUploader._MEASURES)
 
 
 @pytest.mark.parametrize("threads", [1, 3])
