@@ -1,5 +1,7 @@
 """fit_all scores a whole document in one length-sorted transformer call."""
 
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 pytest.importorskip("transformers")
@@ -38,7 +40,6 @@ def make_setup():
     setup.lm, setup.hiv4 = ps.LM(), ps.HIV4()
     setup.batch_size, setup.max_length = 32, 512
     setup.ml_words_positive, setup.ml_words_negative = [], []
-    setup._prefetched = None
     return setup
 
 
@@ -73,7 +74,21 @@ def test_one_call_sorted_by_length_and_results_in_order():
 
     got = [s.sentiment for p in doc.paragraphs for s in p.sentences]
     assert got == per_sentence_reference(make_setup(), TEXT)
-    assert setup._prefetched is None
+
+
+def test_threads_can_share_one_setup():
+    # `research ingest --sentiment --threads N` scores documents on N threads with one setup
+    setup = make_setup()
+    text = "\n\n".join([TEXT] * 60)
+    docs = [
+        DocumentAttr(text, store_paragraphs=True, store_sentences=True, store_words=False) for _ in range(8)
+    ]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(setup.fit_all, docs))  # re-raises a failure from any thread
+
+    expected = per_sentence_reference(make_setup(), text)
+    for doc in docs:
+        assert [s.sentiment for p in doc.paragraphs for s in p.sentences] == expected
 
 
 def test_hf_infer_keeps_input_order():
