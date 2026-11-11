@@ -33,5 +33,5 @@ Read `README.md` first, then `docs/pipeline.md` (which code writes which table) 
   Stored exposures and scores still come from the old text, so exclude calls dated
   2017-04-01 to 2019-12-31 from text analyses (see `docs/known_issues.md`).
 - About two-thirds of stored `risk` keyword matches are the words "question(s)".
-- `documents.num_words` uses the whole XML body; keyword matching uses only the
+- The stored `documents.num_words` uses the whole XML body; keyword matching uses only the
   Presentation and Q&A sections, so ratios that mix them have mismatched denominators.

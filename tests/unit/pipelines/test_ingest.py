@@ -4,6 +4,7 @@ import pytest
 
 from research.pipelines import ingest as ingest_module
 from research.pipelines.ingest import analyze_document
+from research.transcripts.parse import load_document
 
 
 def test_analyze_document(transcripts):
@@ -15,6 +16,23 @@ def test_analyze_document(transcripts):
     assert attrs["num_words"] > 150 and attrs["num_sentences"] > 10
     assert {"flesch_reading_ease", "gunning_fog", "text_standard"} <= attrs.keys()
     assert "sentiment" not in attrs and out["doc_fit"] is None
+
+
+@pytest.mark.parametrize("name", ["spaced_T.xml", "tight_T.xml", "no_headings_T.xml"])
+def test_analyze_document_measures_the_spoken_text(transcripts, name):
+    # the same words keyword matching reads: no header, participant lists or speaker lines
+    attrs = analyze_document(transcripts / name)["document_attr"]
+    assert attrs["num_words"] == len(load_document(transcripts / name).text.split())
+
+
+def test_tight_and_spaced_layouts_give_the_same_measures(transcripts):
+    # cleaning the whole body in one pass kept speaker names and dropped the answers
+    # in the tight layout, which cut its word count
+    spaced = analyze_document(transcripts / "spaced_T.xml")["document_attr"]
+    tight = analyze_document(transcripts / "tight_T.xml")["document_attr"]
+    assert tight["num_words"] == spaced["num_words"]
+    assert tight["num_sentences"] == spaced["num_sentences"]
+    assert tight["flesch_reading_ease"] == pytest.approx(spaced["flesch_reading_ease"])
 
 
 class FakeUploader:

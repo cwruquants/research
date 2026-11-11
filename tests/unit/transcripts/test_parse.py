@@ -1,6 +1,8 @@
+from xml.etree.ElementTree import ParseError
+
 import pytest
 
-from research.transcripts.parse import clean_ticker, get_company_metadata, load_document
+from research.transcripts.parse import clean_ticker, get_company_metadata, load_document, spoken_text
 from research.transcripts.sources import index_sources, open_transcript, resolve_location
 
 
@@ -32,6 +34,8 @@ def test_unreadable_file_gives_empty_document(tmp_path):
     bad = tmp_path / "bad_T.xml"
     bad.write_text("<Event><Body>unclosed", encoding="utf-8")
     assert load_document(bad).text == ""
+    with pytest.raises(ParseError):  # spoken_text leaves the error to its caller
+        spoken_text(bad)
 
 
 @pytest.mark.parametrize(

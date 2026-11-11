@@ -14,9 +14,10 @@ Presentation and Q&A together, and in transcripts with no blank lines around one
 turns its speaker-line skip drifted one line off. It then kept speaker names and dropped
 the answers. Hit calls lost about 45% of their words.
 
-The fix covered `load_document` only. `analyze_document`, which fills `documents`, still
-cleans the whole body in one pass, so `research ingest` writes the same wrong values
-today.
+That fix covered `load_document` only. `analyze_document`, which fills `documents`, kept
+cleaning the whole body in one pass until 2026-11-11. Both now take their text from one
+function, `spoken_text`, so the code is right. The stored rows are not: nothing has been
+recomputed.
 
 - **Rows:** about half the earnings calls dated 2017-04 to 2019-12, 3–14% per quarter in
   2020–2021, and older calls. A per-call rule (below) flags 4–11% of earnings calls in
@@ -34,14 +35,19 @@ today.
 
 ## Word counts and exposures use different text
 
-`documents.num_words`, `num_sentences` and readability come from the whole XML body.
-Exposure counts come from the Presentation and Q&A only. A ratio such as matches per
-word mixes the two. Use `exposure_runs.total_sentences_in_document` as the denominator
-for exposures.
+The stored `documents.num_words`, `num_sentences` and readability come from the whole
+XML body (header and participant lists included). Exposure counts come from the
+Presentation and Q&A only. A ratio such as matches per word mixes the two. Use
+`exposure_runs.total_sentences_in_document` as the denominator for exposures.
 
 On a sample of runs the gap is small: the last match sits within about 1% of
 `num_words` in the median run, because both paths start from nearly the same text and
 share the Q&A damage above. The advice on the denominator stands.
+
+Since 2026-11-11 `research ingest` measures the same spoken text that matching reads,
+so this goes away once `documents` is recomputed. On 703 sample transcripts from
+2002–2024, the new code's word count is within 5% of the old code's for 61%, and more
+than 20% higher for 17% (57% of the 2018 calls).
 
 ## Exposure runs come from four batches
 
@@ -116,9 +122,10 @@ Flesch-Kincaid grade above 30, or a Flesch reading ease below 0.
 
 ## Linsear Write and `text_standard` measure the header
 
-`linsear_write_formula` reads only the first 100 words, which are the vendor header and
-participant list. 31% of rows score above 30, and `text_standard` partly inherits it.
-Do not use either column.
+`linsear_write_formula` reads only the first 100 words, which in the stored rows are the
+vendor header and participant list. 31% of rows score above 30, and `text_standard`
+partly inherits it. Do not use either column as stored. After a recompute the first 100
+words will be the start of the Presentation, which is still not the whole call.
 
 ## Legacy columns in `documents`
 

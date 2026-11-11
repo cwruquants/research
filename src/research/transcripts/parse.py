@@ -9,13 +9,11 @@ from dateutil import parser as date_parser
 from research.transcripts.models import DocumentAttr
 
 __all__ = [
-    "extract_presentation_section",
-    "extract_qa_section",
-    "clean_spoken_content",
     "get_company_metadata",
     "clean_text",
     "clean_ticker",
-    "extract_full_body_text",
+    "spoken_text",
+    "load_document",
 ]
 
 # Headlines look like "Edited Transcript of LLOY.L M&A conference call or presentation ...".
@@ -94,16 +92,6 @@ def get_company_metadata(xml_path: Union[str, Path]) -> Dict[str, Any]:
     return data
 
 
-def extract_full_body_text(xml_path: Union[str, Path]) -> str:
-    """
-    Extracts the raw text content from the <Body> tag of the XML.
-    """
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-    body_elem = root.find(".//Body")
-    return body_elem.text if body_elem is not None else ""
-
-
 def _body_lines(xml_source) -> list:
     """Lines of the <Body> text of a transcript XML (a path or a binary file object)."""
     root = ET.parse(xml_source).getroot()
@@ -168,7 +156,7 @@ def _spoken_sections_from_lines(lines: list) -> str:
             in_spoken_section = lines[i].strip().lower() not in _PARTICIPANT_HEADINGS
             if kept and re.fullmatch(r"=+", kept[-1].strip()):
                 kept.pop()  # the ==== rule above the heading
-            # Skip the heading but keep the ---- rule below it: clean_spoken_content
+            # Skip the heading but keep the ---- rule below it: _strip_speaker_lines
             # expects each speaker name framed by rules, as in the Presentation section
             i += 1
             continue
@@ -178,67 +166,56 @@ def _spoken_sections_from_lines(lines: list) -> str:
     return "\n".join(kept).strip()
 
 
-def extract_presentation_section(xml_path):
-    return _presentation_from_lines(_body_lines(xml_path))
-
-
-def extract_qa_section(xml_path):
-    return _qa_from_lines(_body_lines(xml_path))
-
-
-def clean_spoken_content(raw_text: str) -> str:
+def _strip_speaker_lines(section: str) -> str:
     """
-    Removes speaker names and dashed section separators from transcript sections.
+    One spoken section with its speaker blocks (rule, speaker name, rule) removed.
 
-    Args:
-        raw_text (str): The raw extracted transcript section (e.g., from presentation or Q&A).
-
-    Returns:
-        str: Cleaned text with only spoken content.
+    Every rule line is taken to open a speaker block, so the two lines after it are dropped
+    unread. Pass one section at a time, starting at its first speaker block: a rule that
+    frames anything else (a section heading, say) leaves the skip one line off, and in a
+    transcript with no blank lines between turns it then stays off to the end, keeping the
+    speaker names and dropping what they said.
     """
-    lines = raw_text.splitlines()
-    cleaned_lines = []
-
+    lines = section.splitlines()
+    kept = []
     i = 0
     while i < len(lines):
-        line = lines[i].strip()
-
-        # Skip lines that are separator dashes (---- or ====)
-        if re.fullmatch(r"[-=]{5,}", line):
-            # Skip the next line too (speaker name), and next separator
-            i += 3  # jump over separator, speaker, separator
+        if re.fullmatch(r"[-=]{5,}", lines[i].strip()):
+            i += 3  # rule, speaker name, rule
             continue
-
-        cleaned_lines.append(lines[i])
+        kept.append(lines[i])
         i += 1
+    return "\n".join(kept).strip()
 
-    return "\n".join(cleaned_lines).strip()
+
+def spoken_text(xml_source) -> str:
+    """
+    The spoken text of a transcript: its Presentation and Q&A with speaker lines and rules
+    removed, or every spoken section if it has no such headings. Word counts, readability,
+    sentiment and keyword matching all start from this text, so they describe the same words.
+    xml_source may be a path or a binary file object (e.g. a zip member).
+    """
+    lines = _body_lines(xml_source)
+    # Each section is cleaned on its own: see _strip_speaker_lines
+    text = (
+        _strip_speaker_lines(_presentation_from_lines(lines))
+        + "\n\n"
+        + _strip_speaker_lines(_qa_from_lines(lines))
+    ).strip()
+    if not text:
+        # No Presentation / Q&A headings found: fall back to the generic section layout
+        text = _strip_speaker_lines(_spoken_sections_from_lines(lines))
+    return text
 
 
 def load_document(file_path) -> DocumentAttr:
     """
-    Load an XML earnings call transcript and keep its Presentation and Q&A text with
-    speaker lines removed, or every spoken section if it has no such headings.
-    file_path may be a path or a binary file object (e.g. a zip member).
-    Returns a DocumentAttr object with the text.
+    Load an XML earnings call transcript as a DocumentAttr of its spoken text (see
+    spoken_text). file_path may be a path or a binary file object (e.g. a zip member).
+    An unreadable file gives an empty document.
     """
     try:
-        # Extract presentation and Q&A sections from a single parse of the XML
-        lines = _body_lines(file_path)
-        presentation_text = _presentation_from_lines(lines)
-        qa_text = _qa_from_lines(lines)
-
-        # Clean each section on its own to remove speaker tags and separators: the ==== rule
-        # ending the Presentation would otherwise put clean_spoken_content one line off in Q&A
-        cleaned_text = (
-            clean_spoken_content(presentation_text) + "\n\n" + clean_spoken_content(qa_text)
-        ).strip()
-
-        if not cleaned_text:
-            # No Presentation / Q&A headings found: fall back to the generic section layout
-            cleaned_text = clean_spoken_content(_spoken_sections_from_lines(lines))
-
-        return DocumentAttr(document=cleaned_text)
+        return DocumentAttr(document=spoken_text(file_path))
     except Exception as e:
         print(f"Error loading document: {e}")
         return DocumentAttr(document="")
