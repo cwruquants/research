@@ -94,8 +94,14 @@ Until the rerun, drop these keywords from counts, and for `risk` also drop match
 
 ## Sentiment sums grow with call length
 
-`lm_score`, `hiv4_score` and `ml_score` are sums over sentences, not rates. Divide by
-`num_sentences` or `num_words` before comparing calls of different lengths.
+`lm_score`, `hiv4_score` and `ml_score` are sums over sentences, not rates: `hiv4_score`
+correlates 0.90 with the call's word count. To compare calls, use `lm_per_1000_words`,
+`hiv4_per_1000_words` and `ml_per_1000_words` (added 2026-11-11), which are the same
+scores per 1,000 words and correlate with length at about −0.07. Postgres computes them
+on read from the sums and `num_words`, so they always agree with the stored columns.
+
+They inherit the word-count problem above: for calls that lost their Q&A, both the sum
+and `num_words` come from the surviving text only.
 
 ## Sentiment of short documents depends on the load batch
 

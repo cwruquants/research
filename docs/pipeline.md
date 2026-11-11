@@ -100,6 +100,9 @@ zips stay the record of truth; the table can be rebuilt from them.
 - `ml_score`: per sentence, +1 for every adjacent word pair where both words are on the
   Garcia positive unigram list and −1 where both are on the negative list, summed.
   These three are sums, so they grow with call length.
+- `lm_per_1000_words`, `hiv4_per_1000_words`, `ml_per_1000_words`: the three sums per
+  1,000 words (`1000 * score / num_words`), the ones to compare across calls. They are
+  virtual columns that Postgres computes on read; nothing writes them.
 - `exposure_runs`, `keyword_matches`: Presentation and Q&A text only
   (`research.transcripts.parse.load_document`), direct matching.
 
