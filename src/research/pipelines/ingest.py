@@ -1,10 +1,18 @@
 """
 Parse transcript XMLs and write their companies and documents rows to Postgres.
 
-For each XML: company metadata, then sentence and word counts, readability scores and,
-with --sentiment, the transformer, LM, HIV4 and Garcia ML sentiment scores. Rows are
-upserted on documents.source_file, so re-running a folder updates it in place. Keyword
-exposures are a separate step: `research backfill`.
+For each XML: company metadata, then sentence and word counts, readability scores, the
+LM and Garcia ML dictionary tone counts (research.features.lexicon) and, with --sentiment,
+the transformer sentiment score. Rows are upserted on documents.source_file, so re-running
+a folder updates it in place. Keyword exposures are a separate step: `research backfill`.
+
+With --from-db the transcripts come from the transcript_files table instead of a folder,
+always the latest published revision of each call (transcript_files_latest). With
+--measures-only that is every call that has a documents row; without it, every call that
+does not have one yet. Use --from-db for the rerun: a folder holds whichever revision was
+saved there, often an older one.
+
+A transcript with no spoken text gets NULL readability and tone, not zeros.
 
 To recompute the measures of calls already in the database, pass --measures-only. A plain
 re-run also rewrites company, year, title, date and city from the file, which would undo
@@ -21,19 +29,26 @@ Usage (DATABASE_URL set to a role that can write companies and documents):
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --threads 4
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment   # needs --extra ml
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment --measures-only
+    uv run research ingest --from-db --measures-only --sentiment --years 2016 2017
+    uv run research ingest --from-db --years 2022 2023 2024   # calls with no documents row yet
 """
 
 import argparse
 import concurrent.futures
+import io
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+import psycopg
 from tqdm.auto import tqdm
 
 from research import config
 from research.db.documents import PostgresUploader
+from research.db.transcript_files import latest_transcript_names, latest_xml
+from research.features.lexicon import LexiconScorer
 from research.features.readability import readability_scores
 from research.transcripts._nltk import ensure_nltk_data
 from research.transcripts.models import DocumentAttr
@@ -66,29 +81,50 @@ def default_sentiment_setup(overrides: Optional[Dict[str, Any]] = None):
     )
 
 
-def analyze_document(path: Union[str, Path], sentiment=None) -> Dict[str, Any]:
+_lexicon: Optional[LexiconScorer] = None
+
+
+def _lexicon_scorer() -> LexiconScorer:
+    """One scorer per process: it only reads its word lists, so threads can share it."""
+    global _lexicon
+    if _lexicon is None:
+        _lexicon = LexiconScorer()
+    return _lexicon
+
+
+def analyze_document(path: Union[str, Path], sentiment=None, xml: Optional[bytes] = None) -> Dict[str, Any]:
     """
     Metadata and text measures for one transcript, shaped for PostgresUploader:
     {"document": metadata, "document_attr": measures, "doc_fit": fitted DocumentAttr or None}.
-    Pass a SentimentSetup as `sentiment` to add the sentiment scores.
+    Pass a SentimentSetup as `sentiment` to add the transformer sentiment score. Pass the
+    file's bytes as `xml` to analyze a transcript that is not on disk (`path` then only
+    names it, e.g. its source_file).
+
+    A transcript with no spoken text has num_words 0 and NULL for every score, so a missing
+    measure never looks like a real zero.
     """
     path = Path(path)
-    company = get_company_metadata(path)
 
-    text = spoken_text(path)
+    def source():
+        return io.BytesIO(xml) if xml is not None else path
+
+    company = get_company_metadata(source())
+    text = spoken_text(source())
     doc = DocumentAttr(text, store_paragraphs=True, store_sentences=True, store_words=False)
-    measures = {"num_sentences": doc.num_sentences, "num_words": doc.num_words, **readability_scores(text)}
+    measures: Dict[str, Any] = {"num_sentences": doc.num_sentences, "num_words": doc.num_words}
+    if doc.num_words:
+        measures.update(readability_scores(text))
+    else:
+        measures.update({name: None for name in readability_scores("")})
+    measures.update(_lexicon_scorer().scores(text))
 
     doc_fit = None
     if sentiment is not None:
-        doc_fit = sentiment.fit_all(doc)
-        for key, value in (
-            ("sentiment", doc_fit.sentiment),
-            ("ML", doc_fit.ML),
-            ("LM", doc_fit.LM),
-            ("HIV4", doc_fit.HIV4),
-        ):
-            measures[key] = float(value) if value is not None else 0.0
+        if doc.num_sentences:
+            doc_fit = sentiment.fit_all(doc)
+            measures["sentiment"] = float(doc_fit.sentiment)
+        else:
+            measures["sentiment"] = None
 
     metadata = {
         "file_name": path.name,
@@ -126,9 +162,20 @@ def _gather(
     return sorted(files)
 
 
+@dataclass(frozen=True)
+class StoredTranscript:
+    """A transcript in transcript_files, read from its latest published revision."""
+
+    source_file: str
+    folder_year: Optional[int]
+
+    def __str__(self) -> str:
+        return self.source_file
+
+
 def ingest(
-    input_dir: Union[str, Path],
-    year: int,
+    input_dir: Optional[Union[str, Path]],
+    year: Optional[int],
     database_url: Optional[str] = None,
     sentiment=None,
     pattern: str = "*.xml",
@@ -137,31 +184,59 @@ def ingest(
     specific_files: Optional[Sequence[Union[str, Path]]] = None,
     num_threads: int = 1,
     measures_only: bool = False,
+    from_db: bool = False,
+    years: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """
     Analyze every matching XML in input_dir and upsert its companies and documents rows.
     `year` is stored only for transcripts with no parseable start date; otherwise the
     year comes from the call's start date.
+
+    With from_db, read transcript_files instead of input_dir (see the module docstring);
+    `years` then filters on documents.year (measures_only) or on the revision's year
+    folder, which is also the fallback year for a call with no parseable start date.
     """
-    input_dir = Path(input_dir)
-    if not input_dir.is_dir():
-        raise NotADirectoryError(f"Input directory not found: {input_dir}")
-    files = _gather(input_dir, pattern, recursive, specific_files)
+    url = database_url or config.database_url()
+    if from_db:
+        with psycopg.connect(url) as conn:
+            names = latest_transcript_names(conn, with_document=measures_only, years=years)
+        files: List[Union[Path, StoredTranscript]] = [StoredTranscript(*row) for row in names]
+        if not files:
+            raise FileNotFoundError("No transcripts in transcript_files match these options")
+    else:
+        input_dir = Path(input_dir)
+        if not input_dir.is_dir():
+            raise NotADirectoryError(f"Input directory not found: {input_dir}")
+        files = _gather(input_dir, pattern, recursive, specific_files)
     threads = max(1, num_threads or 1)
     # Fetch and load the NLTK data in this thread: the workers would race to download it,
     # and NLTK's lazy cmudict loader fails when several threads touch it first
     ensure_nltk_data()
     readability_scores("Load the syllable dictionary.")
 
-    uploader = PostgresUploader(database_url or config.database_url(), max_connections=threads)
+    uploader = PostgresUploader(url, max_connections=threads)
     upload_results, errors = [], []
     try:
         if not measures_only:
             print(f"Loaded {uploader.initialize_company_cache()} existing companies")
 
-        def process(path: Path) -> Dict[str, Any]:
-            data = {"doc_attrs": analyze_document(path, sentiment)}
-            result = uploader.update_measures(data) if measures_only else uploader.upload_document(data, year)
+        def process(path: Union[Path, StoredTranscript]) -> Dict[str, Any]:
+            fallback_year = year
+            if isinstance(path, StoredTranscript):
+                with uploader.pool.connection() as conn:
+                    stored = latest_xml(conn, [path.source_file]).get(path.source_file)
+                if stored is None:
+                    return {"status": "skipped", "reason": "No published transcript", "file_path": str(path)}
+                data = {
+                    "doc_attrs": analyze_document(path.source_file, sentiment, xml=stored.encode("utf-8"))
+                }
+                fallback_year = path.folder_year if path.folder_year is not None else year
+            else:
+                data = {"doc_attrs": analyze_document(path, sentiment)}
+            if measures_only:
+                result = uploader.update_measures(data)
+            else:
+                result = uploader.upload_document(data, fallback_year)
             result["file_path"] = str(path)
             return result
 
@@ -206,7 +281,8 @@ def ingest(
     successful = sum(1 for r in upload_results if r["status"] == "success")
     year_fallbacks = sum(1 for r in upload_results if r.get("year_fallback"))
     if year_fallbacks:
-        print(f"{year_fallbacks} documents had no parseable start date and were stored with year {year}")
+        where = "their year folder's year" if from_db else f"year {year}"
+        print(f"{year_fallbacks} documents had no parseable start date and were stored with {where}")
     return {
         "year": year,
         "num_files_processed": len(files),
@@ -220,9 +296,21 @@ def ingest(
 
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--input-dir", required=True, help="Folder of transcript XMLs")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--input-dir", help="Folder of transcript XMLs")
+    source.add_argument(
+        "--from-db",
+        action="store_true",
+        help="Read the latest published revision of each call from transcript_files",
+    )
     parser.add_argument(
-        "--year", type=int, required=True, help="Year stored for transcripts with no parseable start date"
+        "--year", type=int, help="Year stored for transcripts with no parseable start date (with --input-dir)"
+    )
+    parser.add_argument(
+        "--years",
+        type=int,
+        nargs="+",
+        help="With --from-db, only these years: documents.year with --measures-only, else the year folder",
     )
     parser.add_argument("--pattern", default="*.xml")
     parser.add_argument("--recursive", action="store_true")
@@ -236,6 +324,10 @@ def main(argv: Optional[List[str]] = None) -> None:
         "year, title, date or city, and skip files that have no row",
     )
     args = parser.parse_args(argv)
+    if args.input_dir and args.year is None:
+        parser.error("--input-dir needs --year")
+    if args.years and not args.from_db:
+        parser.error("--years only applies with --from-db")
 
     summary = ingest(
         args.input_dir,
@@ -246,6 +338,8 @@ def main(argv: Optional[List[str]] = None) -> None:
         skip_on_error=not args.stop_on_error,
         num_threads=args.threads,
         measures_only=args.measures_only,
+        from_db=args.from_db,
+        years=args.years,
     )
     print(
         f"{summary['num_uploaded']} of {summary['num_files_processed']} documents uploaded, "

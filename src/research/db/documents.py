@@ -90,7 +90,6 @@ class PostgresUploader:
         "sentiment": ("sentiment", "float"),
         "ml_score": ("ML", "float"),
         "lm_score": ("LM", "float"),
-        "hiv4_score": ("HIV4", "float"),
         "flesch_reading_ease": ("flesch_reading_ease", "float"),
         "flesch_kincaid_grade": ("flesch_kincaid_grade", "float"),
         "smog_index": ("smog_index", "float"),

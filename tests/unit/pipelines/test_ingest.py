@@ -15,7 +15,45 @@ def test_analyze_document(transcripts):
     assert doc["start_date"] == "02-Feb-17 01:30PM GMT"
     assert attrs["num_words"] > 150 and attrs["num_sentences"] > 10
     assert {"flesch_reading_ease", "gunning_fog", "text_standard"} <= attrs.keys()
-    assert "sentiment" not in attrs and out["doc_fit"] is None
+    assert "sentiment" not in attrs and "HIV4" not in attrs and out["doc_fit"] is None
+    # the dictionary tone counts need no model, so they are always computed
+    assert attrs["LM"] is not None and attrs["ML"] is not None
+
+
+def test_analyze_document_from_bytes_matches_the_file(transcripts):
+    path = transcripts / "tight_T.xml"
+    from_bytes = analyze_document("tight_T.xml", xml=path.read_bytes())
+    from_file = analyze_document(path)
+    assert from_bytes["document_attr"] == from_file["document_attr"]
+    assert from_bytes["document"]["file_name"] == "tight_T.xml"
+    assert from_bytes["document"]["company_name"] == from_file["document"]["company_name"]
+
+
+class ScoresEverything:
+    """Stands in for SentimentSetup: fit_all gives every document the same scores."""
+
+    def fit_all(self, doc):
+        doc.sentiment = 0.25
+        return doc
+
+
+def test_a_transcript_with_no_spoken_text_gets_null_scores_not_zeros(tmp_path):
+    stub = tmp_path / "stub_T.xml"
+    stub.write_text(
+        '<Event Id="1"><companyName>Example Industries Inc</companyName>'
+        "<EventStory><Body>Example Industries Inc Q4 2016 Earnings Call</Body></EventStory></Event>",
+        encoding="utf-8",
+    )
+    attrs = analyze_document(stub, sentiment=ScoresEverything())["document_attr"]
+    assert attrs["num_words"] == 0 and attrs["num_sentences"] == 0
+    for key in ("sentiment", "LM", "ML", "flesch_reading_ease", "text_standard", "difficult_words"):
+        assert attrs[key] is None, key
+
+
+def test_sentiment_scores_come_from_the_model_when_there_is_text(transcripts):
+    attrs = analyze_document(transcripts / "spaced_T.xml", sentiment=ScoresEverything())["document_attr"]
+    assert attrs["sentiment"] == 0.25
+    assert "HIV4" not in attrs  # dropped 2026-11-11: stem matching made it unreliable in calls
 
 
 @pytest.mark.parametrize("name", ["spaced_T.xml", "tight_T.xml", "no_headings_T.xml"])

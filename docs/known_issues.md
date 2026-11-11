@@ -94,14 +94,34 @@ Until the rerun, drop these keywords from counts, and for `risk` also drop match
 
 ## Sentiment sums grow with call length
 
-`lm_score`, `hiv4_score` and `ml_score` are sums over sentences, not rates: `hiv4_score`
-correlates 0.90 with the call's word count. To compare calls, use `lm_per_1000_words`,
-`hiv4_per_1000_words` and `ml_per_1000_words` (added 2026-11-11), which are the same
-scores per 1,000 words and correlate with length at about −0.07. Postgres computes them
-on read from the sums and `num_words`, so they always agree with the stored columns.
+`lm_score` and `ml_score` are sums over the call, not rates, so they grow with its length.
+To compare calls, use `lm_per_1000_words` and `ml_per_1000_words` (added 2026-11-11), the
+same scores per 1,000 words, which correlate with length at about −0.07. Postgres computes
+them on read from the sums and `num_words`, so they always agree with the stored columns.
 
 They inherit the word-count problem above: for calls that lost their Q&A, both the sum
 and `num_words` come from the surviving text only.
+
+## Stored LM and ML scores use the old dictionary method
+
+Until the rerun, `lm_score` and `ml_score` come from code that has since been replaced:
+
+- `lm_score` used the pysentiment2 package. It stems every word before looking it up, so
+  "quite" counted as negative "quit" and "press release" as negative "press"; it dropped
+  "good" and "strong" because they are on its list of surnames; and its own copy of the LM
+  dictionary still lists "question", which alone was 22% of negative hits in a sample of
+  calls. The new code matches the repo's LM lists exactly. On 703 sample calls it halves
+  the negative words per call (median 68 to 35) and changes the sign of 147 calls' score.
+- `ml_score` scored +1 only when two neighbouring words were both on the Garcia unigram
+  list, so a single listed word counted for nothing. The paper counts each listed word.
+  On the same calls the median rises from 1.4 to 20.4 per 1,000 words.
+
+`hiv4_score` (Harvard IV-4) is no longer computed, and its two columns are dropped at the
+rerun by `db/migrations/20261111_2000_drop_documents_hiv4.sql`; until then they hold the
+old values for existing calls and NULL for new ones. It stemmed words too: nearly half
+its hits in calls were not the dictionary word itself ("will" scored positive through
+"willing", "margin" negative through "marginal"), and the Harvard lists treat words such as
+"cost" and "capital" as negative. Analyses that used it need another tone measure.
 
 ## Sentiment of short documents depends on the load batch
 
@@ -111,8 +131,9 @@ with 30–100 sentences, against at most 1.1% in the years loaded earlier. The d
 scores do not differ, so the sentiment model ran differently. The cause is not known,
 and the database does not record the model version.
 
-`analyze_document` also writes 0.0 when the model returns nothing, so a failed score
-and a neutral document look the same.
+Stored rows also have 0 for every score of a transcript with no spoken text, so an
+empty document and a neutral one look the same. Since 2026-11-11 `ingest` writes NULL
+for those; the stored rows change at the rerun.
 
 Do not compare the `sentiment` of short documents across years.
 

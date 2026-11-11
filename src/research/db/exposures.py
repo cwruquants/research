@@ -48,6 +48,15 @@ def keyword_set_sizes(conn: psycopg.Connection, names: List[str]) -> Dict[str, i
         return dict(cur.fetchall())
 
 
+def register_keyword_set(conn: psycopg.Connection, name: str, source_file: str, total_keywords: int) -> None:
+    """Add a keyword_sets row for a set that has never been run."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.keyword_sets (name, source_file, total_keywords) VALUES (%s, %s, %s)",
+            [name, source_file, total_keywords],
+        )
+
+
 def missing_runs(conn: psycopg.Connection, names: List[str], years: Optional[List[int]]) -> List[dict]:
     """Documents with at least one missing run for the named sets, with the sets each one needs."""
     with conn.cursor() as cur:

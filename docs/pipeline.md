@@ -95,12 +95,18 @@ zips stay the record of truth; the table can be rebuilt from them.
 - `documents.sentiment`: a financial-news DistilRoBERTa model scores each sentence
   (+score positive, −score negative, 0 neutral); that is averaged within each paragraph,
   then across paragraphs.
-- `lm_score`, `hiv4_score`: per sentence, positive minus negative word counts from the
-  Loughran–McDonald and Harvard IV dictionaries (pysentiment2), summed over the call.
-- `ml_score`: per sentence, +1 for every adjacent word pair where both words are on the
-  Garcia positive unigram list and −1 where both are on the negative list, summed.
-  These three are sums, so they grow with call length.
-- `lm_per_1000_words`, `hiv4_per_1000_words`, `ml_per_1000_words`: the three sums per
+- `lm_score`, `ml_score`: positive minus negative word counts over the call, from the
+  repo's `LM_Positive.csv` / `LM_Negative.csv` and the Garcia ML unigram lists
+  (`research.features.lexicon`). Words are matched exactly, with no stemming or stopword
+  list. `ingest` always computes them; they need no model. Rows stored before the rerun
+  used the older method described in [known_issues.md](known_issues.md).
+  Both are sums, so they grow with call length. A transcript with no spoken text gets NULL
+  for every score and readability measure, not 0.
+- The Harvard IV-4 score (`hiv4_score`) is no longer computed (2026-11-11): it stemmed
+  words, so in calls nearly half its hits were other words, and its general-English lists
+  count words such as "cost" and "capital" as negative. Its columns are dropped at the
+  rerun (`db/migrations/20261111_2000_drop_documents_hiv4.sql`).
+- `lm_per_1000_words`, `ml_per_1000_words`: the two sums per
   1,000 words (`1000 * score / num_words`), the ones to compare across calls. They are
   virtual columns that Postgres computes on read; nothing writes them.
 - `exposure_runs`, `keyword_matches`: Presentation and Q&A text only
@@ -108,9 +114,17 @@ zips stay the record of truth; the table can be rebuilt from them.
 
 ## Rerunning a step
 
-- New transcripts: `research ingest`, then `research backfill` for every keyword set.
-- A new keyword set: add it to `config/keyword_sets.toml` and a `keyword_sets` row (with
-  `total_keywords`), then `research backfill`. Don't change the options of a set that
+- New transcripts: `research ingest --from-db --years <years>` makes `documents` rows for
+  calls in `transcript_files` that have none, then `research backfill` for every keyword set.
+- Recomputing the text measures of existing calls: `research ingest --from-db
+  --measures-only` (add `--sentiment` for the model scores). It reads the latest published
+  revision and changes only the measure columns, never company, year, title, date or city.
+- A new keyword set: add it to `config/keyword_sets.toml`, then `research backfill --sets
+  <name>`, which registers its `keyword_sets` row. Don't change the options of a set that
   already has runs; add a new set.
+- Redoing the exposures (new code or word lists): add versioned sets, such as
+  `risk_2026_11`, and run `research backfill --from-db --sets risk_2026_11 ...`. Backfill
+  never replaces an existing run, so the old sets stay until they are dropped, which is a
+  DB change that needs approval.
 - New links or returns: run the step, then the matching `db/loads/` script. Both load
   scripts expect empty tables; replacing rows is a DB change that needs approval.

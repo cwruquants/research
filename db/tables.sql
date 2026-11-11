@@ -21,7 +21,6 @@ CREATE TABLE public.documents (
     sentiment double precision,
     ml_score double precision,
     lm_score double precision,
-    hiv4_score double precision,
     flesch_reading_ease double precision,
     flesch_kincaid_grade double precision,
     smog_index double precision,
@@ -40,11 +39,9 @@ CREATE TABLE public.documents (
     rx_active_ratio double precision,
     rx_passive_ratio double precision,
     risk_total_sentences integer,
-    -- The three dictionary scores per 1,000 words, computed on read from the sums above
+    -- The dictionary scores per 1,000 words, computed on read from the sums above
     lm_per_1000_words double precision
         GENERATED ALWAYS AS (1000.0 * lm_score / NULLIF(num_words, 0)) VIRTUAL,
-    hiv4_per_1000_words double precision
-        GENERATED ALWAYS AS (1000.0 * hiv4_score / NULLIF(num_words, 0)) VIRTUAL,
     ml_per_1000_words double precision
         GENERATED ALWAYS AS (1000.0 * ml_score / NULLIF(num_words, 0)) VIRTUAL
 );
