@@ -18,10 +18,11 @@ Terms as this repo and the `research` database use them.
   call by its own date and title, not by its company row.
 - **Ticker / RIC.** `companies.ticker` is a Refinitiv RIC: root, optional share class,
   exchange suffix and a `^` delisting code (`AAPL.OQ`, `OCR^H15`).
-- **Presentation / Q&A.** The two spoken sections of a transcript. Keyword matching,
-  word counts, readability and sentiment all read only these, with speaker lines removed
-  (`spoken_text`). The stored word counts and readability still come from the whole XML
-  body.
+- **Presentation / Q&A.** The usual two spoken sections of a transcript. Some calls head
+  them differently ("Transcript", "q and a") or repeat them. Keyword matching, word
+  counts, readability and sentiment all read every section except the participant lists,
+  with speaker lines removed (`spoken_text`). The stored word counts and readability still
+  come from the whole XML body.
 
 ## Word lists and matching
 

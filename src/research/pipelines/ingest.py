@@ -20,8 +20,8 @@ hand fixes such as the October 2026 company cleanup. --measures-only updates onl
 measure columns, never creates a row or a company, and skips files with no row. Without
 --sentiment it leaves the stored sentiment scores as they are.
 
-Every text measure uses the spoken text (Presentation and Q&A with speaker lines removed),
-the same text keyword matching reads. Rows stored before 2026-11-11 used the whole XML
+Every text measure uses the spoken text (every section except the participant lists, with
+speaker lines removed), the same text keyword matching reads. Rows stored before 2026-11-11 used the whole XML
 body and have not been recomputed (see docs/known_issues.md).
 
 Usage (DATABASE_URL set to a role that can write companies and documents):
@@ -182,7 +182,7 @@ def run_settings(
         "source": "transcript_files_latest" if from_db else {"input_dir": str(input_dir), "pattern": pattern},
         "measures_only": measures_only,
         "years": list(years) if years else None,
-        "text": "spoken_text: Presentation and Q&A, speaker lines removed",
+        "text": "spoken_text: every section except the participant lists, speaker lines removed",
         "lexicon": {
             name: {side: word_list(path) for side, path in files.items()}
             for name, files in _lexicon_scorer().files().items()
