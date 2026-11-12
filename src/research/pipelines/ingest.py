@@ -17,8 +17,9 @@ A transcript with no spoken text gets NULL readability and tone, not zeros.
 To recompute the measures of calls already in the database, pass --measures-only. A plain
 re-run also rewrites company, year, title, date and city from the file, which would undo
 hand fixes such as the October 2026 company cleanup. --measures-only updates only the
-measure columns, never creates a row or a company, and skips files with no row. Without
---sentiment it leaves the stored sentiment scores as they are.
+measure columns and the event type the file states, never creates a row or a company, and
+skips files with no row. Without --sentiment it leaves the stored sentiment scores as they
+are.
 
 Every text measure uses the spoken text (every section except the participant lists, with
 speaker lines removed), the same text keyword matching reads. Rows stored before 2026-11-11 used the whole XML
@@ -367,8 +368,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument(
         "--measures-only",
         action="store_true",
-        help="Only overwrite the text measures of existing documents rows; never change company, "
-        "year, title, date or city, and skip files that have no row",
+        help="Only overwrite the text measures and event type of existing documents rows; never "
+        "change company, year, title, date or city, and skip files that have no row",
     )
     args = parser.parse_args(argv)
     if args.input_dir and args.year is None:

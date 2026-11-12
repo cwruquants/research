@@ -79,8 +79,16 @@ class LexiconScorer:
         return {name: dictionary.counts(words) for name, dictionary in self.dictionaries.items()}
 
     def scores(self, text: str) -> Dict[str, Optional[float]]:
-        """Positive minus negative count for each dictionary; None for a text with no words."""
-        counts = self.counts(text)
-        if not _WORD.search(text.lower()):
-            return {name: None for name in counts}
-        return {name: float(c["positive"] - c["negative"]) for name, c in counts.items()}
+        """
+        For each dictionary its positive count, its negative count and the first minus the
+        second, keyed "LM_positive", "LM_negative" and "LM". All None for a text with no
+        words. The two counts are kept because the net score cannot tell a flat call from
+        one with many positive and many negative words.
+        """
+        has_words = bool(_WORD.search(text.lower()))
+        scores: Dict[str, Optional[float]] = {}
+        for name, count in self.counts(text).items():
+            scores[name] = float(count["positive"] - count["negative"]) if has_words else None
+            scores[f"{name}_positive"] = count["positive"] if has_words else None
+            scores[f"{name}_negative"] = count["negative"] if has_words else None
+        return scores

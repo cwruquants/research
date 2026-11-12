@@ -91,6 +91,16 @@ def test_every_section_is_kept_whatever_its_heading(tmp_path, sections, tight):
         assert len(text.split("\n\n")) == len(sections)
 
 
+def test_doubly_escaped_ampersands_are_unescaped(tmp_path):
+    # The vendor escapes the body twice, so the XML parser still leaves "&amp;" behind
+    turns = [
+        ("Dana Park   [1]", "R&amp;D rose, M&amp;A slowed and 5 &lt; 6. Our P&L and AT&T stay as they are."),
+        ("Lee Moran   [2]", "We said &amp;quot;no&amp;quot; once."),  # a few files escape a third time
+    ]
+    text = spoken_text(_transcript(tmp_path, [("Presentation", turns)], tight=True))
+    assert text == 'R&D rose, M&A slowed and 5 < 6. Our P&L and AT&T stay as they are.\nWe said "no" once.'
+
+
 def test_unreadable_file_gives_empty_document(tmp_path):
     bad = tmp_path / "bad_T.xml"
     bad.write_text("<Event><Body>unclosed", encoding="utf-8")

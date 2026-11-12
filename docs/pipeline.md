@@ -90,7 +90,8 @@ zips stay the record of truth; the table can be rebuilt from them.
 
 - `documents.num_words`, `num_sentences` and readability: the spoken text, that is every
   section except the participant lists (usually a Presentation and a Q&A) with speaker
-  lines removed (`research.pipelines.ingest.analyze_document`, text from
+  lines removed and the vendor's doubled escaping undone ("R&amp;amp;D" in the file is
+  "R&D" in the text) (`research.pipelines.ingest.analyze_document`, text from
   `research.transcripts.parse.spoken_text`). Rows stored before 2026-11-11 used the whole
   XML body and are not recomputed yet (see [known_issues.md](known_issues.md)).
 - `documents.sentiment`: a financial-news DistilRoBERTa model scores each sentence
@@ -106,6 +107,12 @@ zips stay the record of truth; the table can be rebuilt from them.
   used the older method described in [known_issues.md](known_issues.md).
   Both are sums, so they grow with call length. A transcript with no spoken text gets NULL
   for every score and readability measure, not 0.
+- `lm_positive`, `lm_negative`, `ml_positive`, `ml_negative`: the two word counts behind
+  each score (`lm_score = lm_positive - lm_negative`), so a flat call can be told from one
+  with many positive and many negative words. NULL until the rerun writes the row.
+- `event_type_id`, `event_type`: the vendor's event type from the file's `Event` tag
+  (1, "Earnings Conference Call"). `ingest` fills them on every run, `--measures-only`
+  included. NULL until the rerun writes the row.
 - The Harvard IV-4 score (`hiv4_score`) is no longer computed (2026-11-11): it stemmed
   words, so in calls nearly half its hits were other words, and its general-English lists
   count words such as "cost" and "capital" as negative. Its columns are dropped at the
@@ -128,7 +135,8 @@ zips stay the record of truth; the table can be rebuilt from them.
   calls in `transcript_files` that have none, then `research backfill` for every keyword set.
 - Recomputing the text measures of existing calls: `research ingest --from-db
   --measures-only` (add `--sentiment` for the model scores). It reads the latest published
-  revision and changes only the measure columns, never company, year, title, date or city.
+  revision and changes only the measure columns and the event type, never company, year,
+  title, date or city.
 - A new keyword set: add it to `config/keyword_sets.toml`, then `research backfill --sets
   <name>`, which registers its `keyword_sets` row. Don't change the options of a set that
   already has runs; add a new set.

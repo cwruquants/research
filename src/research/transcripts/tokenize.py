@@ -1,8 +1,7 @@
 from nltk.tokenize import RegexpTokenizer
 from nltk.util import bigrams
 
-from research.transcripts._nltk import sent_tokenize
-from research.transcripts.models import DocumentAttr
+from research.transcripts.models import DocumentAttr, split_sentences
 
 __all__ = [
     "document_to_word",
@@ -32,10 +31,10 @@ def document_to_sentence(document: DocumentAttr):
     - document: DocumentAttr
 
     Output:
-    - sentence_strings: List[String]
+    - sentence_strings: List[String], split one blank-line block at a time, the same
+      sentences DocumentAttr counts
     """
-    sentences = sent_tokenize(document.text)
-    return sentences
+    return split_sentences(document.text)
 
 
 def document_to_bigram(document: DocumentAttr):

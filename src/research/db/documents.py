@@ -90,6 +90,11 @@ class PostgresUploader:
         "sentiment": ("sentiment", "float"),
         "ml_score": ("ML", "float"),
         "lm_score": ("LM", "float"),
+        # The two counts behind each net score: lm_score = lm_positive - lm_negative
+        "lm_positive": ("LM_positive", "int"),
+        "lm_negative": ("LM_negative", "int"),
+        "ml_positive": ("ML_positive", "int"),
+        "ml_negative": ("ML_negative", "int"),
         "flesch_reading_ease": ("flesch_reading_ease", "float"),
         "flesch_kincaid_grade": ("flesch_kincaid_grade", "float"),
         "smog_index": ("smog_index", "float"),
@@ -122,6 +127,13 @@ class PostgresUploader:
                 row[column] = str(value) if value not in (None, "") else None
         return row
 
+    def _event_type_columns(self, doc_metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """The vendor's event type as the transcript file states it (1, "Earnings Conference Call")."""
+        return {
+            "event_type_id": self._safe_int(doc_metadata.get("event_type_id")),
+            "event_type": clean_text(_as_str(doc_metadata.get("event_type"))),
+        }
+
     def _update_measures_once(self, data: Dict[str, Any]) -> Dict[str, Any]:
         doc_attrs = data["doc_attrs"]
         source_file = str(doc_attrs["document"].get("file_name", ""))
@@ -130,7 +142,8 @@ class PostgresUploader:
         row = self._measure_columns(doc_attrs["document_attr"], only_present=True)
         if not row:
             return {"status": "skipped", "reason": "No measures to write", "source_file": source_file}
-        # Column names come only from _MEASURES; values are parameters.
+        row.update(self._event_type_columns(doc_attrs["document"]))
+        # Column names come only from _MEASURES and _event_type_columns; values are parameters.
         assignments = ", ".join(f"{column} = %s" for column in row)
         statement = f"UPDATE public.documents SET {assignments} WHERE source_file = %s RETURNING id, year"
         with self.pool.connection() as conn:
@@ -173,6 +186,7 @@ class PostgresUploader:
             "event_title": clean_text(_as_str(doc_metadata.get("event_title"))),
             "event_date": event_date,
             "city": clean_text(_as_str(doc_metadata.get("city"))),
+            **self._event_type_columns(doc_metadata),
             **self._measure_columns(doc_attr),
         }
 
@@ -209,8 +223,9 @@ class PostgresUploader:
     def update_measures(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Overwrite only the text measures of an existing documents row, matched on
-        source_file. Company, year, title, date and city are never touched, and no row or
-        company is ever created: a file with no row is skipped.
+        source_file, and fill its event type from the file. Company, year, title, date and
+        city are never touched, and no row or company is ever created: a file with no row
+        is skipped.
         """
         return self._with_retries(lambda: self._update_measures_once(data), data)
 

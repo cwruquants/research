@@ -8,7 +8,7 @@ import pytest
 from research.db.documents import PostgresUploader
 
 
-def _document(company, source_file, title, measures):
+def _document(company, source_file, title, measures, event_type=(None, None)):
     return {
         "doc_attrs": {
             "document": {
@@ -18,6 +18,8 @@ def _document(company, source_file, title, measures):
                 "event_title": title,
                 "start_date": "02-Feb-21 1:30PM GMT",
                 "city": "Elsewhere",
+                "event_type_id": event_type[0],
+                "event_type": event_type[1],
             },
             "document_attr": measures,
         }
@@ -64,7 +66,10 @@ def test_update_measures_changes_only_the_measures(test_database_url):
                     "num_words": 250,
                     "num_sentences": 20,
                     "flesch_reading_ease": 60.0,
+                    "LM_positive": 7,
+                    "LM_negative": 9,
                 },
+                event_type=("1", "Earnings Conference Call"),
             )
         )
         assert result["status"] == "success" and result["document_id"] == first["document_id"]
@@ -85,6 +90,12 @@ def test_update_measures_changes_only_the_measures(test_database_url):
             ).fetchone()
             assert after == before  # metadata untouched
             assert measures == (250, 20, 60.0, 0.2, -3.0)  # new measures; sentiment kept
+            filled = conn.execute(
+                "SELECT lm_positive, lm_negative, event_type_id, event_type FROM public.documents "
+                "WHERE source_file = %s",
+                [source_file],
+            ).fetchone()
+            assert filled == (7, 9, 1, "Earnings Conference Call")  # the file's event type is filled in
             assert conn.execute("SELECT count(*) FROM public.companies").fetchone()[0] == companies_before
             assert (
                 conn.execute(
