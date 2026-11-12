@@ -47,6 +47,7 @@ from tqdm import tqdm
 
 from research import config
 from research.db.exposures import keyword_set_sizes, missing_runs, register_keyword_set, write_runs
+from research.db.provenance import start_run, word_list
 from research.db.transcript_files import latest_transcript_names, latest_xml
 from research.matching.direct import MatchingAgent
 from research.transcripts._nltk import ensure_nltk_data
@@ -66,9 +67,13 @@ def _init_worker(database_url: str) -> None:
 
 
 def process_batch(
-    batch: List[dict], run_timestamp: str, agents: Optional[Dict[str, MatchingAgent]] = None, conn=None
+    batch: List[dict],
+    run_timestamp: str,
+    agents: Optional[Dict[str, MatchingAgent]] = None,
+    conn=None,
+    run_id: Optional[int] = None,
 ) -> dict:
-    """Match one batch of documents and write it in a single transaction."""
+    """Match one batch of documents and write it in a single transaction, stamped with run_id."""
     agents = _agents if agents is None else agents
     conn = _conn if conn is None else conn
     run_rows = []
@@ -122,6 +127,7 @@ def process_batch(
                     results.total_sentences_in_document,
                     results.total_sentences_with_match,
                     results.percent_sentences_with_match,
+                    run_id,
                     run_timestamp,
                 )
             )
@@ -168,6 +174,26 @@ def _load_missing(
                 f"says {db_sizes[name]}; refusing to mix word lists"
             )
     return missing_runs(conn, list(sets), years)
+
+
+def run_settings(names: Optional[List[str]], from_db: bool, sources, years) -> dict:
+    """What a pipeline_runs row records about a backfill run."""
+    sets = config.keyword_sets()
+    chosen = names or list(sets)
+    return {
+        "source": "transcript_files_latest" if from_db else list(sources or []),
+        "years": years,
+        "keyword_sets": {
+            name: {
+                "list": word_list(sets[name].file),
+                "exclusions": word_list(sets[name].exclusions),
+                "normalize_phrases": sets[name].normalize_phrases,
+                "exclude_safe_harbor": sets[name].exclude_safe_harbor,
+                "total_keywords": len(MatchingAgent(**sets[name].matching_options()).keywords_list),
+            }
+            for name in chosen
+        },
+    }
 
 
 def _write_failures(failures: List[tuple], report_dir: str, suffix: str) -> None:
@@ -250,6 +276,10 @@ def main() -> None:
         _write_failures(not_found, args.report_dir, f"dryrun_{run_timestamp}")
         return
 
+    with psycopg.connect(database_url) as conn:
+        run_id = start_run(conn, "backfill", run_settings(args.sets, args.from_db, args.source, args.years))
+    print(f"Recording this run as pipeline_runs id {run_id}")
+
     ensure_nltk_data(("punkt_tab",))  # before the workers, which would race to download it
     batches = [todo[i : i + args.batch_size] for i in range(0, len(todo), args.batch_size)]
     totals = defaultdict(int)
@@ -261,7 +291,9 @@ def main() -> None:
         initializer=_init_worker,
         initargs=(database_url,),
     ) as pool:
-        futures = {pool.submit(process_batch, batch, run_timestamp): batch for batch in batches}
+        futures = {
+            pool.submit(process_batch, batch, run_timestamp, None, None, run_id): batch for batch in batches
+        }
         with tqdm(total=len(todo), unit="doc") as progress:
             for future in as_completed(futures):
                 batch = futures[future]

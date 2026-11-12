@@ -47,6 +47,7 @@ from tqdm.auto import tqdm
 
 from research import config
 from research.db.documents import PostgresUploader
+from research.db.provenance import model_revision, word_list
 from research.db.transcript_files import latest_transcript_names, latest_xml
 from research.features.lexicon import LexiconScorer
 from research.features.readability import readability_scores
@@ -92,6 +93,17 @@ def _lexicon_scorer() -> LexiconScorer:
     return _lexicon
 
 
+def _mean_sentence_sentiment(doc: DocumentAttr) -> Optional[float]:
+    """
+    The mean transformer score over every sentence of the call. Each sentence counts once,
+    so a long Q&A weighs more than a short Presentation. (fit_all's own document score is
+    the mean of its paragraph means, and real transcripts have no blank lines between
+    turns, so that was the plain average of the Presentation's and the Q&A's scores.)
+    """
+    scores = [s.sentiment for p in doc.paragraphs for s in p.sentences if s.sentiment is not None]
+    return float(sum(scores) / len(scores)) if scores else None
+
+
 def analyze_document(path: Union[str, Path], sentiment=None, xml: Optional[bytes] = None) -> Dict[str, Any]:
     """
     Metadata and text measures for one transcript, shaped for PostgresUploader:
@@ -122,7 +134,7 @@ def analyze_document(path: Union[str, Path], sentiment=None, xml: Optional[bytes
     if sentiment is not None:
         if doc.num_sentences:
             doc_fit = sentiment.fit_all(doc)
-            measures["sentiment"] = float(doc_fit.sentiment)
+            measures["sentiment"] = _mean_sentence_sentiment(doc_fit)
         else:
             measures["sentiment"] = None
 
@@ -160,6 +172,33 @@ def _gather(
     if not files:
         raise FileNotFoundError(f"No files matched pattern '{pattern}' in {input_dir}")
     return sorted(files)
+
+
+def run_settings(
+    sentiment, measures_only: bool, from_db: bool, years, input_dir, pattern: str
+) -> Dict[str, Any]:
+    """What a pipeline_runs row records about an ingest run."""
+    settings: Dict[str, Any] = {
+        "source": "transcript_files_latest" if from_db else {"input_dir": str(input_dir), "pattern": pattern},
+        "measures_only": measures_only,
+        "years": list(years) if years else None,
+        "text": "spoken_text: Presentation and Q&A, speaker lines removed",
+        "lexicon": {
+            name: {side: word_list(path) for side, path in files.items()}
+            for name, files in _lexicon_scorer().files().items()
+        },
+        "sentiment": None,
+    }
+    if sentiment is not None:
+        model = DEFAULT_SENTIMENT["hf_model"]
+        settings["sentiment"] = {
+            "hf_model": model,
+            "model_revision": model_revision(model),
+            "max_length": getattr(sentiment, "max_length", DEFAULT_SENTIMENT["max_length"]),
+            "batch_size": getattr(sentiment, "batch_size", DEFAULT_SENTIMENT["batch_size"]),
+            "document_score": "mean over sentences",
+        }
+    return settings
 
 
 @dataclass(frozen=True)
@@ -219,6 +258,10 @@ def ingest(
     try:
         if not measures_only:
             print(f"Loaded {uploader.initialize_company_cache()} existing companies")
+        run_id = uploader.start_run(
+            "ingest", run_settings(sentiment, measures_only, from_db, years, input_dir, pattern)
+        )
+        print(f"Recording this run as pipeline_runs id {run_id}")
 
         def process(path: Union[Path, StoredTranscript]) -> Dict[str, Any]:
             fallback_year = year
@@ -233,6 +276,10 @@ def ingest(
                 fallback_year = path.folder_year if path.folder_year is not None else year
             else:
                 data = {"doc_attrs": analyze_document(path, sentiment)}
+            attrs = data["doc_attrs"]["document_attr"]
+            attrs["measures_run_id"] = run_id
+            if sentiment is not None:
+                attrs["sentiment_run_id"] = run_id
             if measures_only:
                 result = uploader.update_measures(data)
             else:

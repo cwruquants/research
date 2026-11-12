@@ -62,6 +62,7 @@ and 2026-02 (607,305), made by older code and word lists.
   (about 164,000 rows). Counts are not affected.
 - 19 runs for 2018 calls have their matches stored twice (837 extra rows).
 
+After the rerun, `exposure_runs.pipeline_run_id` names the backfill run behind each run.
 Until every document is rerun, filter on `exposure_runs.created_at` when the batch
 matters, and drop `match_type = 'cosine'` rows from direct counts.
 
@@ -132,7 +133,9 @@ Calls from 2015, 2017, 2019 and 2021 were loaded later than the other years, and
 short documents have `sentiment` of exactly 0 far more often: 21.6% of 2021 documents
 with 30–100 sentences, against at most 1.1% in the years loaded earlier. The dictionary
 scores do not differ, so the sentiment model ran differently. The cause is not known,
-and the database does not record the model version.
+and the database did not record the model version. Since 2026-11-11 every ingest run is
+recorded in `pipeline_runs` with its model, revision and package versions, so a batch
+effect in the rerun can be traced through `documents.sentiment_run_id`.
 
 Stored rows also have 0 for every score of a transcript with no spoken text, so an
 empty document and a neutral one look the same. Since 2026-11-11 `ingest` writes NULL
@@ -154,8 +157,9 @@ Flesch-Kincaid grade above 30, or a Flesch reading ease below 0.
 
 `linsear_write_formula` reads only the first 100 words, which in the stored rows are the
 vendor header and participant list. 31% of rows score above 30, and `text_standard`
-partly inherits it. Do not use either column as stored. After a recompute the first 100
-words will be the start of the Presentation, which is still not the whole call.
+partly inherits it. Do not use either column. `ingest` no longer computes them (2026-11-11),
+and `db/migrations/20261111_2100_drop_documents_linsear_text_standard.sql` drops both at
+the rerun.
 
 ## Legacy columns in `documents`
 

@@ -1,4 +1,8 @@
-"""Readability scores for a transcript's text (textstat)."""
+"""Readability scores for a transcript's text (textstat).
+
+Linsear Write and textstat's text_standard are not computed: Linsear Write reads only a
+text's first 100 words, and text_standard is a vote that includes it (dropped 2026-11-11).
+"""
 
 from typing import Any, Dict
 
@@ -15,7 +19,5 @@ def readability_scores(text: str) -> Dict[str, Any]:
         "automated_readability_index": textstat.automated_readability_index(text),
         "dale_chall_readability_score": textstat.dale_chall_readability_score(text),
         "difficult_words": textstat.difficult_words(text),
-        "linsear_write_formula": textstat.linsear_write_formula(text),
         "gunning_fog": textstat.gunning_fog(text),
-        "text_standard": textstat.text_standard(text),
     }

@@ -45,16 +45,17 @@ class Dictionary:
         return {"positive": positive, "negative": negative}
 
 
+# dictionary -> (positive list, negative list), under data/word_sets
+DICTIONARY_FILES = {
+    "LM": ("LM_Positive.csv", "LM_Negative.csv"),
+    "ML": ("Garcia_MLWords_ML_positive_unigram.csv", "Garcia_MLWords_ML_negative_unigram.csv"),
+}
+
+
 def _default_dictionaries(word_sets_dir: Path) -> Dict[str, Dictionary]:
     return {
-        "LM": Dictionary(
-            read_word_list(word_sets_dir / "LM_Positive.csv"),
-            read_word_list(word_sets_dir / "LM_Negative.csv"),
-        ),
-        "ML": Dictionary(
-            read_word_list(word_sets_dir / "Garcia_MLWords_ML_positive_unigram.csv"),
-            read_word_list(word_sets_dir / "Garcia_MLWords_ML_negative_unigram.csv"),
-        ),
+        name: Dictionary(read_word_list(word_sets_dir / positive), read_word_list(word_sets_dir / negative))
+        for name, (positive, negative) in DICTIONARY_FILES.items()
     }
 
 
@@ -62,7 +63,15 @@ class LexiconScorer:
     """Scores texts against the LM and ML dictionaries; build once and reuse."""
 
     def __init__(self, word_sets_dir: Optional[Path] = None):
-        self.dictionaries = _default_dictionaries(Path(word_sets_dir or config.WORD_SETS_DIR))
+        self.word_sets_dir = Path(word_sets_dir or config.WORD_SETS_DIR)
+        self.dictionaries = _default_dictionaries(self.word_sets_dir)
+
+    def files(self) -> Dict[str, Dict[str, Path]]:
+        """The word list files behind each dictionary."""
+        return {
+            name: {"positive": self.word_sets_dir / positive, "negative": self.word_sets_dir / negative}
+            for name, (positive, negative) in DICTIONARY_FILES.items()
+        }
 
     def counts(self, text: str) -> Dict[str, Dict[str, int]]:
         """Positive and negative word counts for each dictionary."""

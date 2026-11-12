@@ -8,6 +8,7 @@ import psycopg
 import pytest
 
 from research.db.exposures import register_keyword_set
+from research.db.provenance import start_run
 from research.matching.direct import MatchingAgent
 from research.pipelines import backfill_exposures
 from research.pipelines import ingest as ingest_module
@@ -77,6 +78,20 @@ def test_ingest_and_backfill_read_the_latest_revision(test_database_url, transcr
                 "SELECT id, year FROM public.documents WHERE source_file = %s", [known]
             ).fetchone()
             assert doc_year == YEAR
+            # The rerun names its pipeline_runs row; sentiment was not computed, so it keeps
+            # the first ingest's run id
+            measures_run, sentiment_run = conn.execute(
+                "SELECT measures_run_id, sentiment_run_id FROM public.documents WHERE source_file = %s",
+                [known],
+            ).fetchone()
+            step, command, settings, code_hash = conn.execute(
+                "SELECT step, command, settings, code_sha256 FROM public.pipeline_runs WHERE id = %s",
+                [measures_run],
+            ).fetchone()
+            assert step == "ingest" and settings["measures_only"] is True and settings["years"] == [YEAR]
+            assert settings["source"] == "transcript_files_latest" and len(code_hash) == 64
+            assert sentiment_run is None
+            run_ids = [measures_run]
 
         # Backfill: one batch read from the table, on a connection that is not in autocommit
         with psycopg.connect(test_database_url) as conn:
@@ -100,8 +115,15 @@ def test_ingest_and_backfill_read_the_latest_revision(test_database_url, transcr
                     "location": ("db", f"9{tag}9_T.xml", None),
                 },
             ]
+            with conn.transaction():
+                backfill_run = start_run(conn, "backfill", {"keyword_sets": {set_name: {}}}, command="test")
+            run_ids.append(backfill_run)
             result = backfill_exposures.process_batch(
-                batch, "TS", agents={set_name: MatchingAgent(keywords_path=str(words))}, conn=conn
+                batch,
+                "TS",
+                agents={set_name: MatchingAgent(keywords_path=str(words))},
+                conn=conn,
+                run_id=backfill_run,
             )
         finally:
             conn.close()  # the run must already be committed: closing rolls back anything open
@@ -109,13 +131,22 @@ def test_ingest_and_backfill_read_the_latest_revision(test_database_url, transcr
         assert [reason for _, _, reason in result["failures"]] == ["no published transcript"]
         with psycopg.connect(test_database_url) as conn:
             sentences = conn.execute(
-                "SELECT total_sentences_in_document FROM public.exposure_runs "
+                "SELECT total_sentences_in_document, pipeline_run_id FROM public.exposure_runs "
                 "WHERE document_id = %s AND keyword_set_id = %s",
                 [document_id, set_id],
             ).fetchone()
-            assert sentences == (expected["num_sentences"],)
+            assert sentences == (expected["num_sentences"], backfill_run)
     finally:
         with psycopg.connect(test_database_url) as conn:
             conn.execute("DELETE FROM public.documents WHERE source_file IN (%s, %s)", [known, new])
             conn.execute("DELETE FROM public.keyword_sets WHERE name = %s", [set_name])
             conn.execute("DELETE FROM public.transcript_files WHERE archive = %s", [archive.name])
+            conn.execute("SET session_replication_role = replica")  # past the append-only trigger
+            conn.execute(
+                "DELETE FROM public.pipeline_runs WHERE settings->'years' = %s::jsonb OR command = 'test'",
+                [f"[{YEAR}]"],
+            )
+            conn.execute(
+                "DELETE FROM public.pipeline_runs WHERE settings->'years' = %s::jsonb",
+                [f"[{YEAR}, {YEAR + 1}]"],
+            )

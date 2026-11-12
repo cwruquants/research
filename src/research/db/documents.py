@@ -97,9 +97,10 @@ class PostgresUploader:
         "automated_readability": ("automated_readability_index", "float"),
         "dale_chall_score": ("dale_chall_readability_score", "float"),
         "difficult_words": ("difficult_words", "int"),
-        "linsear_write_formula": ("linsear_write_formula", "float"),
         "gunning_fog": ("gunning_fog", "float"),
-        "text_standard": ("text_standard", "text"),
+        # pipeline_runs rows behind the measures and the transformer sentiment
+        "measures_run_id": ("measures_run_id", "int"),
+        "sentiment_run_id": ("sentiment_run_id", "int"),
     }
 
     def _measure_columns(self, doc_attr: Dict[str, Any], only_present: bool = False) -> Dict[str, Any]:
@@ -197,6 +198,13 @@ class PostgresUploader:
     def upload_document(self, data: Dict[str, Any], year: int) -> Dict[str, Any]:
         """Upload one document, retrying a transient connection failure."""
         return self._with_retries(lambda: self._upload_once(data, year), data)
+
+    def start_run(self, step: str, settings: Dict[str, Any]) -> int:
+        """Record a pipeline_runs row for this run (see research.db.provenance)."""
+        from research.db.provenance import start_run
+
+        with self.pool.connection() as conn:
+            return start_run(conn, step, settings)
 
     def update_measures(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """

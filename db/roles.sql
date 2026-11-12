@@ -22,3 +22,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
 
 -- transcript_files is append-only: the raw vendor files are loaded once and never edited.
 REVOKE UPDATE, DELETE, TRUNCATE ON public.transcript_files FROM research_agent, research_app;
+
+-- pipeline_runs is append-only too. Its owner keeps UPDATE for the foreign-key row locks;
+-- a trigger in constraints.sql refuses the changes themselves.
+REVOKE UPDATE, DELETE, TRUNCATE ON public.pipeline_runs FROM research_app;
