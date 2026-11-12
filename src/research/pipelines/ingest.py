@@ -1,13 +1,14 @@
 """
 Parse transcript XMLs and write their companies and documents rows to Postgres.
 
-For each XML: company metadata, the cleaned full body text, sentence and word counts,
-readability scores and, with --sentiment, the transformer, LM, HIV4 and Garcia ML
-sentiment scores. Rows are upserted on documents.source_file, so re-running a folder
-updates it in place. Keyword exposures are a separate step: `research backfill`.
+For each XML: company metadata, then sentence and word counts, readability scores and,
+with --sentiment, the transformer, LM, HIV4 and Garcia ML sentiment scores. Rows are
+upserted on documents.source_file, so re-running a folder updates it in place. Keyword
+exposures are a separate step: `research backfill`.
 
-Note: num_words, num_sentences and readability use the whole XML body, while keyword
-matching uses only the Presentation and Q&A sections (see docs/known_issues.md).
+Every text measure uses the spoken text (Presentation and Q&A with speaker lines removed),
+the same text keyword matching reads. Rows stored before 2026-11-11 used the whole XML
+body and have not been recomputed (see docs/known_issues.md).
 
 Usage (DATABASE_URL set to a role that can write companies and documents):
 
@@ -29,7 +30,7 @@ from research.db.documents import PostgresUploader
 from research.features.readability import readability_scores
 from research.transcripts._nltk import ensure_nltk_data
 from research.transcripts.models import DocumentAttr
-from research.transcripts.parse import clean_spoken_content, extract_full_body_text, get_company_metadata
+from research.transcripts.parse import get_company_metadata, spoken_text
 
 DEFAULT_SENTIMENT = {
     "sheet_name_positive": "ML_positive_unigram",
@@ -67,7 +68,7 @@ def analyze_document(path: Union[str, Path], sentiment=None) -> Dict[str, Any]:
     path = Path(path)
     company = get_company_metadata(path)
 
-    text = clean_spoken_content(extract_full_body_text(path))
+    text = spoken_text(path)
     doc = DocumentAttr(text, store_paragraphs=True, store_sentences=True, store_words=False)
     measures = {"num_sentences": doc.num_sentences, "num_words": doc.num_words, **readability_scores(text)}
 

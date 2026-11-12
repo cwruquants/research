@@ -65,9 +65,21 @@ class SentimentSetup:
         print(f"[SentimentSetup] Resolved batch_size: {self.batch_size}")
 
     def _hf_infer(self, texts: List[str]):
+        """Score texts with the transformer, returning results in input order.
+
+        Texts are run shortest first so each batch holds texts of similar length and
+        needs little padding; the results are then put back in the original order.
+        """
         if not texts:
             return []
+        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+        scored = self._run_transformer([texts[i] for i in order])
+        results = [None] * len(texts)
+        for position, index in enumerate(order):
+            results[index] = scored[position]
+        return results
 
+    def _run_transformer(self, texts: List[str]):
         try:
             from datasets import Dataset
             from transformers.pipelines.pt_utils import KeyDataset
@@ -149,6 +161,7 @@ class SentimentSetup:
         return int(max(1, min(best_working, upper_cap)))
 
     def fit(self, attr_obj: Attr):
+        """Score one node from its own text. Only a sentence gets a transformer score."""
         text = getattr(attr_obj, "text", None)
         if text is None:
             raise ValueError("Attr object does not have a text")
@@ -156,29 +169,24 @@ class SentimentSetup:
         # Only apply HuggingFace model to short text (SentenceAttr)
         if isinstance(attr_obj, SentenceAttr):
             hf_results = self._hf_infer([text])
-            hf_res = hf_results[0] if hf_results else {"label": "neutral", "score": 0.0}
-            if isinstance(hf_res, list):
-                hf_res = hf_res[0]
+            attr_obj.sentiment = _signed_score(hf_results[0]) if hf_results else 0.0
 
-            label = hf_res.get("label", "neutral").lower()
-            score_val = hf_res.get("score", 0.0)
-            if label == "neutral":
-                score = 0.0
-            else:
-                score = score_val if label == "positive" else -score_val
-            attr_obj.sentiment = float(score)
+        self._fit_lexicons(attr_obj)
+        return attr_obj
+
+    def _fit_lexicons(self, attr_obj: Attr):
+        """Set the LM, HIV4 and Garcia ML scores of one node from its own text."""
+        text = attr_obj.text
 
         # LM sentiment
-        lm_tokens = self.lm.tokenize(text)
-        lm_scores = self.lm.get_score(lm_tokens)
+        lm_scores = self.lm.get_score(self.lm.tokenize(text))
         attr_obj.LM = lm_scores["Positive"] - lm_scores["Negative"]
 
         # HIV4 sentiment
-        hiv4_tokens = self.hiv4.tokenize(text)
-        hiv4_scores = self.hiv4.get_score(hiv4_tokens)
+        hiv4_scores = self.hiv4.get_score(self.hiv4.tokenize(text))
         attr_obj.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
 
-        # ML sentiment
+        # ML sentiment (custom bigram-based)
         ml_tokens = re.findall(r"\b\w+\b", text.lower())
         attr_obj.ML = 0
         for i in range(len(ml_tokens) - 1):
@@ -187,70 +195,38 @@ class SentimentSetup:
             if ml_tokens[i] in self.ml_words_positive and ml_tokens[i + 1] in self.ml_words_positive:
                 attr_obj.ML += 1
 
-        return attr_obj
-
     def fit_all(self, attr_obj: Attr):
-        if hasattr(attr_obj, "paragraphs") and attr_obj.paragraphs:
-            for paragraph in attr_obj.paragraphs:
-                self.fit_all(paragraph)
+        """Score attr_obj and everything under it.
 
-            # Average sentiment
-            sentiments = [p.sentiment for p in attr_obj.paragraphs if p.sentiment is not None]
-            attr_obj.sentiment = float(np.mean(sentiments)) if sentiments else 0.0
+        All sentences under attr_obj go through the transformer in one call, so a whole
+        transcript is batched together instead of one paragraph at a time. Nothing is kept
+        on self between calls, so threads can share one SentimentSetup.
+        """
+        sentences = list(_sentences_under(attr_obj))
+        for sentence, hf_res in zip(sentences, self._hf_infer([s.text for s in sentences])):
+            sentence.sentiment = _signed_score(hf_res)
+        return self._fit_tree(attr_obj)
 
-            # Sum custom scores
-            for score in ["HIV4", "ML", "LM"]:
-                total = sum(getattr(p, score, 0.0) for p in attr_obj.paragraphs)
-                setattr(attr_obj, score, float(total))
-
-        elif hasattr(attr_obj, "sentences") and attr_obj.sentences:
-            # Batch Hugging Face inference over all sentences to avoid sequential GPU calls
-            sentence_objs = list(attr_obj.sentences)
-            texts = [getattr(s, "text", "") for s in sentence_objs]
-            # Run transformer in batch (no-op on CPU, efficient on GPU)
-            hf_results = self._hf_infer(texts)
-
-            # Assign HF sentiment and compute lexicon-based scores per sentence
-            for s, hf_res in zip(sentence_objs, hf_results):
-                # HF sentiment
-                if isinstance(hf_res, list):
-                    hf_res = hf_res[0]
-                if hf_res["label"].lower() == "neutral":
-                    s.sentiment = 0.0
-                else:
-                    score = hf_res["score"] if hf_res["label"].lower() == "positive" else -hf_res["score"]
-                    s.sentiment = float(score)
-
-                # LM sentiment
-                lm_tokens = self.lm.tokenize(s.text)
-                lm_scores = self.lm.get_score(lm_tokens)
-                s.LM = lm_scores["Positive"] - lm_scores["Negative"]
-
-                # HIV4 sentiment
-                hiv4_tokens = self.hiv4.tokenize(s.text)
-                hiv4_scores = self.hiv4.get_score(hiv4_tokens)
-                s.HIV4 = hiv4_scores["Positive"] - hiv4_scores["Negative"]
-
-                # ML sentiment (custom bigram-based)
-                ml_tokens = re.findall(r"\b\w+\b", s.text.lower())
-                s.ML = 0
-                for i in range(len(ml_tokens) - 1):
-                    if ml_tokens[i] in self.ml_words_negative and ml_tokens[i + 1] in self.ml_words_negative:
-                        s.ML -= 1
-                    if ml_tokens[i] in self.ml_words_positive and ml_tokens[i + 1] in self.ml_words_positive:
-                        s.ML += 1
-
-            # Aggregate to parent
-            sentiments = [s.sentiment for s in sentence_objs if s.sentiment is not None]
-            attr_obj.sentiment = float(np.mean(sentiments)) if sentiments else 0.0
-
-            for score in ["HIV4", "ML", "LM"]:
-                total = sum(getattr(s, score, 0.0) for s in sentence_objs)
-                setattr(attr_obj, score, float(total))
+    def _fit_tree(self, attr_obj: Attr):
+        """Lexicon scores for each sentence, then every parent from its children:
+        sentiment is their mean, the lexicon scores their sum."""
+        paragraphs = getattr(attr_obj, "paragraphs", None)
+        sentences = getattr(attr_obj, "sentences", None)
+        if paragraphs:
+            children = paragraphs
+            for paragraph in children:
+                self._fit_tree(paragraph)
+        elif sentences:
+            children = sentences
+            for sentence in children:
+                self._fit_lexicons(sentence)
         else:
-            # Leaf node (sentence)
-            self.fit(attr_obj)
+            return self.fit(attr_obj)  # a node with nothing under it
 
+        sentiments = [c.sentiment for c in children if c.sentiment is not None]
+        attr_obj.sentiment = float(np.mean(sentiments)) if sentiments else 0.0
+        for score in ["HIV4", "ML", "LM"]:
+            setattr(attr_obj, score, float(sum(getattr(c, score, 0.0) for c in children)))
         return attr_obj
 
     def export_to_json(self, attr_obj, filepath):
@@ -286,3 +262,23 @@ class SentimentSetup:
     # TODO: Diliya
     def find_weight(corpus: DocumentAttr = None):
         pass
+
+
+def _signed_score(hf_res) -> float:
+    """One transformer result as a signed score: +score positive, -score negative, 0 neutral."""
+    if isinstance(hf_res, list):
+        hf_res = hf_res[0]
+    label = hf_res.get("label", "neutral").lower()
+    if label == "neutral":
+        return 0.0
+    score = hf_res.get("score", 0.0)
+    return float(score if label == "positive" else -score)
+
+
+def _sentences_under(attr_obj):
+    """Yield, in order, every sentence that sits in a `sentences` list under attr_obj."""
+    if getattr(attr_obj, "paragraphs", None):
+        for paragraph in attr_obj.paragraphs:
+            yield from _sentences_under(paragraph)
+    elif getattr(attr_obj, "sentences", None):
+        yield from attr_obj.sentences

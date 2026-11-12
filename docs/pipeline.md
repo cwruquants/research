@@ -56,8 +56,11 @@ records of the October 2026 fixes in `db/fixes/`.
 
 ## Where the numbers come from
 
-- `documents.num_words`, `num_sentences` and readability: the whole XML body with speaker
-  lines removed (`research.pipelines.ingest.analyze_document`).
+- `documents.num_words`, `num_sentences` and readability: the spoken text, that is the
+  Presentation and Q&A with speaker lines removed
+  (`research.pipelines.ingest.analyze_document`, text from
+  `research.transcripts.parse.spoken_text`). Rows stored before 2026-11-11 used the whole
+  XML body and are not recomputed yet (see [known_issues.md](known_issues.md)).
 - `documents.sentiment`: a financial-news DistilRoBERTa model scores each sentence
   (+score positive, −score negative, 0 neutral); that is averaged within each paragraph,
   then across paragraphs.

@@ -1,7 +1,7 @@
 # CWRU Quants research
 
 Text measures from earnings-call transcripts, linked to stock returns. The pipeline parses
-about 507,000 call transcripts (2002–2024), counts how often each call uses words from
+about 507,000 call transcripts (2002–2021), counts how often each call uses words from
 research word lists (risk, Loughran–McDonald, Garcia, political, climate), links each call
 to its CRSP security, and computes event-window returns around the call. Everything lands
 in a Postgres database, `research`, that the group queries for analysis.
