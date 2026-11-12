@@ -1,6 +1,6 @@
 """Read and write transcript_files, the table of raw vendor transcript XMLs."""
 
-from typing import List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import psycopg
 
@@ -82,3 +82,43 @@ def changed_rows(conn: psycopg.Connection, archives: List[str]) -> int:
     with conn.cursor() as cur:
         cur.execute(CHANGED_ROWS_SQL, [archives])
         return cur.fetchone()[0]
+
+
+# Calls whose latest published transcript has (with_document) or has no documents row yet
+LATEST_NAMES_WITH_DOCUMENT_SQL = """
+    SELECT l.source_file, l.folder_year
+    FROM public.transcript_files_latest l
+    JOIN public.documents d ON d.source_file = l.source_file
+    WHERE %(years)s::int[] IS NULL OR d.year = ANY(%(years)s::int[])
+    ORDER BY l.source_file
+"""
+
+LATEST_NAMES_WITHOUT_DOCUMENT_SQL = """
+    SELECT l.source_file, l.folder_year
+    FROM public.transcript_files_latest l
+    WHERE NOT EXISTS (SELECT 1 FROM public.documents d WHERE d.source_file = l.source_file)
+        AND (%(years)s::int[] IS NULL OR l.folder_year = ANY(%(years)s::int[]))
+    ORDER BY l.source_file
+"""
+
+
+def latest_transcript_names(
+    conn: psycopg.Connection, with_document: bool, years=None
+) -> List[Tuple[str, Optional[int]]]:
+    """(source_file, folder_year) of the latest published transcript of each call."""
+    sql = LATEST_NAMES_WITH_DOCUMENT_SQL if with_document else LATEST_NAMES_WITHOUT_DOCUMENT_SQL
+    with conn.cursor() as cur:
+        cur.execute(sql, {"years": list(years) if years else None})
+        return cur.fetchall()
+
+
+def latest_xml(conn: psycopg.Connection, source_files: List[str]) -> Dict[str, str]:
+    """The XML of the latest published transcript of each named call that has one."""
+    if not source_files:
+        return {}
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT source_file, xml FROM public.transcript_files_latest WHERE source_file = ANY(%s)",
+            [list(source_files)],
+        )
+        return dict(cur.fetchall())

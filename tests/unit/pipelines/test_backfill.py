@@ -43,6 +43,13 @@ def test_keyword_sets_config_lists_the_db_sets():
     assert {"risk", "activeness"} <= sets.keys()
     assert all(ks.file.exists() for ks in sets.values())
     assert sets["risk"].matching_options()["exclude_safe_harbor"] is False
+    # the rerun's sets: the approved risk list and both noise filters
+    rerun = sets["risk_2026_11"].matching_options()
+    assert rerun["keywords_path"].endswith("Risk_v2.csv") and rerun["exclude_safe_harbor"] is True
+    assert rerun["exclude_phrases_path"].endswith("Risk_v2_exclusions.csv") and rerun["normalize_phrases"]
+    activeness = sets["activeness_2026_11"].matching_options()
+    assert activeness["exclude_phrases_path"].endswith("activeness_exclusions.csv")
+    assert activeness["keywords_path"].endswith("activeness_v2.csv")
 
 
 def test_process_batch_writes_one_run_per_set(transcripts, tmp_path):
@@ -59,11 +66,12 @@ def test_process_batch_writes_one_run_per_set(transcripts, tmp_path):
     ]
 
     conn = FakeConn()
-    result = process_batch(batch, "20260101_000000", agents=agents, conn=conn)
+    result = process_batch(batch, "20260101_000000", agents=agents, conn=conn, run_id=12)
 
     assert result["runs_written"] == 1 and result["failures"] == []
     document_ids, set_ids, methods = conn.runs[0], conn.runs[1], conn.runs[2]
     assert (document_ids, set_ids, methods) == ([7], [3], ["direct"])
+    assert (conn.runs[-2], conn.runs[-1]) == ([12], ["20260101_000000"])  # pipeline run, then timestamp
     keywords = [row[1] for row in conn.matches]
     assert keywords.count("trade war") == 2 and "taxes" in keywords and "risk" in keywords
     assert all(row[0] == 100 for row in conn.matches)  # every match points at the new run id

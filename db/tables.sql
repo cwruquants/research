@@ -1,6 +1,19 @@
 -- Base tables and identity sequences for the local research database.
 -- Keep this file free of indexes and foreign keys for efficient bulk loads.
 
+-- One row per ingest or backfill run: the code, versions, model and word lists behind it.
+CREATE TABLE public.pipeline_runs (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    step text NOT NULL,
+    started_at timestamptz NOT NULL DEFAULT now(),
+    command text NOT NULL,
+    git_commit text,
+    git_dirty boolean,
+    code_sha256 text NOT NULL,
+    versions jsonb NOT NULL,
+    settings jsonb NOT NULL
+);
+
 CREATE TABLE public.companies (
     id bigint GENERATED ALWAYS AS IDENTITY,
     name text NOT NULL,
@@ -21,7 +34,6 @@ CREATE TABLE public.documents (
     sentiment double precision,
     ml_score double precision,
     lm_score double precision,
-    hiv4_score double precision,
     flesch_reading_ease double precision,
     flesch_kincaid_grade double precision,
     smog_index double precision,
@@ -29,9 +41,7 @@ CREATE TABLE public.documents (
     automated_readability double precision,
     dale_chall_score double precision,
     difficult_words integer,
-    linsear_write_formula double precision,
     gunning_fog double precision,
-    text_standard text,
     created_at timestamptz DEFAULT now(),
     rc_active_ratio double precision,
     rc_passive_ratio double precision,
@@ -40,13 +50,13 @@ CREATE TABLE public.documents (
     rx_active_ratio double precision,
     rx_passive_ratio double precision,
     risk_total_sentences integer,
-    -- The three dictionary scores per 1,000 words, computed on read from the sums above
+    -- The dictionary scores per 1,000 words, computed on read from the sums above
     lm_per_1000_words double precision
         GENERATED ALWAYS AS (1000.0 * lm_score / NULLIF(num_words, 0)) VIRTUAL,
-    hiv4_per_1000_words double precision
-        GENERATED ALWAYS AS (1000.0 * hiv4_score / NULLIF(num_words, 0)) VIRTUAL,
     ml_per_1000_words double precision
-        GENERATED ALWAYS AS (1000.0 * ml_score / NULLIF(num_words, 0)) VIRTUAL
+        GENERATED ALWAYS AS (1000.0 * ml_score / NULLIF(num_words, 0)) VIRTUAL,
+    measures_run_id bigint,   -- pipeline_runs row behind the counts, readability and LM/ML tone
+    sentiment_run_id bigint   -- pipeline_runs row behind sentiment
 );
 
 CREATE TABLE public.keyword_sets (
@@ -72,7 +82,8 @@ CREATE TABLE public.exposure_runs (
     total_sentences_with_match integer,
     pct_sentences_with_match double precision,
     run_timestamp text,
-    created_at timestamptz DEFAULT now()
+    created_at timestamptz DEFAULT now(),
+    pipeline_run_id bigint    -- pipeline_runs row of the backfill that wrote it
 );
 
 CREATE TABLE public.keyword_matches (

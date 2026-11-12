@@ -53,6 +53,7 @@ treats each document in `--route-b` as already linked and skips it.
 | `document_event_returns` | ~352k | linked call: day 0, window returns, market-model fit, `mcap_pre` |
 
 | `transcript_files` | ~635k | raw vendor XML file revision, 2002–2024 (see below); 15 GB |
+| `pipeline_runs` | one per run | `ingest` or `backfill` run: code, versions, model and word lists (see below) |
 
 Two more tables, `company_cleanup_20261017` and `sentiment_recompute_20261017`, are audit
 records of the October 2026 fixes in `db/fixes/`.
@@ -93,24 +94,46 @@ zips stay the record of truth; the table can be rebuilt from them.
   `research.transcripts.parse.spoken_text`). Rows stored before 2026-11-11 used the whole
   XML body and are not recomputed yet (see [known_issues.md](known_issues.md)).
 - `documents.sentiment`: a financial-news DistilRoBERTa model scores each sentence
-  (+score positive, −score negative, 0 neutral); that is averaged within each paragraph,
-  then across paragraphs.
-- `lm_score`, `hiv4_score`: per sentence, positive minus negative word counts from the
-  Loughran–McDonald and Harvard IV dictionaries (pysentiment2), summed over the call.
-- `ml_score`: per sentence, +1 for every adjacent word pair where both words are on the
-  Garcia positive unigram list and −1 where both are on the negative list, summed.
-  These three are sums, so they grow with call length.
-- `lm_per_1000_words`, `hiv4_per_1000_words`, `ml_per_1000_words`: the three sums per
+  (+score positive, −score negative, 0 neutral), and the call's score is the mean over all
+  its sentences. Stored rows from before the rerun averaged within each paragraph and then
+  across paragraphs; real transcripts have no blank lines between turns, so that was the
+  plain average of the Presentation's and the Q&A's scores, whatever their length.
+- `lm_score`, `ml_score`: positive minus negative word counts over the call, from the
+  repo's `LM_Positive.csv` / `LM_Negative.csv` and the Garcia ML unigram lists
+  (`research.features.lexicon`). Words are matched exactly, with no stemming or stopword
+  list. `ingest` always computes them; they need no model. Rows stored before the rerun
+  used the older method described in [known_issues.md](known_issues.md).
+  Both are sums, so they grow with call length. A transcript with no spoken text gets NULL
+  for every score and readability measure, not 0.
+- The Harvard IV-4 score (`hiv4_score`) is no longer computed (2026-11-11): it stemmed
+  words, so in calls nearly half its hits were other words, and its general-English lists
+  count words such as "cost" and "capital" as negative. Its columns are dropped at the
+  rerun (`db/migrations/20261111_2000_drop_documents_hiv4.sql`).
+- `lm_per_1000_words`, `ml_per_1000_words`: the two sums per
   1,000 words (`1000 * score / num_words`), the ones to compare across calls. They are
   virtual columns that Postgres computes on read; nothing writes them.
 - `exposure_runs`, `keyword_matches`: Presentation and Q&A text only
   (`research.transcripts.parse.load_document`), direct matching.
+- Which run made a row: `documents.measures_run_id` (counts, readability, LM and ML),
+  `documents.sentiment_run_id` (the transformer score) and `exposure_runs.pipeline_run_id`
+  point at `pipeline_runs`. That row records the git commit and a hash of the code, the
+  package versions, the sentiment model and its revision, and every word list with its
+  SHA-256. All three are NULL for rows written before 2026-11-11; `pipeline_runs` is
+  append-only.
 
 ## Rerunning a step
 
-- New transcripts: `research ingest`, then `research backfill` for every keyword set.
-- A new keyword set: add it to `config/keyword_sets.toml` and a `keyword_sets` row (with
-  `total_keywords`), then `research backfill`. Don't change the options of a set that
+- New transcripts: `research ingest --from-db --years <years>` makes `documents` rows for
+  calls in `transcript_files` that have none, then `research backfill` for every keyword set.
+- Recomputing the text measures of existing calls: `research ingest --from-db
+  --measures-only` (add `--sentiment` for the model scores). It reads the latest published
+  revision and changes only the measure columns, never company, year, title, date or city.
+- A new keyword set: add it to `config/keyword_sets.toml`, then `research backfill --sets
+  <name>`, which registers its `keyword_sets` row. Don't change the options of a set that
   already has runs; add a new set.
+- Redoing the exposures (new code or word lists): add versioned sets, such as
+  `risk_2026_11`, and run `research backfill --from-db --sets risk_2026_11 ...`. Backfill
+  never replaces an existing run, so the old sets stay until they are dropped, which is a
+  DB change that needs approval.
 - New links or returns: run the step, then the matching `db/loads/` script. Both load
   scripts expect empty tables; replacing rows is a DB change that needs approval.

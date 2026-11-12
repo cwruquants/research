@@ -9,13 +9,21 @@ keyword matches. Work is split across processes, each with its own DB connection
 batch of documents is one transaction (runs via INSERT ... RETURNING, matches via COPY).
 
 Re-running is safe: runs that already exist are skipped (ON CONFLICT DO NOTHING) and
-their matches are not written again.
+their matches are not written again. So to redo the exposures with changed code or word
+lists, add new keyword sets to config/keyword_sets.toml (for example risk_2026_11) and run
+only those with --sets: every document is missing a run for a new set, and the old runs
+stay for comparison. A set named in --sets that has no keyword_sets row yet is registered.
+
+--from-db reads each call's latest published transcript from transcript_files, instead of
+looking for its file name in --source folders and zips (where the same name can be several
+revisions). Use it for the rerun.
 
 Usage (from the repo root, DATABASE_URL set to a role that can insert into
 exposure_runs and keyword_matches):
 
     uv run research backfill --source <EARNINGS_CALLS>/2015.zip \
         --source <EARNINGS_CALLS>/2017.zip --years 2015 2017 --workers 10
+    uv run research backfill --from-db --sets risk_2026_11 activeness_2026_11 --workers 10
 
 The keyword sets and their matching options come from config/keyword_sets.toml.
 
@@ -24,6 +32,7 @@ Start with --dry-run to see how many documents were found without writing anythi
 
 import argparse
 import csv
+import io
 import multiprocessing
 import os
 import time
@@ -37,7 +46,9 @@ import psycopg
 from tqdm import tqdm
 
 from research import config
-from research.db.exposures import keyword_set_sizes, missing_runs, write_runs
+from research.db.exposures import keyword_set_sizes, missing_runs, register_keyword_set, write_runs
+from research.db.provenance import start_run, word_list
+from research.db.transcript_files import latest_transcript_names, latest_xml
 from research.matching.direct import MatchingAgent
 from research.transcripts._nltk import ensure_nltk_data
 from research.transcripts.parse import load_document
@@ -56,18 +67,35 @@ def _init_worker(database_url: str) -> None:
 
 
 def process_batch(
-    batch: List[dict], run_timestamp: str, agents: Optional[Dict[str, MatchingAgent]] = None, conn=None
+    batch: List[dict],
+    run_timestamp: str,
+    agents: Optional[Dict[str, MatchingAgent]] = None,
+    conn=None,
+    run_id: Optional[int] = None,
 ) -> dict:
-    """Match one batch of documents and write it in a single transaction."""
+    """Match one batch of documents and write it in a single transaction, stamped with run_id."""
     agents = _agents if agents is None else agents
     conn = _conn if conn is None else conn
     run_rows = []
     match_rows: Dict[Tuple[int, int], List[tuple]] = {}
     failures = []
 
+    # One query for the batch's stored transcripts, in its own transaction: an open read
+    # transaction would turn write_runs' transaction into a savepoint that never commits
+    stored_names = [d["source_file"] for d in batch if d["location"][0] == "db"]
+    with conn.transaction():
+        stored = latest_xml(conn, stored_names)
+
     for doc in batch:
-        with open_transcript(doc["location"]) as fh:
-            document = load_document(fh)
+        if doc["location"][0] == "db":
+            xml = stored.get(doc["source_file"])
+            if xml is None:
+                failures.append((doc["document_id"], doc["source_file"], "no published transcript"))
+                continue
+            document = load_document(io.BytesIO(xml.encode("utf-8")))
+        else:
+            with open_transcript(doc["location"]) as fh:
+                document = load_document(fh)
         if not document.text:
             failures.append(
                 (doc["document_id"], doc["source_file"], "transcript has no presentation or Q&A text")
@@ -99,6 +127,7 @@ def process_batch(
                     results.total_sentences_in_document,
                     results.total_sentences_with_match,
                     results.percent_sentences_with_match,
+                    run_id,
                     run_timestamp,
                 )
             )
@@ -117,20 +146,54 @@ def process_batch(
     }
 
 
-def _load_missing(conn: psycopg.Connection, years: Optional[List[int]]) -> List[dict]:
-    """Documents with at least one missing keyword-set run, with the sets each one needs."""
+def _load_missing(
+    conn: psycopg.Connection, years: Optional[List[int]], names: Optional[List[str]] = None
+) -> List[dict]:
+    """
+    Documents with at least one missing keyword-set run, with the sets each one needs.
+    With names, only those sets; any of them with no keyword_sets row is registered.
+    """
     sets = config.keyword_sets()
+    if names:
+        unknown = sorted(set(names) - set(sets))
+        if unknown:
+            raise SystemExit(f"not in config/keyword_sets.toml: {', '.join(unknown)}")
+        sets = {name: sets[name] for name in names}
     db_sizes = keyword_set_sizes(conn, list(sets))
     for name, ks in sets.items():
-        if name not in db_sizes:
-            raise SystemExit(f"keyword_sets has no row named {name!r}")
         local_count = len(MatchingAgent(**ks.matching_options()).keywords_list)
+        if name not in db_sizes:
+            if not names:
+                raise SystemExit(f"keyword_sets has no row named {name!r}; name it in --sets to add it")
+            register_keyword_set(conn, name, ks.file.name, local_count)
+            print(f"Registered keyword set {name!r} ({ks.file.name}, {local_count} keywords)")
+            db_sizes[name] = local_count
         if db_sizes[name] != local_count:
             raise SystemExit(
                 f"{ks.file.name} has {local_count} keywords but keyword_sets.{name} "
                 f"says {db_sizes[name]}; refusing to mix word lists"
             )
     return missing_runs(conn, list(sets), years)
+
+
+def run_settings(names: Optional[List[str]], from_db: bool, sources, years) -> dict:
+    """What a pipeline_runs row records about a backfill run."""
+    sets = config.keyword_sets()
+    chosen = names or list(sets)
+    return {
+        "source": "transcript_files_latest" if from_db else list(sources or []),
+        "years": years,
+        "keyword_sets": {
+            name: {
+                "list": word_list(sets[name].file),
+                "exclusions": word_list(sets[name].exclusions),
+                "normalize_phrases": sets[name].normalize_phrases,
+                "exclude_safe_harbor": sets[name].exclude_safe_harbor,
+                "total_keywords": len(MatchingAgent(**sets[name].matching_options()).keywords_list),
+            }
+            for name in chosen
+        },
+    }
 
 
 def _write_failures(failures: List[tuple], report_dir: str, suffix: str) -> None:
@@ -147,11 +210,19 @@ def _write_failures(failures: List[tuple], report_dir: str, suffix: str) -> None
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
         "--source",
         action="append",
-        required=True,
         help="Folder of transcript XMLs or a zip of them; repeat for several",
+    )
+    source.add_argument(
+        "--from-db",
+        action="store_true",
+        help="Read each call's latest published transcript from transcript_files",
+    )
+    parser.add_argument(
+        "--sets", nargs="+", help="Only these keyword sets (registered in keyword_sets if new)"
     )
     parser.add_argument(
         "--years", type=int, nargs="+", help="Only documents with these documents.year values"
@@ -165,22 +236,31 @@ def main() -> None:
 
     database_url = config.database_url()
     with psycopg.connect(database_url) as conn:
-        missing = _load_missing(conn, args.years)
-
-    print(f"Indexing transcripts in {len(args.source)} source(s)...")
-    index = index_sources(args.source)
+        missing = _load_missing(conn, args.years, args.sets)
+        stored = (
+            {name for name, _ in latest_transcript_names(conn, with_document=True)} if args.from_db else None
+        )
 
     todo, not_found = [], []
-    for doc in missing:
-        candidates = index.get(doc["source_file"])
-        if not candidates:
-            not_found.append((doc["document_id"], doc["source_file"], "transcript not found in sources"))
-            continue
-        location, problem = resolve_location(doc, candidates)
-        if location is None:
-            not_found.append((doc["document_id"], doc["source_file"], problem))
-        else:
-            todo.append({**doc, "location": location})
+    if args.from_db:
+        for doc in missing:
+            if doc["source_file"] in stored:
+                todo.append({**doc, "location": ("db", doc["source_file"], None)})
+            else:
+                not_found.append((doc["document_id"], doc["source_file"], "no published transcript"))
+    else:
+        print(f"Indexing transcripts in {len(args.source)} source(s)...")
+        index = index_sources(args.source)
+        for doc in missing:
+            candidates = index.get(doc["source_file"])
+            if not candidates:
+                not_found.append((doc["document_id"], doc["source_file"], "transcript not found in sources"))
+                continue
+            location, problem = resolve_location(doc, candidates)
+            if location is None:
+                not_found.append((doc["document_id"], doc["source_file"], problem))
+            else:
+                todo.append({**doc, "location": location})
     # Keep each archive's members together and in order so reads stay sequential
     todo.sort(key=lambda d: d["location"])
     if args.limit:
@@ -196,6 +276,10 @@ def main() -> None:
         _write_failures(not_found, args.report_dir, f"dryrun_{run_timestamp}")
         return
 
+    with psycopg.connect(database_url) as conn:
+        run_id = start_run(conn, "backfill", run_settings(args.sets, args.from_db, args.source, args.years))
+    print(f"Recording this run as pipeline_runs id {run_id}")
+
     ensure_nltk_data(("punkt_tab",))  # before the workers, which would race to download it
     batches = [todo[i : i + args.batch_size] for i in range(0, len(todo), args.batch_size)]
     totals = defaultdict(int)
@@ -207,7 +291,9 @@ def main() -> None:
         initializer=_init_worker,
         initargs=(database_url,),
     ) as pool:
-        futures = {pool.submit(process_batch, batch, run_timestamp): batch for batch in batches}
+        futures = {
+            pool.submit(process_batch, batch, run_timestamp, None, None, run_id): batch for batch in batches
+        }
         with tqdm(total=len(todo), unit="doc") as progress:
             for future in as_completed(futures):
                 batch = futures[future]

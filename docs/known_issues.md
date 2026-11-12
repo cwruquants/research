@@ -62,6 +62,7 @@ and 2026-02 (607,305), made by older code and word lists.
   (about 164,000 rows). Counts are not affected.
 - 19 runs for 2018 calls have their matches stored twice (837 extra rows).
 
+After the rerun, `exposure_runs.pipeline_run_id` names the backfill run behind each run.
 Until every document is rerun, filter on `exposure_runs.created_at` when the batch
 matters, and drop `match_type = 'cosine'` rows from direct counts.
 
@@ -90,18 +91,41 @@ These figures are scaled up from a 1% sample of `keyword_matches`.
   idiom, "bet" 37% "you bet".
 
 Until the rerun, drop these keywords from counts, and for `risk` also drop matches whose
-`context` is safe-harbor text.
+`context` is safe-harbor text. The rerun's keyword sets (`risk_2026_11`,
+`activeness_2026_11` in `config/keyword_sets.toml`) use `Risk_v2.csv`, exclusion lists for
+terms of art and the safe-harbor filter; the current parser also drops almost all speaker
+labels (11 of 704 sample calls keep a few).
 
 ## Sentiment sums grow with call length
 
-`lm_score`, `hiv4_score` and `ml_score` are sums over sentences, not rates: `hiv4_score`
-correlates 0.90 with the call's word count. To compare calls, use `lm_per_1000_words`,
-`hiv4_per_1000_words` and `ml_per_1000_words` (added 2026-11-11), which are the same
-scores per 1,000 words and correlate with length at about −0.07. Postgres computes them
-on read from the sums and `num_words`, so they always agree with the stored columns.
+`lm_score` and `ml_score` are sums over the call, not rates, so they grow with its length.
+To compare calls, use `lm_per_1000_words` and `ml_per_1000_words` (added 2026-11-11), the
+same scores per 1,000 words, which correlate with length at about −0.07. Postgres computes
+them on read from the sums and `num_words`, so they always agree with the stored columns.
 
 They inherit the word-count problem above: for calls that lost their Q&A, both the sum
 and `num_words` come from the surviving text only.
+
+## Stored LM and ML scores use the old dictionary method
+
+Until the rerun, `lm_score` and `ml_score` come from code that has since been replaced:
+
+- `lm_score` used the pysentiment2 package. It stems every word before looking it up, so
+  "quite" counted as negative "quit" and "press release" as negative "press"; it dropped
+  "good" and "strong" because they are on its list of surnames; and its own copy of the LM
+  dictionary still lists "question", which alone was 22% of negative hits in a sample of
+  calls. The new code matches the repo's LM lists exactly. On 703 sample calls it halves
+  the negative words per call (median 68 to 35) and changes the sign of 147 calls' score.
+- `ml_score` scored +1 only when two neighbouring words were both on the Garcia unigram
+  list, so a single listed word counted for nothing. The paper counts each listed word.
+  On the same calls the median rises from 1.4 to 20.4 per 1,000 words.
+
+`hiv4_score` (Harvard IV-4) is no longer computed, and its two columns are dropped at the
+rerun by `db/migrations/20261111_2000_drop_documents_hiv4.sql`; until then they hold the
+old values for existing calls and NULL for new ones. It stemmed words too: nearly half
+its hits in calls were not the dictionary word itself ("will" scored positive through
+"willing", "margin" negative through "marginal"), and the Harvard lists treat words such as
+"cost" and "capital" as negative. Analyses that used it need another tone measure.
 
 ## Sentiment of short documents depends on the load batch
 
@@ -109,10 +133,13 @@ Calls from 2015, 2017, 2019 and 2021 were loaded later than the other years, and
 short documents have `sentiment` of exactly 0 far more often: 21.6% of 2021 documents
 with 30–100 sentences, against at most 1.1% in the years loaded earlier. The dictionary
 scores do not differ, so the sentiment model ran differently. The cause is not known,
-and the database does not record the model version.
+and the database did not record the model version. Since 2026-11-11 every ingest run is
+recorded in `pipeline_runs` with its model, revision and package versions, so a batch
+effect in the rerun can be traced through `documents.sentiment_run_id`.
 
-`analyze_document` also writes 0.0 when the model returns nothing, so a failed score
-and a neutral document look the same.
+Stored rows also have 0 for every score of a transcript with no spoken text, so an
+empty document and a neutral one look the same. Since 2026-11-11 `ingest` writes NULL
+for those; the stored rows change at the rerun.
 
 Do not compare the `sentiment` of short documents across years.
 
@@ -130,8 +157,9 @@ Flesch-Kincaid grade above 30, or a Flesch reading ease below 0.
 
 `linsear_write_formula` reads only the first 100 words, which in the stored rows are the
 vendor header and participant list. 31% of rows score above 30, and `text_standard`
-partly inherits it. Do not use either column as stored. After a recompute the first 100
-words will be the start of the Presentation, which is still not the whole call.
+partly inherits it. Do not use either column. `ingest` no longer computes them (2026-11-11),
+and `db/migrations/20261111_2100_drop_documents_linsear_text_standard.sql` drops both at
+the rerun.
 
 ## Legacy columns in `documents`
 

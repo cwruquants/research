@@ -1,6 +1,10 @@
 -- Apply after the data restore. Primary and unique constraints build their
 -- indexes once; foreign keys validate the copied relationships.
 
+ALTER TABLE public.pipeline_runs
+    ADD CONSTRAINT pipeline_runs_pkey PRIMARY KEY (id),
+    ADD CONSTRAINT pipeline_runs_step_check CHECK (step IN ('ingest', 'backfill'));
+
 ALTER TABLE public.companies
     ADD CONSTRAINT companies_pkey PRIMARY KEY (id),
     ADD CONSTRAINT companies_name_ticker_key UNIQUE NULLS NOT DISTINCT (name, ticker);
@@ -52,6 +56,14 @@ ALTER TABLE public.exposure_runs
 ALTER TABLE public.keyword_matches
     ADD CONSTRAINT keyword_matches_exposure_run_id_fkey FOREIGN KEY (exposure_run_id)
     REFERENCES public.exposure_runs(id) ON DELETE CASCADE;
+ALTER TABLE public.documents
+    ADD CONSTRAINT documents_measures_run_id_fkey FOREIGN KEY (measures_run_id)
+    REFERENCES public.pipeline_runs(id),
+    ADD CONSTRAINT documents_sentiment_run_id_fkey FOREIGN KEY (sentiment_run_id)
+    REFERENCES public.pipeline_runs(id);
+ALTER TABLE public.exposure_runs
+    ADD CONSTRAINT exposure_runs_pipeline_run_id_fkey FOREIGN KEY (pipeline_run_id)
+    REFERENCES public.pipeline_runs(id);
 ALTER TABLE public.document_crsp_links
     ADD CONSTRAINT document_crsp_links_document_id_fkey FOREIGN KEY (document_id)
     REFERENCES public.documents(id) ON DELETE CASCADE;
@@ -86,3 +98,17 @@ FROM public.transcript_files f
 WHERE f.story_action = 'publish'
     AND f.story_type = 'transcript'
 ORDER BY f.source_file, f.last_update DESC NULLS LAST, f.folder_year DESC NULLS LAST, f.sha256 DESC;
+
+-- Append-only. The agent login owns the table and keeps UPDATE, because the foreign-key
+-- checks on documents and exposure_runs lock the referenced row (SELECT ... FOR KEY SHARE),
+-- which needs it; a trigger refuses every update, delete and truncate instead.
+CREATE FUNCTION public.pipeline_runs_append_only() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'pipeline_runs is append-only: a run''s record never changes after it starts';
+END
+$$;
+CREATE TRIGGER pipeline_runs_no_update_or_delete BEFORE UPDATE OR DELETE ON public.pipeline_runs
+    FOR EACH ROW EXECUTE FUNCTION public.pipeline_runs_append_only();
+CREATE TRIGGER pipeline_runs_no_truncate BEFORE TRUNCATE ON public.pipeline_runs
+    FOR EACH STATEMENT EXECUTE FUNCTION public.pipeline_runs_append_only();

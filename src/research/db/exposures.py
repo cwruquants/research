@@ -23,13 +23,13 @@ INSERT_RUNS_SQL = """
         document_id, keyword_set_id, matching_method, cosine_threshold, runtime_seconds,
         total_keywords_searched, total_keywords_with_matches, total_direct_matches,
         total_cosine_matches, total_sentences_in_document, total_sentences_with_match,
-        pct_sentences_with_match, run_timestamp
+        pct_sentences_with_match, pipeline_run_id, run_timestamp
     )
     SELECT * FROM unnest(
         %s::bigint[], %s::bigint[], %s::text[], %s::float8[], %s::float8[],
         %s::int[], %s::int[], %s::int[],
         %s::int[], %s::int[], %s::int[],
-        %s::float8[], %s::text[]
+        %s::float8[], %s::bigint[], %s::text[]
     )
     ON CONFLICT (document_id, keyword_set_id) DO NOTHING
     RETURNING id, document_id, keyword_set_id
@@ -46,6 +46,15 @@ def keyword_set_sizes(conn: psycopg.Connection, names: List[str]) -> Dict[str, i
     with conn.cursor() as cur:
         cur.execute("SELECT name, total_keywords FROM public.keyword_sets WHERE name = ANY(%s)", [names])
         return dict(cur.fetchall())
+
+
+def register_keyword_set(conn: psycopg.Connection, name: str, source_file: str, total_keywords: int) -> None:
+    """Add a keyword_sets row for a set that has never been run."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.keyword_sets (name, source_file, total_keywords) VALUES (%s, %s, %s)",
+            [name, source_file, total_keywords],
+        )
 
 
 def missing_runs(conn: psycopg.Connection, names: List[str], years: Optional[List[int]]) -> List[dict]:
