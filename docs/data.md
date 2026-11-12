@@ -6,7 +6,7 @@ each source has its own license terms, and some come through Prof. Bae.
 
 | Source | What | Used by | Where it goes |
 |---|---|---|---|
-| Earnings-call transcripts (Thomson StreetEvents / LSEG) | one XML per call, 2002–2024, zipped by year; the database holds 2002–2021, and the 2022–2024 files are not loaded yet | `ingest`, `backfill` | the group's shared drive; `backfill --source` reads the zips, `ingest --input-dir` needs an unzipped year folder |
+| Earnings-call transcripts (Thomson StreetEvents / LSEG) | one XML per file revision, 2002–2024, in six zips; every file is also in the `transcript_files` table, while `documents` covers 2002–2021 | `transcripts load`, `ingest`, `backfill` | the group's shared drive; `backfill --source` reads the zips, `ingest --input-dir` needs an unzipped year folder |
 | LSEG QuoteFile, CUSIPFile | RIC → InstrumentPI → CUSIP bridge | `link route-a`, `link coverage` | `data/private/lseg/` |
 | CRSP stocknames (WRDS) | names, tickers and NCUSIPs with date ranges | `link route-a`, `link route-b` | `data/private/crsp/stocknames.csv` |
 | CRSP daily files (WRDS) | `dsf`, `dsi`, delistings | `returns fetch`, `returns compute` | `data/private/wrds/crsp/` |

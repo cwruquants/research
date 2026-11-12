@@ -7,6 +7,11 @@ Terms as this repo and the `research` database use them.
 - **Transcript / call / document.** One vendor XML file (`<id>_T.xml`) is one call, stored
   as one row of `documents`. Most are earnings calls (`documents.event_title` contains
   "Earnings", about 230,000). The rest are conferences, investor days and M&A calls.
+- **Revision.** The vendor re-issues a call under the same file name with a later
+  `lastUpdate` stamp, usually to change the header, the ticker or a few words. Each
+  distinct file is a row of `transcript_files`; the latest published one is the call's
+  transcript (`transcript_files_latest`).
+- **Withdrawn call.** A call whose latest file is an empty stub with `action="delete"`.
 - **Company row.** A row of `companies`, keyed by name and ticker as the vendor files the
   call. The vendor relabels old calls with the company's *current* owner, so a company row
   can hold calls about other firms (TPG Capital rows hold Midwest Express calls). Link each

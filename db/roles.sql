@@ -19,3 +19,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO research_agent;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
     GRANT USAGE, SELECT ON SEQUENCES TO research_agent;
+
+-- transcript_files is append-only: the raw vendor files are loaded once and never edited.
+REVOKE UPDATE, DELETE, TRUNCATE ON public.transcript_files FROM research_agent, research_app;

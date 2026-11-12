@@ -39,7 +39,14 @@ CREATE TABLE public.documents (
     re_passive_ratio double precision,
     rx_active_ratio double precision,
     rx_passive_ratio double precision,
-    risk_total_sentences integer
+    risk_total_sentences integer,
+    -- The three dictionary scores per 1,000 words, computed on read from the sums above
+    lm_per_1000_words double precision
+        GENERATED ALWAYS AS (1000.0 * lm_score / NULLIF(num_words, 0)) VIRTUAL,
+    hiv4_per_1000_words double precision
+        GENERATED ALWAYS AS (1000.0 * hiv4_score / NULLIF(num_words, 0)) VIRTUAL,
+    ml_per_1000_words double precision
+        GENERATED ALWAYS AS (1000.0 * ml_score / NULLIF(num_words, 0)) VIRTUAL
 );
 
 CREATE TABLE public.keyword_sets (
@@ -153,4 +160,21 @@ CREATE TABLE public.document_event_returns (
     mcap_pre double precision,  -- USD millions, last trading day >= 2 calendar days before day0
     CONSTRAINT document_event_returns_call_timing_check
         CHECK (call_timing IN ('pre_open', 'market_hours', 'after_close'))
+);
+
+-- Raw vendor transcript XMLs, one row per file revision (a working copy of the zips).
+CREATE TABLE public.transcript_files (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    source_file text NOT NULL,
+    sha256 bytea NOT NULL,  -- of the original file bytes
+    byte_length integer NOT NULL,
+    xml text COMPRESSION lz4 NOT NULL,
+    last_update timestamptz,
+    story_action text,
+    story_version text,
+    story_type text,
+    folder_year integer,
+    archive text NOT NULL,
+    member text NOT NULL,
+    loaded_at timestamptz NOT NULL DEFAULT now()
 );

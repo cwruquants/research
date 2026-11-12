@@ -116,12 +116,42 @@ alter them. To hand one over, run
 
 ## Backups
 
-`backup.ps1` makes a compressed custom-format dump of `research` and keeps
-successful dumps for 14 days. Its default destination is `G:\pg_backups`;
+`backup.ps1` makes two kinds of compressed custom-format dump of `research`:
+
+- `research_<stamp>.dump`, every night: everything except the rows of
+  `transcript_files`. Successful dumps are kept for 7 days.
+- `transcript_files_<stamp>.dump`, only when `transcript_files` has gained rows
+  since the last one. The table is append-only and holds the raw vendor XMLs, so
+  its rows are copied once per load, not once per night. One copy is kept, and
+  `transcript_files.state` records the row count it was made at.
+
+Its default destination is `G:\pg_backups`;
 pass `-BackupDir` to select another location. The script uses a restricted
 password file at `G:\pg_backups\pgpass.conf` containing only the local
 `postgres` login entry. If that password changes, update this file too.
 It logs success or failure to `backup.log`.
+
+### Restoring
+
+A nightly dump alone restores an empty `transcript_files`, so a restore takes both
+dumps, in this order, into a new empty database:
+
+```
+pg_restore -U postgres -d <new database> research_<stamp>.dump
+pg_restore -U postgres -d <new database> --data-only transcript_files_<stamp>.dump
+```
+
+Nothing has a foreign key into `transcript_files` (other tables name a revision by its
+SHA-256), so the order only matters for having the table to load into. If the
+transcript dump is lost, rebuild the rows from the vendor zips with
+`research transcripts load`; the hashes come out the same, the `id` values may not.
+Afterwards run `research transcripts verify` against the zips.
+
+Both steps were tested on 2026-11-11 into a scratch database (without the rows of
+`keyword_matches`, to keep it short): all 635,490 transcript rows came back, every one
+still hashed to its stored SHA-256, the `id` sequence continued from the highest id, and
+the append-only grants were intact. The transcript dump was 10.4 GB and took six minutes
+to make and five to restore.
 
 Windows Task Scheduler runs the stable copy at `G:\pg_backups\backup.ps1`
 daily while the Windows user is signed in. The archive
