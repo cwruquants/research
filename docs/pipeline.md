@@ -88,16 +88,17 @@ zips stay the record of truth; the table can be rebuilt from them.
 
 ## Where the numbers come from
 
-- `documents.num_words`, `num_sentences` and readability: the spoken text, that is the
-  Presentation and Q&A with speaker lines removed
-  (`research.pipelines.ingest.analyze_document`, text from
+- `documents.num_words`, `num_sentences` and readability: the spoken text, that is every
+  section except the participant lists (usually a Presentation and a Q&A) with speaker
+  lines removed (`research.pipelines.ingest.analyze_document`, text from
   `research.transcripts.parse.spoken_text`). Rows stored before 2026-11-11 used the whole
   XML body and are not recomputed yet (see [known_issues.md](known_issues.md)).
 - `documents.sentiment`: a financial-news DistilRoBERTa model scores each sentence
   (+score positive, −score negative, 0 neutral), and the call's score is the mean over all
-  its sentences. Stored rows from before the rerun averaged within each paragraph and then
-  across paragraphs; real transcripts have no blank lines between turns, so that was the
-  plain average of the Presentation's and the Q&A's scores, whatever their length.
+  its sentences. Stored rows from before the rerun scored the whole XML body and averaged
+  the blocks between blank lines, so the header and participant lists carried most of the
+  weight; the new scores are about five times as large and not comparable with them (see
+  [known_issues.md](known_issues.md)).
 - `lm_score`, `ml_score`: positive minus negative word counts over the call, from the
   repo's `LM_Positive.csv` / `LM_Negative.csv` and the Garcia ML unigram lists
   (`research.features.lexicon`). Words are matched exactly, with no stemming or stopword
@@ -112,7 +113,7 @@ zips stay the record of truth; the table can be rebuilt from them.
 - `lm_per_1000_words`, `ml_per_1000_words`: the two sums per
   1,000 words (`1000 * score / num_words`), the ones to compare across calls. They are
   virtual columns that Postgres computes on read; nothing writes them.
-- `exposure_runs`, `keyword_matches`: Presentation and Q&A text only
+- `exposure_runs`, `keyword_matches`: the same spoken text
   (`research.transcripts.parse.load_document`), direct matching.
 - Which run made a row: `documents.measures_run_id` (counts, readability, LM and ML),
   `documents.sentiment_run_id` (the transformer score) and `exposure_runs.pipeline_run_id`

@@ -1,4 +1,5 @@
 from xml.etree.ElementTree import ParseError
+from xml.sax.saxutils import escape
 
 import pytest
 
@@ -28,6 +29,66 @@ def test_tight_and_spaced_layouts_give_the_same_words(transcripts):
     spaced = load_document(transcripts / "spaced_T.xml").text.split()
     tight = load_document(transcripts / "tight_T.xml").text.split()
     assert spaced == tight
+
+
+BAR, RULE = "=" * 80, "-" * 80
+OPENING = [
+    ("Operator   [1]", "Welcome to the call."),
+    ("Dana Park, Example Inc - CEO   [2]", "Revenue grew 8%."),
+]
+CLOSING = [("Lee Moran, Example Inc - CFO   [3]", "Margin improved. We expect more orders.")]
+QUESTIONS = [("Sam Ortiz, Harbor - Analyst   [4]", "How exposed are you?"), ("Dana Park   [5]", "A fifth.")]
+FOLLOW_UP = [
+    ("Sam Ortiz, Harbor - Analyst   [6]", "And on taxes?"),
+    ("Lee Moran   [7]", "Two cents a share."),
+]
+
+
+def _transcript(tmp_path, sections, tight):
+    """A synthetic transcript whose body has these (heading, [(speaker line, speech), ...]) sections."""
+    gap = "" if tight else "\n"
+    body = (
+        "Example Inc Q4 2016 Earnings Call\n\nTEXT version of Transcript\n\n"
+        f"{BAR}\nCorporate Participants\n{BAR}\n   *  Dana Park\n      Example Inc - CEO\n\n"
+        f"{BAR}\nConference Call Participants\n{BAR}\n   *  Sam Ortiz\n      Harbor - Analyst\n\n"
+    )
+    for heading, turns in sections:
+        body += f"{BAR}\n{heading}\n"
+        body += "".join(f"{RULE}\n{speaker}\n{RULE}\n{gap}{speech}\n{gap}" for speaker, speech in turns)
+    path = tmp_path / "layout_T.xml"
+    path.write_text(f"<Event><EventStory><Body>{escape(body)}</Body></EventStory></Event>", encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("tight", [False, True])
+@pytest.mark.parametrize(
+    "sections",
+    [
+        [("Presentation", OPENING + CLOSING), ("q and a", QUESTIONS)],
+        [("Presentation", OPENING + CLOSING), ("Question and Answers", QUESTIONS)],
+        [("Transcript", OPENING + CLOSING), ("Questions and Answers", QUESTIONS)],
+        [("Opening", OPENING + CLOSING), ("Q-and-A", QUESTIONS)],
+        # A call in two parts repeats the headings
+        [
+            ("Presentation", OPENING),
+            ("Questions and Answers", QUESTIONS),
+            ("Presentation", CLOSING),
+            ("Questions and Answers", FOLLOW_UP),
+        ],
+        # A speaker line that is only "Operator" is a speaker line like any other
+        [
+            ("Presentation", [("Operator", "Welcome to the call.")] + CLOSING),
+            ("Questions and Answers", QUESTIONS),
+        ],
+    ],
+    ids=["q and a", "Question and Answers", "Transcript then Q&A", "Opening", "two parts", "bare Operator"],
+)
+def test_every_section_is_kept_whatever_its_heading(tmp_path, sections, tight):
+    text = spoken_text(_transcript(tmp_path, sections, tight))
+    spoken = [speech for _, turns in sections for _, speech in turns]
+    assert text.split() == " ".join(spoken).split()
+    if tight:  # no blank lines inside a section, so each block is one section
+        assert len(text.split("\n\n")) == len(sections)
 
 
 def test_unreadable_file_gives_empty_document(tmp_path):

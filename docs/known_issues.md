@@ -49,6 +49,34 @@ so this goes away once `documents` is recomputed. On 703 sample transcripts from
 2002–2024, the new code's word count is within 5% of the old code's for 61%, and more
 than 20% higher for 17% (57% of the 2018 calls).
 
+## Calls with unusual section headings lost text
+
+Until 2026-11-12 the parser found the spoken sections by name: a line reading
+"Presentation", then "Questions and Answers" or "Q&A". A call whose headings differ lost
+part of its text:
+
+- a Q&A headed "q and a", "Question and Answers", "Q-and-A" and the like was dropped;
+- in a call with a "Transcript" section followed by "Questions and Answers", the first
+  section was dropped;
+- a speaker line reading only "Operator" ended the Presentation early;
+- in a call that repeats its sections (a meeting in two parts), the text after the second
+  heading was cut one line off, keeping speaker names and dropping speech.
+
+`spoken_text` now finds sections by the rules that frame their headings and keeps every
+section except the two participant lists. In a 2% sample of all files, every heading is a
+spoken section or a participant list.
+
+- **Rows:** 112 of the 6,768 calls of 2002 (1.7%) kept under 90% of their spoken text,
+  and 2 of a 308-call sample of 2018. Other years were not measured. In the 2% sample
+  the odd headings appear in files from 2002 to 2014, and 1–2% of files repeat a heading.
+- **Affected:** every stored exposure run and keyword match, and all text measures in
+  `documents` once they are recomputed with code from before the fix.
+- **Checked:** on those 7,076 calls the fixed parser gives byte-identical text for 6,887.
+  Of the 189 that change, 11 change only in the blank line between sections and 7 lose
+  one word (a speaker line the old code kept); the rest gain text. On a second sample of
+  1,510 calls from every year, 2002 to 2024, 1,493 are byte-identical and the other 17
+  gain text (18% more words between them); none loses any.
+
 ## Exposure runs come from four batches
 
 `research backfill` on 2026-10-17 made only 261,425 of the 1,014,924 stored runs (all of
@@ -126,6 +154,24 @@ old values for existing calls and NULL for new ones. It stemmed words too: nearl
 its hits in calls were not the dictionary word itself ("will" scored positive through
 "willing", "margin" negative through "marginal"), and the Harvard lists treat words such as
 "cost" and "capital" as negative. Analyses that used it need another tone measure.
+
+## Stored `sentiment` gives most of its weight to text that is not speech
+
+The stored score is not the average over what was said. The old `ingest` scored the whole
+XML body, split it into blocks at blank lines, averaged the sentences inside each block
+and then averaged the blocks. A typical body has about six blocks (the header, the two
+participant lists and the spoken sections), so the header and the lists carried most of
+the weight whatever their length.
+
+Since 2026-11-11 the score is the mean over every spoken sentence. In a trial on 338 calls
+of 2002 and 308 of 2018 the new median is 0.155 and 0.211, against 0.033 and 0.044 stored,
+and the two correlate at only 0.32 and 0.50. Recomputing 60 of those calls the old way
+reproduces the stored word and sentence counts exactly for 59 and the stored level
+(median 0.022 against 0.030 in 2002).
+
+- **Rows:** every stored `sentiment`.
+- **Until recomputed:** do not read the stored score as the tone of the call, and do not
+  compare it with scores computed after the rerun (`sentiment_run_id` is set on those).
 
 ## Sentiment of short documents depends on the load batch
 

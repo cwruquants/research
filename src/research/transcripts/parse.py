@@ -1,7 +1,7 @@
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pytz
 from dateutil import parser as date_parser
@@ -100,70 +100,40 @@ def _body_lines(xml_source) -> list:
     return body.splitlines() if body is not None else []
 
 
-def _presentation_from_lines(lines: list) -> str:
-    # Flags and buffers
-    in_presentation = False
-    presentation_lines = []
-
-    for line in lines:
-        if re.search(r"^\s*Presentation\s*$", line):
-            in_presentation = True
-            continue
-        if re.search(r"^\s*(Questions and Answers|Q&A|Operator)\s*$", line, re.IGNORECASE):
-            break
-        if in_presentation:
-            presentation_lines.append(line)
-
-    return "\n".join(presentation_lines).strip()
-
-
-def _qa_from_lines(lines: list) -> str:
-    in_qa = False
-    qa_lines = []
-
-    for line in lines:
-        if not in_qa and re.search(r"^\s*(Questions and Answers|Q&A)\s*$", line, re.IGNORECASE):
-            in_qa = True
-            continue
-        if in_qa:
-            qa_lines.append(line)
-
-    return "\n".join(qa_lines).strip()
-
-
-# Section headings in the transcript body sit between a ==== rule and a ---- rule
+# A section heading sits between a ==== rule and a ---- or ==== rule
 _PARTICIPANT_HEADINGS = {"corporate participants", "conference call participants"}
 
 
-def _spoken_sections_from_lines(lines: list) -> str:
+def _spoken_sections(lines: list) -> List[str]:
     """
-    Fallback for transcripts without the usual "Presentation" / "Questions and Answers"
-    headings (e.g. older calls with a single "Transcript" section, or headings like
-    "PRESENTATION", "q and a", "Q-and-A"): keep every section after the header block
-    except the participant lists, dropping the heading lines themselves.
+    The body's sections, one string each, without the participant lists and without the
+    heading lines themselves.
+
+    Sections are found by their rules, not by what the heading says. The vendor's headings
+    vary ("Presentation", "Questions and Answers", "Transcript", "q and a", "Q-and-A",
+    "Question and Answers", ...) and a call can repeat them, but every section other than
+    the two participant lists is speech. Text before the first heading is the header block.
     """
-    kept = []
-    in_spoken_section = False
-    i = 0
-    while i < len(lines):
+    sections: List[List[str]] = []
+    current: Optional[List[str]] = None  # None in the header block and in a participant list
+    for i, line in enumerate(lines):
         is_heading = (
             0 < i < len(lines) - 1
-            and lines[i].strip()
+            and line.strip()
             and re.fullmatch(r"=+", lines[i - 1].strip())
             and re.fullmatch(r"[-=]{5,}", lines[i + 1].strip())
         )
         if is_heading:
-            in_spoken_section = lines[i].strip().lower() not in _PARTICIPANT_HEADINGS
-            if kept and re.fullmatch(r"=+", kept[-1].strip()):
-                kept.pop()  # the ==== rule above the heading
-            # Skip the heading but keep the ---- rule below it: _strip_speaker_lines
-            # expects each speaker name framed by rules, as in the Presentation section
-            i += 1
-            continue
-        if in_spoken_section:
-            kept.append(lines[i])
-        i += 1
-    return "\n".join(kept).strip()
+            if current:
+                current.pop()  # the ==== rule above this heading
+            current = None
+            if line.strip().lower() not in _PARTICIPANT_HEADINGS:
+                # The rule below the heading stays: it opens the first speaker block
+                current = []
+                sections.append(current)
+        elif current is not None:
+            current.append(line)
+    return ["\n".join(section) for section in sections]
 
 
 def _strip_speaker_lines(section: str) -> str:
@@ -190,22 +160,15 @@ def _strip_speaker_lines(section: str) -> str:
 
 def spoken_text(xml_source) -> str:
     """
-    The spoken text of a transcript: its Presentation and Q&A with speaker lines and rules
-    removed, or every spoken section if it has no such headings. Word counts, readability,
-    sentiment and keyword matching all start from this text, so they describe the same words.
+    The spoken text of a transcript: every section except the participant lists (usually a
+    Presentation and a Q&A), with speaker lines and rules removed and a blank line between
+    sections. Word counts, readability, sentiment and keyword matching all start from this
+    text, so they describe the same words.
     xml_source may be a path or a binary file object (e.g. a zip member).
     """
-    lines = _body_lines(xml_source)
     # Each section is cleaned on its own: see _strip_speaker_lines
-    text = (
-        _strip_speaker_lines(_presentation_from_lines(lines))
-        + "\n\n"
-        + _strip_speaker_lines(_qa_from_lines(lines))
-    ).strip()
-    if not text:
-        # No Presentation / Q&A headings found: fall back to the generic section layout
-        text = _strip_speaker_lines(_spoken_sections_from_lines(lines))
-    return text
+    cleaned = (_strip_speaker_lines(section) for section in _spoken_sections(_body_lines(xml_source)))
+    return "\n\n".join(text for text in cleaned if text)
 
 
 def load_document(file_path) -> DocumentAttr:
