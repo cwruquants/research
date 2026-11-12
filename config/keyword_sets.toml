@@ -13,3 +13,20 @@ file = "data/word_sets/Risk.csv"
 
 [activeness]
 file = "data/word_sets/activeness.csv"
+
+# The rerun (2026-11). Run with `research backfill --from-db --sets risk_2026_11 activeness_2026_11`.
+# risk_2026_11: Risk_v2, approved 2026-11-01 (no "question(s)", "venture", "chance" or "bet").
+[risk_2026_11]
+file = "data/word_sets/Risk_v2.csv"
+normalize_phrases = true
+exclusions = "data/word_sets/Risk_v2_exclusions.csv"
+exclude_safe_harbor = true
+
+# activeness_2026_11: activeness_v2, decided 2026-11-11. Leaves out the outlook words (expect,
+# guidance, anticipate, forecast; plan and strategy stay) and nouns for a thing rather than
+# an action (project, insurance, security), and excludes terms of art ("balance sheet",
+# "adjusted EBITDA", "prepared remarks").
+[activeness_2026_11]
+file = "data/word_sets/activeness_v2.csv"
+exclusions = "data/word_sets/activeness_exclusions.csv"
+exclude_safe_harbor = true

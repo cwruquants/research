@@ -43,6 +43,13 @@ def test_keyword_sets_config_lists_the_db_sets():
     assert {"risk", "activeness"} <= sets.keys()
     assert all(ks.file.exists() for ks in sets.values())
     assert sets["risk"].matching_options()["exclude_safe_harbor"] is False
+    # the rerun's sets: the approved risk list and both noise filters
+    rerun = sets["risk_2026_11"].matching_options()
+    assert rerun["keywords_path"].endswith("Risk_v2.csv") and rerun["exclude_safe_harbor"] is True
+    assert rerun["exclude_phrases_path"].endswith("Risk_v2_exclusions.csv") and rerun["normalize_phrases"]
+    activeness = sets["activeness_2026_11"].matching_options()
+    assert activeness["exclude_phrases_path"].endswith("activeness_exclusions.csv")
+    assert activeness["keywords_path"].endswith("activeness_v2.csv")
 
 
 def test_process_batch_writes_one_run_per_set(transcripts, tmp_path):

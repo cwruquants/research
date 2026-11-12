@@ -90,7 +90,10 @@ These figures are scaled up from a 1% sample of `keyword_matches`.
   idiom, "bet" 37% "you bet".
 
 Until the rerun, drop these keywords from counts, and for `risk` also drop matches whose
-`context` is safe-harbor text.
+`context` is safe-harbor text. The rerun's keyword sets (`risk_2026_11`,
+`activeness_2026_11` in `config/keyword_sets.toml`) use `Risk_v2.csv`, exclusion lists for
+terms of art and the safe-harbor filter; the current parser also drops almost all speaker
+labels (11 of 704 sample calls keep a few).
 
 ## Sentiment sums grow with call length
 
