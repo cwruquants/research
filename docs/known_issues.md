@@ -49,6 +49,13 @@ so this goes away once `documents` is recomputed. On 703 sample transcripts from
 2002–2024, the new code's word count is within 5% of the old code's for 61%, and more
 than 20% higher for 17% (57% of the 2018 calls).
 
+Until 2026-11-12 the two paths also split sentences differently. `documents` split each
+section on its own; matching split the whole text, so a section that ended without a
+full stop ran into the next one. In a trial on the 2002 calls the two sentence counts
+differed in 7% of calls, usually by one. Both now use one function, `split_sentences`,
+so `exposure_runs.total_sentences_in_document` equals `documents.num_sentences` for rows
+written by the same code.
+
 ## Calls with unusual section headings lost text
 
 Until 2026-11-12 the parser found the spoken sections by name: a line reading
@@ -111,6 +118,11 @@ These figures are scaled up from a 1% sample of `keyword_matches`.
 - **Speaker labels.** Lines naming a speaker's firm and job title stay in the matched
   text, in every year. About 406,000 matches have the keyword inside one ("Management",
   "Limited", "Securities").
+- **Escaped ampersands.** The vendor escapes the body text twice, so the stored text has
+  "R&amp;amp;D" where the call said "R&D" (about three calls in four have at least one).
+  No keyword matched it, but a sentence ending in such a word was not split from the
+  next: 13% of the 2002 calls come out one or more sentences short. `spoken_text` undoes
+  the escaping since 2026-11-12; word counts and the dictionary scores do not move.
 - **Activeness words that mean something else.** "adjusted" (72% "adjusted EBITDA" and
   the like), "balance" (60% "balance sheet"), "prepared" (55% "prepared remarks") and
   "limited" (49% a company name) make up about 5% of all `activeness` matches. The list
@@ -233,8 +245,13 @@ documents.
 
 ## "Earnings call" is a title guess
 
-The event type in each XML is parsed but not stored. `is_earnings_call` in
-`document_event_returns` is `title ILIKE '%earnings%'`.
+The stored rows have no event type: the old `ingest` read it from each XML and dropped
+it. `is_earnings_call` in `document_event_returns` is `title ILIKE '%earnings%'`.
+
+Since 2026-11-12 `ingest` writes the file's event type to `documents.event_type_id` and
+`event_type` (`db/migrations/20261112_1700_add_documents_tone_counts_event_type.sql`).
+Both are NULL until the rerun writes the row, and `is_earnings_call` still uses the
+title.
 
 - It matches 347,816 documents, 229,912 of them linked. About 29% of all documents are
   conferences, investor days, shareholder meetings and other events.

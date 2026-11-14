@@ -19,6 +19,8 @@ def test_analyze_document(transcripts):
     assert "sentiment" not in attrs and "HIV4" not in attrs and out["doc_fit"] is None
     # the dictionary tone counts need no model, so they are always computed
     assert attrs["LM"] is not None and attrs["ML"] is not None
+    assert attrs["LM"] == attrs["LM_positive"] - attrs["LM_negative"]
+    assert (doc["event_type_id"], doc["event_type"]) == ("1", "Earnings Conference Call")
 
 
 def test_analyze_document_from_bytes_matches_the_file(transcripts):
@@ -53,7 +55,7 @@ def test_a_transcript_with_no_spoken_text_gets_null_scores_not_zeros(tmp_path):
     )
     attrs = analyze_document(stub, sentiment=ScoresEverything())["document_attr"]
     assert attrs["num_words"] == 0 and attrs["num_sentences"] == 0
-    for key in ("sentiment", "LM", "ML", "flesch_reading_ease", "gunning_fog", "difficult_words"):
+    for key in ("sentiment", "LM", "LM_positive", "ML_negative", "flesch_reading_ease", "gunning_fog"):
         assert attrs[key] is None, key
 
 

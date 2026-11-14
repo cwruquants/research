@@ -1,4 +1,24 @@
+from typing import List
+
 from research.transcripts._nltk import sent_tokenize
+
+
+def split_paragraphs(text: str) -> List[str]:
+    """The blank-line blocks of a text, without the empty ones."""
+    return [block.strip() for block in text.split("\n\n") if block.strip()]
+
+
+def _block_sentences(block: str) -> List[str]:
+    return [sentence.strip() for sentence in sent_tokenize(block) if sentence.strip()]
+
+
+def split_sentences(text: str) -> List[str]:
+    """
+    The sentences of a text, split one blank-line block at a time, so a sentence never runs
+    from one block (a section of a transcript) into the next. DocumentAttr counts sentences
+    this way and keyword matching reads the same list, so their sentence counts agree.
+    """
+    return [sentence for block in split_paragraphs(text) for sentence in _block_sentences(block)]
 
 
 class Attr:
@@ -70,9 +90,8 @@ class ParagraphAttr(Attr):
         self.store_words = store_words
 
         if self.store_sentences:
-            raw_sentences = sent_tokenize(paragraph)
             self.sentences = [
-                SentenceAttr(s.strip(), store_words=self.store_words) for s in raw_sentences if s.strip()
+                SentenceAttr(s, store_words=self.store_words) for s in _block_sentences(paragraph)
             ]
 
     def to_dict(self):
@@ -102,11 +121,9 @@ class DocumentAttr(Attr):
         self.num_words = 0
 
         if self.store_paragraphs:
-            raw_paragraphs = document.split("\n\n")
             self.paragraphs = [
-                ParagraphAttr(p.strip(), store_sentences=self.store_sentences, store_words=self.store_words)
-                for p in raw_paragraphs
-                if p.strip()
+                ParagraphAttr(p, store_sentences=self.store_sentences, store_words=self.store_words)
+                for p in split_paragraphs(document)
             ]
             self.num_paragraphs = len(self.paragraphs)
 

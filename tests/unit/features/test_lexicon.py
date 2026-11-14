@@ -36,6 +36,14 @@ def test_ml_counts_single_words(scorer):
 
 
 def test_scores_are_net_counts_and_none_for_no_words(scorer):
-    assert scorer.scores("Strong demand, good margins, weak pricing.")["LM"] == 1.0
-    assert scorer.scores("") == {"LM": None, "ML": None}
-    assert scorer.scores("  --  123 ") == {"LM": None, "ML": None}
+    scores = scorer.scores("Strong demand, good margins, weak pricing.")
+    assert (scores["LM"], scores["LM_positive"], scores["LM_negative"]) == (1.0, 2, 1)
+    assert set(scores) == {"LM", "LM_positive", "LM_negative", "ML", "ML_positive", "ML_negative"}
+    assert set(scorer.scores("").values()) == {None}
+    assert set(scorer.scores("  --  123 ").values()) == {None}
+
+
+def test_the_net_score_is_always_positive_minus_negative(scorer):
+    scores = scorer.scores("Results were strong and good. Margins declined; losses widened. Demand is weak.")
+    for name in ("LM", "ML"):
+        assert scores[name] == scores[f"{name}_positive"] - scores[f"{name}_negative"]

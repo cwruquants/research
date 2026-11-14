@@ -15,6 +15,18 @@ RESOURCES = {"punkt_tab": "tokenizers/punkt_tab", "cmudict": "corpora/cmudict"}
 _lock = threading.Lock()
 _ready = set()
 
+# NLTK 3.10 runs each of its regular expressions under a 5-second wall-clock limit, as a
+# guard against hostile input. The clock keeps running while a thread waits its turn or
+# the machine stalls, so a loaded run would fail on a transcript that splits in
+# milliseconds, and which ones would depend on the load. Our input is the vendor's
+# transcripts and the patterns are NLTK's own, so the limit is switched off.
+try:
+    from nltk import redos
+
+    redos.DEFAULT_TIMEOUT = None
+except ImportError:  # NLTK before 3.10 has no limit
+    pass
+
 
 def ensure_nltk_data(packages=tuple(RESOURCES)) -> None:
     """Download any of the packages that are missing; safe to call from several threads."""

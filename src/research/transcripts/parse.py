@@ -1,3 +1,4 @@
+import html
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -92,12 +93,30 @@ def get_company_metadata(xml_path: Union[str, Path]) -> Dict[str, Any]:
     return data
 
 
+# Only the XML entities and numeric references, and only with their semicolon, so an
+# abbreviation such as "P&L" or "AT&T" is never read as an entity
+_ESCAPED_ENTITY = re.compile(r"&(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);")
+
+
+def _unescape(text: str) -> str:
+    """
+    Undo the vendor's extra escaping of the body: "R&D" is still "R&amp;D" after the XML
+    parser, and a few files escape a quote mark once more ("&amp;quot;").
+    """
+    for _ in range(3):
+        unescaped = _ESCAPED_ENTITY.sub(lambda match: html.unescape(match.group(0)), text)
+        if unescaped == text:
+            break
+        text = unescaped
+    return text
+
+
 def _body_lines(xml_source) -> list:
     """Lines of the <Body> text of a transcript XML (a path or a binary file object)."""
     root = ET.parse(xml_source).getroot()
     body_elem = root.find(".//Body")
     body = body_elem.text if body_elem is not None else None
-    return body.splitlines() if body is not None else []
+    return _unescape(body).splitlines() if body is not None else []
 
 
 # A section heading sits between a ==== rule and a ---- or ==== rule

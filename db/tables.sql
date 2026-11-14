@@ -56,7 +56,15 @@ CREATE TABLE public.documents (
     ml_per_1000_words double precision
         GENERATED ALWAYS AS (1000.0 * ml_score / NULLIF(num_words, 0)) VIRTUAL,
     measures_run_id bigint,   -- pipeline_runs row behind the counts, readability and LM/ML tone
-    sentiment_run_id bigint   -- pipeline_runs row behind sentiment
+    sentiment_run_id bigint,  -- pipeline_runs row behind sentiment
+    -- The two word counts behind each net score: lm_score = lm_positive - lm_negative
+    lm_positive integer,
+    lm_negative integer,
+    ml_positive integer,
+    ml_negative integer,
+    -- The vendor's event type, as the transcript file states it
+    event_type_id integer,
+    event_type text
 );
 
 CREATE TABLE public.keyword_sets (
