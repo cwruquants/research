@@ -131,6 +131,23 @@ password file at `G:\pg_backups\pgpass.conf` containing only the local
 `postgres` login entry. If that password changes, update this file too.
 It logs success or failure to `backup.log`.
 
+### Off-site copy
+
+After both dumps succeed, the script copies them with rclone to the `pg_backups`
+folder of the `gdrive-cwru:` remote (Google Drive), then applies the same retention
+there: nightly dumps older than 7 days and every transcript dump but the current one
+are deleted, which moves them to the Drive trash. Pass `-DriveRemote ''` to skip this
+step, or another `remote:folder` to change the destination.
+
+- It uses `rclone copy`, never `sync`, so a wiped or damaged local folder cannot delete
+  the Drive copies, and nothing on Drive is pruned unless that night's dumps succeeded.
+- A failed upload is logged as `UPLOAD_FAILED` in `backup.log` and the task ends with
+  exit code 1. The local dumps are kept either way.
+- rclone reads its login from the Windows user's own rclone config, so the task must
+  keep running as that user.
+- To restore from Drive, download both dumps
+  (`rclone copy gdrive-cwru:pg_backups/<file> <local folder>`) and follow the steps below.
+
 ### Restoring
 
 A nightly dump alone restores an empty `transcript_files`, so a restore takes both
