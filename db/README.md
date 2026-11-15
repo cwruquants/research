@@ -119,7 +119,7 @@ alter them. To hand one over, run
 `backup.ps1` makes two kinds of compressed custom-format dump of `research`:
 
 - `research_<stamp>.dump`, every night: everything except the rows of
-  `transcript_files`. Successful dumps are kept for 7 days.
+  `transcript_files`. Successful dumps are kept for 3 days.
 - `transcript_files_<stamp>.dump`, only when `transcript_files` has gained rows
   since the last one. The table is append-only and holds the raw vendor XMLs, so
   its rows are copied once per load, not once per night. One copy is kept, and
@@ -135,7 +135,7 @@ It logs success or failure to `backup.log`.
 
 After both dumps succeed, the script copies them with rclone to the `pg_backups`
 folder of the `gdrive-cwru:` remote (Google Drive) and applies the same retention
-there. Nightly dumps older than 7 days are deleted before the upload, so a full Drive
+there. Nightly dumps older than 3 days are deleted before the upload, so a full Drive
 quota cannot block their removal; every transcript dump but the current one is deleted
 after the current one is uploaded. Deletes skip the Drive trash, which would still count
 against the quota. Pass `-DriveRemote ''` to skip this step, or another `remote:folder`

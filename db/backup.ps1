@@ -1,7 +1,7 @@
 param(
     [string]$BackupDir = 'G:\pg_backups',
     [string]$PgPassFile = 'G:\pg_backups\pgpass.conf',
-    [int]$RetentionDays = 7,
+    [int]$RetentionDays = 3,
     # rclone remote and folder for the off-site copy; '' skips the upload
     [string]$DriveRemote = 'gdrive-cwru:pg_backups',
     [string]$Rclone = 'rclone.exe'
