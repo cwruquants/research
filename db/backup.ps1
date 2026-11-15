@@ -105,18 +105,22 @@ function Invoke-Rclone([string[]]$Arguments) {
 if ($DriveRemote) {
     try {
         $started = Get-Date
+        # Same retention as the local folder, applied before the upload so a full Drive
+        # quota cannot stop the old copies being removed. Deleted for good, not moved to the
+        # Drive trash, which would still count against the quota.
+        Invoke-Rclone @('delete', $DriveRemote, '--max-depth', '1', '--min-age', "$($RetentionDays)d",
+            '--drive-use-trash=false', '--filter', '+ research_*.dump', '--filter', '- *')
+
         # copy, not sync: a wiped or damaged local folder must not delete the Drive copies
         Invoke-Rclone @('copy', $BackupDir, $DriveRemote, '--max-depth', '1',
             '--filter', '+ research_*.dump', '--filter', '+ transcript_files_*.dump',
             '--filter', '- *', '--drive-chunk-size', '64M')
 
-        # Same retention as the local folder. Drive moves deleted files to its trash.
-        Invoke-Rclone @('delete', $DriveRemote, '--max-depth', '1', '--min-age', "$($RetentionDays)d",
-            '--filter', '+ research_*.dump', '--filter', '- *')
+        # The old transcript dump goes only once the current one is on Drive
         $current = Get-ChildItem -LiteralPath $BackupDir -Filter 'transcript_files_*.dump' -File |
             Sort-Object LastWriteTime | Select-Object -Last 1
         if ($current) {
-            Invoke-Rclone @('delete', $DriveRemote, '--max-depth', '1',
+            Invoke-Rclone @('delete', $DriveRemote, '--max-depth', '1', '--drive-use-trash=false',
                 '--filter', "- $($current.Name)", '--filter', '+ transcript_files_*.dump', '--filter', '- *')
         }
         Write-Log "UPLOADED to $DriveRemote in $([int]((Get-Date) - $started).TotalSeconds)s"

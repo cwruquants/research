@@ -134,10 +134,12 @@ It logs success or failure to `backup.log`.
 ### Off-site copy
 
 After both dumps succeed, the script copies them with rclone to the `pg_backups`
-folder of the `gdrive-cwru:` remote (Google Drive), then applies the same retention
-there: nightly dumps older than 7 days and every transcript dump but the current one
-are deleted, which moves them to the Drive trash. Pass `-DriveRemote ''` to skip this
-step, or another `remote:folder` to change the destination.
+folder of the `gdrive-cwru:` remote (Google Drive) and applies the same retention
+there. Nightly dumps older than 7 days are deleted before the upload, so a full Drive
+quota cannot block their removal; every transcript dump but the current one is deleted
+after the current one is uploaded. Deletes skip the Drive trash, which would still count
+against the quota. Pass `-DriveRemote ''` to skip this step, or another `remote:folder`
+to change the destination.
 
 - It uses `rclone copy`, never `sync`, so a wiped or damaged local folder cannot delete
   the Drive copies, and nothing on Drive is pruned unless that night's dumps succeeded.
