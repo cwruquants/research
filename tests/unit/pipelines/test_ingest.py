@@ -132,6 +132,14 @@ def test_measures_only_never_upserts(transcripts, monkeypatch):
     assert {how for _, how in FakeUploader.instances[-1].rows} == {"measures only"}
 
 
+def test_resume_is_only_for_runs_that_read_the_database(transcripts, monkeypatch):
+    monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
+    with pytest.raises(ValueError, match="resume needs from_db"):
+        ingest_module.ingest(transcripts, 2016, database_url="postgresql://fake", resume=True)
+    with pytest.raises(SystemExit):
+        ingest_module.main(["--input-dir", str(transcripts), "--year", "2016", "--resume"])
+
+
 def test_measure_columns_leave_out_what_was_not_computed():
     from research.db.documents import PostgresUploader
 

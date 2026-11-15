@@ -25,12 +25,17 @@ Every text measure uses the spoken text (every section except the participant li
 speaker lines removed), the same text keyword matching reads. Rows stored before 2026-11-11 used the whole XML
 body and have not been recomputed (see docs/known_issues.md).
 
+A --from-db run that was cut short can be continued: the same command with --resume picks
+up the latest run made with the same code, package versions and options, writes under that
+run's id and, with --measures-only, skips the calls it already wrote.
+
 Usage (DATABASE_URL set to a role that can write companies and documents):
 
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --threads 4
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment   # needs --extra ml
     uv run research ingest --input-dir <EARNINGS_CALLS>/2016 --year 2016 --sentiment --measures-only
     uv run research ingest --from-db --measures-only --sentiment --years 2016 2017
+    uv run research ingest --from-db --measures-only --sentiment --years 2016 2017 --resume
     uv run research ingest --from-db --years 2022 2023 2024   # calls with no documents row yet
 """
 
@@ -48,7 +53,7 @@ from tqdm.auto import tqdm
 
 from research import config
 from research.db.documents import PostgresUploader
-from research.db.provenance import model_revision, word_list
+from research.db.provenance import find_matching_run, model_revision, word_list
 from research.db.transcript_files import latest_transcript_names, latest_xml
 from research.features.lexicon import LexiconScorer
 from research.features.readability import readability_scores
@@ -226,6 +231,7 @@ def ingest(
     measures_only: bool = False,
     from_db: bool = False,
     years: Optional[Sequence[int]] = None,
+    resume: bool = False,
 ) -> Dict[str, Any]:
     """
     Analyze every matching XML in input_dir and upsert its companies and documents rows.
@@ -235,12 +241,31 @@ def ingest(
     With from_db, read transcript_files instead of input_dir (see the module docstring);
     `years` then filters on documents.year (measures_only) or on the revision's year
     folder, which is also the fallback year for a call with no parseable start date.
+
+    With resume (from_db only), continue the latest run made by the same code, package
+    versions and settings: rows are written under that run's id, and with measures_only the
+    calls it already wrote are skipped. With no such run, a new one starts as usual.
     """
     url = database_url or config.database_url()
+    if resume and not from_db:
+        raise ValueError("resume needs from_db: only a run that reads transcript_files can be continued")
+    settings = run_settings(sentiment, measures_only, from_db, years, input_dir, pattern)
+    resumed_run: Optional[int] = None
     if from_db:
         with psycopg.connect(url) as conn:
-            names = latest_transcript_names(conn, with_document=measures_only, years=years)
+            if resume:
+                resumed_run = find_matching_run(conn, "ingest", settings)
+            names = latest_transcript_names(
+                conn,
+                with_document=measures_only,
+                years=years,
+                unwritten_by=resumed_run,
+                with_sentiment=sentiment is not None,
+            )
         files: List[Union[Path, StoredTranscript]] = [StoredTranscript(*row) for row in names]
+        if not files and resumed_run is not None:
+            print(f"pipeline_runs id {resumed_run} already wrote every call; nothing left to do")
+            return _summary(year, resumed_run, True, [], [], [])
         if not files:
             raise FileNotFoundError("No transcripts in transcript_files match these options")
     else:
@@ -259,10 +284,14 @@ def ingest(
     try:
         if not measures_only:
             print(f"Loaded {uploader.initialize_company_cache()} existing companies")
-        run_id = uploader.start_run(
-            "ingest", run_settings(sentiment, measures_only, from_db, years, input_dir, pattern)
-        )
-        print(f"Recording this run as pipeline_runs id {run_id}")
+        if resumed_run is not None:
+            run_id = resumed_run
+            print(f"Resuming pipeline_runs id {run_id}: {len(files)} calls left to write")
+        else:
+            if resume:
+                print("No earlier run with this code and these options; starting a new one")
+            run_id = uploader.start_run("ingest", settings)
+            print(f"Recording this run as pipeline_runs id {run_id}")
 
         def process(path: Union[Path, StoredTranscript]) -> Dict[str, Any]:
             fallback_year = year
@@ -326,16 +355,22 @@ def ingest(
     finally:
         uploader.finalize()
 
-    successful = sum(1 for r in upload_results if r["status"] == "success")
-    year_fallbacks = sum(1 for r in upload_results if r.get("year_fallback"))
-    if year_fallbacks:
+    summary = _summary(year, run_id, resumed_run is not None, files, upload_results, errors)
+    if summary["num_year_fallbacks"]:
         where = "their year folder's year" if from_db else f"year {year}"
-        print(f"{year_fallbacks} documents had no parseable start date and were stored with {where}")
+        print(f"{summary['num_year_fallbacks']} documents had no parseable start date; stored with {where}")
+    return summary
+
+
+def _summary(year, run_id: int, resumed: bool, files, upload_results, errors) -> Dict[str, Any]:
+    """What ingest() returns: the run, what it processed and what failed."""
     return {
         "year": year,
+        "run_id": run_id,
+        "resumed": resumed,
         "num_files_processed": len(files),
-        "num_uploaded": successful,
-        "num_year_fallbacks": year_fallbacks,
+        "num_uploaded": sum(1 for r in upload_results if r["status"] == "success"),
+        "num_year_fallbacks": sum(1 for r in upload_results if r.get("year_fallback")),
         "num_errors": len(errors),
         "upload_results": upload_results,
         "errors": errors,
@@ -371,9 +406,18 @@ def main(argv: Optional[List[str]] = None) -> None:
         help="Only overwrite the text measures and event type of existing documents rows; never "
         "change company, year, title, date or city, and skip files that have no row",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="With --from-db, continue the latest run made with the same code, package versions "
+        "and options instead of starting a new one; with --measures-only the calls it already "
+        "wrote are skipped",
+    )
     args = parser.parse_args(argv)
     if args.input_dir and args.year is None:
         parser.error("--input-dir needs --year")
+    if args.resume and not args.from_db:
+        parser.error("--resume only applies with --from-db")
     if args.years and not args.from_db:
         parser.error("--years only applies with --from-db")
 
@@ -388,6 +432,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         measures_only=args.measures_only,
         from_db=args.from_db,
         years=args.years,
+        resume=args.resume,
     )
     print(
         f"{summary['num_uploaded']} of {summary['num_files_processed']} documents uploaded, "

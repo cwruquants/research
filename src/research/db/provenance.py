@@ -106,6 +106,26 @@ def word_list(path) -> Optional[Dict[str, Any]]:
     return {"file": shown, "sha256": file_sha256(path)}
 
 
+def _settings_json(settings: Dict[str, Any]) -> str:
+    return json.dumps(settings, sort_keys=True, default=str)
+
+
+def find_matching_run(conn, step: str, settings: Dict[str, Any]) -> Optional[int]:
+    """
+    The latest run of this step made by the same code, package versions and settings, or
+    None. A run that was cut short is continued under this id (ingest --resume): whatever
+    it already wrote is what this process would write again.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM public.pipeline_runs WHERE step = %s AND code_sha256 = %s "
+            "AND versions = %s::jsonb AND settings = %s::jsonb ORDER BY id DESC LIMIT 1",
+            [step, code_sha256(), json.dumps(package_versions()), _settings_json(settings)],
+        )
+        found = cur.fetchone()
+    return found[0] if found else None
+
+
 def start_run(conn, step: str, settings: Dict[str, Any], command: Optional[str] = None) -> int:
     """Insert a pipeline_runs row for a run that is about to write, and return its id."""
     row = {
@@ -115,7 +135,7 @@ def start_run(conn, step: str, settings: Dict[str, Any], command: Optional[str] 
         **git_state(),
         "code_sha256": code_sha256(),
         "versions": json.dumps(package_versions()),
-        "settings": json.dumps(settings, sort_keys=True, default=str),
+        "settings": _settings_json(settings),
     }
     with conn.cursor() as cur:
         cur.execute(
