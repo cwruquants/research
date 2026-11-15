@@ -1,7 +1,10 @@
 param(
     [string]$BackupDir = 'G:\pg_backups',
     [string]$PgPassFile = 'G:\pg_backups\pgpass.conf',
-    [int]$RetentionDays = 7
+    [int]$RetentionDays = 7,
+    # rclone remote and folder for the off-site copy; '' skips the upload
+    [string]$DriveRemote = 'gdrive-cwru:pg_backups',
+    [string]$Rclone = 'rclone.exe'
 )
 
 # Two kinds of dump:
@@ -9,6 +12,7 @@ param(
 #   transcript_files_<stamp>.dump  only when transcript_files has gained rows; one copy is kept
 # transcript_files holds the raw vendor XMLs and is append-only, so its rows do not need
 # copying again until a load adds some. Restoring takes both dumps: see db/README.md.
+# After both succeed, the dumps are copied to Google Drive with the same retention.
 
 $ErrorActionPreference = 'Stop'
 $pgBin = 'C:\Program Files\PostgreSQL\18\bin'
@@ -83,4 +87,41 @@ try {
     }
     Write-Log "FAILED $($_.Exception.Message)"
     throw
+}
+
+function Invoke-Rclone([string[]]$Arguments) {
+    # rclone writes notices to stderr; under 'Stop' PowerShell would treat them as errors
+    $ErrorActionPreference = 'Continue'
+    $messages = & $Rclone @Arguments -q 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        $tail = ($messages.Trim() -split "`r?`n" | Select-Object -Last 5) -join ' | '
+        throw "rclone $($Arguments[0]) exited with code $LASTEXITCODE. $tail"
+    }
+}
+
+# 3. The off-site copy. Reached only when both dumps above succeeded, so a run of failed
+#    backups never prunes Drive. A failed upload keeps the local dumps and makes the task
+#    end with exit code 1.
+if ($DriveRemote) {
+    try {
+        $started = Get-Date
+        # copy, not sync: a wiped or damaged local folder must not delete the Drive copies
+        Invoke-Rclone @('copy', $BackupDir, $DriveRemote, '--max-depth', '1',
+            '--filter', '+ research_*.dump', '--filter', '+ transcript_files_*.dump',
+            '--filter', '- *', '--drive-chunk-size', '64M')
+
+        # Same retention as the local folder. Drive moves deleted files to its trash.
+        Invoke-Rclone @('delete', $DriveRemote, '--max-depth', '1', '--min-age', "$($RetentionDays)d",
+            '--filter', '+ research_*.dump', '--filter', '- *')
+        $current = Get-ChildItem -LiteralPath $BackupDir -Filter 'transcript_files_*.dump' -File |
+            Sort-Object LastWriteTime | Select-Object -Last 1
+        if ($current) {
+            Invoke-Rclone @('delete', $DriveRemote, '--max-depth', '1',
+                '--filter', "- $($current.Name)", '--filter', '+ transcript_files_*.dump', '--filter', '- *')
+        }
+        Write-Log "UPLOADED to $DriveRemote in $([int]((Get-Date) - $started).TotalSeconds)s"
+    } catch {
+        Write-Log "UPLOAD_FAILED $($_.Exception.Message)"
+        exit 1
+    }
 }
