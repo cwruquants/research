@@ -14,6 +14,32 @@ uv run pytest
 Windows and Linux. Run everything through `uv run` (`uv run research ...`,
 `uv run python ...`) so it uses the project environment.
 
+## GPU for sentiment (AMD, Windows)
+
+Sentiment scoring runs on CPU by default. On an AMD Radeon RX 6000 card (gfx1030, for
+example the RX 6950 XT) it can run on the GPU with AMD's ROCm builds of PyTorch for
+Windows. The project's `torch` pin is the CPU build, so use a separate environment rather
+than `uv sync --extra ml`, which would put the CPU build back:
+
+```bash
+uv venv --seed --python 3.12 venv_rocm
+venv_rocm\Scripts\python -m pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ "torch[device-gfx1030]==2.12.0+rocm7.14.1"
+uv pip install --python venv_rocm\Scripts\python.exe -e . --no-deps
+```
+
+Then install the rest of the `[ml]` and base dependencies from `pyproject.toml` the same
+way, leaving out `torch`. Only a current Adrenalin driver is needed; the HIP SDK is not.
+Check with `venv_rocm\Scripts\python -c "import torch; print(torch.cuda.get_device_name(0))"`:
+ROCm shows the card as a `cuda` device, so `--device 0` works unchanged.
+
+`research ingest --sentiment --device 0 --workers 8` then analyzes about 7.7 transcripts a
+second on that card with a 12-core CPU (about 18 hours for 507k), after about 45 seconds
+of start-up, against about 0.46 on CPU. Sentiment matches the CPU run to within 1e-6 and
+every other measure is identical.
+
+Keep CPU-only work in the regular environment: the ROCm build of torch does CPU math about
+12 times slower than the CPU build, so `--device -1` in `venv_rocm` is very slow.
+
 ## Settings
 
 Commands read these environment variables. `.env.example` lists them; uv does not load a
