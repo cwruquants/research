@@ -37,16 +37,23 @@ Usage (DATABASE_URL set to a role that can write companies and documents):
     uv run research ingest --from-db --measures-only --sentiment --years 2016 2017
     uv run research ingest --from-db --measures-only --sentiment --years 2016 2017 --resume
     uv run research ingest --from-db --years 2022 2023 2024   # calls with no documents row yet
+    uv run research ingest --from-db --measures-only --sentiment --device 0 --workers 8
+
+The last form is the fast one on a GPU: eight worker processes read, parse and tokenize the
+transcripts, and one more process runs the transformer on GPU 0 in large batches
+(research.features.sentiment_server). This process only writes the rows.
 """
 
 import argparse
 import concurrent.futures
+import contextlib
 import io
+import multiprocessing
 import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import psycopg
 from tqdm.auto import tqdm
@@ -181,9 +188,20 @@ def _gather(
 
 
 def run_settings(
-    sentiment, measures_only: bool, from_db: bool, years, input_dir, pattern: str
+    sentiment,
+    measures_only: bool,
+    from_db: bool,
+    years,
+    input_dir,
+    pattern: str,
+    sentiment_device: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """What a pipeline_runs row records about an ingest run."""
+    """What a pipeline_runs row records about an ingest run.
+
+    Sentiment is scored when `sentiment` (a SentimentSetup) or `sentiment_device` (worker
+    processes) is given. A GPU run batches differently from a CPU one, which moves scores
+    by up to about 1e-6, so the two record different settings and never resume each other.
+    """
     settings: Dict[str, Any] = {
         "source": "transcript_files_latest" if from_db else {"input_dir": str(input_dir), "pattern": pattern},
         "measures_only": measures_only,
@@ -195,15 +213,28 @@ def run_settings(
         },
         "sentiment": None,
     }
-    if sentiment is not None:
+    if sentiment is not None or sentiment_device is not None:
         model = DEFAULT_SENTIMENT["hf_model"]
         settings["sentiment"] = {
             "hf_model": model,
             "model_revision": model_revision(model),
             "max_length": getattr(sentiment, "max_length", DEFAULT_SENTIMENT["max_length"]),
-            "batch_size": getattr(sentiment, "batch_size", DEFAULT_SENTIMENT["batch_size"]),
             "document_score": "mean over sentences",
         }
+        on_gpu = (
+            sentiment_device >= 0 if sentiment_device is not None else getattr(sentiment, "on_gpu", False)
+        )
+        if on_gpu:
+            from research.features.sentiment import GPU_MAX_TOKENS, GPU_PAD_MULTIPLE
+
+            settings["sentiment"]["gpu_batches"] = {
+                "max_tokens": GPU_MAX_TOKENS,
+                "pad_multiple": GPU_PAD_MULTIPLE,
+            }
+        else:
+            settings["sentiment"]["batch_size"] = getattr(
+                sentiment, "batch_size", DEFAULT_SENTIMENT["batch_size"]
+            )
     return settings
 
 
@@ -216,6 +247,117 @@ class StoredTranscript:
 
     def __str__(self) -> str:
         return self.source_file
+
+
+def _analyze(
+    path: Union[Path, StoredTranscript],
+    sentiment,
+    year: Optional[int],
+    fetch_xml: Callable[[str], Optional[str]],
+) -> Dict[str, Any]:
+    """Read and analyze one transcript, writing nothing.
+
+    Returns {"data": PostgresUploader payload, "fallback_year": year to store if the call
+    has no parseable date}, or {"skipped": result} when the database has no published
+    revision. fetch_xml(source_file) reads a stored transcript.
+    """
+    if isinstance(path, StoredTranscript):
+        stored = fetch_xml(path.source_file)
+        if stored is None:
+            return {
+                "skipped": {"status": "skipped", "reason": "No published transcript", "file_path": str(path)}
+            }
+        doc_attrs = analyze_document(path.source_file, sentiment, xml=stored.encode("utf-8"))
+        fallback_year = path.folder_year if path.folder_year is not None else year
+    else:
+        doc_attrs = analyze_document(path, sentiment)
+        fallback_year = year
+    return {"data": {"doc_attrs": doc_attrs}, "fallback_year": fallback_year}
+
+
+# Per worker process, set by _init_worker
+_worker_sentiment = None
+_worker_year: Optional[int] = None
+_worker_db_url: Optional[str] = None
+_worker_conn: Optional[psycopg.Connection] = None
+
+
+def _init_worker(
+    lock, sentiment_device: Optional[int], server_args, torch_threads: int, db_url: str, year: Optional[int]
+) -> None:
+    global _worker_sentiment, _worker_year, _worker_db_url
+    _worker_year, _worker_db_url = year, db_url
+    # One worker at a time: four Windows workers that loaded NLTK data and the model at
+    # the same moment deadlocked
+    with lock:
+        ensure_nltk_data()
+        readability_scores("Load the syllable dictionary.")
+        _lexicon_scorer()
+        if sentiment_device is None:
+            return
+        import torch
+
+        torch.set_num_threads(torch_threads)
+        if server_args is not None:
+            from research.features.sentiment_server import connect
+
+            # CPU copy for the tokenizer; the transformer runs on the server
+            _worker_sentiment = connect(
+                default_sentiment_setup({"device": -1, "batch_size": 32}), server_args
+            )
+        else:
+            _worker_sentiment = default_sentiment_setup({"device": -1})
+        warm_up = DocumentAttr(
+            "Load the models once. This is a second sentence.",
+            store_paragraphs=True,
+            store_sentences=True,
+            store_words=False,
+        )
+        _worker_sentiment.fit_all(warm_up)
+
+
+def _worker_fetch_xml(source_file: str) -> Optional[str]:
+    """latest_xml over this worker's own connection, reopened if it broke."""
+    global _worker_conn
+    if _worker_conn is None or _worker_conn.closed or _worker_conn.broken:
+        _worker_conn = psycopg.connect(_worker_db_url, autocommit=True)
+    return latest_xml(_worker_conn, [source_file]).get(source_file)
+
+
+def _analyze_in_worker(path: Union[Path, StoredTranscript]):
+    """(path, _analyze's result or None, error message or None); the fitted tree stays here."""
+    try:
+        outcome = _analyze(path, _worker_sentiment, _worker_year, _worker_fetch_xml)
+    except Exception as e:
+        return path, None, f"{type(e).__name__}: {e}"
+    if "data" in outcome:
+        outcome["data"]["doc_attrs"]["doc_fit"] = None
+    return path, outcome, None
+
+
+@contextlib.contextmanager
+def _worker_results(files, workers: int, sentiment_device: Optional[int], db_url: str, year: Optional[int]):
+    """Analyze files in `workers` spawned processes; yields an iterator of _analyze_in_worker results.
+
+    With a GPU sentiment_device the transformer runs in one ScoringServer process on that
+    GPU, which the workers send token ids to; with -1 every worker holds a CPU copy.
+    """
+    ctx = multiprocessing.get_context("spawn")  # fork is unsafe once torch has started threads
+    with contextlib.ExitStack() as stack:
+        server_args = None
+        if sentiment_device is not None and sentiment_device >= 0:
+            from research.features.sentiment_server import ScoringServer  # needs the [ml] extra
+
+            server_args = stack.enter_context(ScoringServer(ctx, workers, sentiment_device)).client_args()
+        cpu_threads = 1 if server_args else max(1, (os.cpu_count() or 2) // workers)
+        pool = stack.enter_context(
+            ctx.Pool(
+                workers,
+                initializer=_init_worker,
+                initargs=(ctx.Lock(), sentiment_device, server_args, cpu_threads, db_url, year),
+            )
+        )
+        yield pool.imap_unordered(_analyze_in_worker, files, chunksize=1)
 
 
 def ingest(
@@ -232,6 +374,8 @@ def ingest(
     from_db: bool = False,
     years: Optional[Sequence[int]] = None,
     resume: bool = False,
+    num_workers: int = 1,
+    sentiment_device: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Analyze every matching XML in input_dir and upsert its companies and documents rows.
@@ -245,11 +389,24 @@ def ingest(
     With resume (from_db only), continue the latest run made by the same code, package
     versions and settings: rows are written under that run's id, and with measures_only the
     calls it already wrote are skipped. With no such run, a new one starts as usual.
+
+    num_workers > 1 reads and analyzes transcripts in that many processes and writes from
+    this one (num_threads is then unused). To score sentiment that way, pass
+    sentiment_device instead of a SentimentSetup: a GPU index runs the transformer in one
+    scoring process on that GPU; -1 gives every worker its own CPU copy, which is no faster
+    than one process. With one process, sentiment_device alone builds the SentimentSetup.
     """
     url = database_url or config.database_url()
     if resume and not from_db:
         raise ValueError("resume needs from_db: only a run that reads transcript_files can be continued")
-    settings = run_settings(sentiment, measures_only, from_db, years, input_dir, pattern)
+    workers = max(1, num_workers or 1)
+    if workers > 1 and sentiment is not None:
+        raise ValueError("with num_workers > 1, pass sentiment_device instead of a SentimentSetup")
+    if workers == 1 and sentiment is None and sentiment_device is not None:
+        sentiment = default_sentiment_setup({"device": sentiment_device})
+        sentiment_device = None
+    scores_sentiment = sentiment is not None or sentiment_device is not None
+    settings = run_settings(sentiment, measures_only, from_db, years, input_dir, pattern, sentiment_device)
     resumed_run: Optional[int] = None
     if from_db:
         with psycopg.connect(url) as conn:
@@ -260,7 +417,7 @@ def ingest(
                 with_document=measures_only,
                 years=years,
                 unwritten_by=resumed_run,
-                with_sentiment=sentiment is not None,
+                with_sentiment=scores_sentiment,
             )
         files: List[Union[Path, StoredTranscript]] = [StoredTranscript(*row) for row in names]
         if not files and resumed_run is not None:
@@ -273,7 +430,7 @@ def ingest(
         if not input_dir.is_dir():
             raise NotADirectoryError(f"Input directory not found: {input_dir}")
         files = _gather(input_dir, pattern, recursive, specific_files)
-    threads = max(1, num_threads or 1)
+    threads = 1 if workers > 1 else max(1, num_threads or 1)
     # Fetch and load the NLTK data in this thread: the workers would race to download it,
     # and NLTK's lazy cmudict loader fails when several threads touch it first
     ensure_nltk_data()
@@ -293,29 +450,27 @@ def ingest(
             run_id = uploader.start_run("ingest", settings)
             print(f"Recording this run as pipeline_runs id {run_id}")
 
-        def process(path: Union[Path, StoredTranscript]) -> Dict[str, Any]:
-            fallback_year = year
-            if isinstance(path, StoredTranscript):
-                with uploader.pool.connection() as conn:
-                    stored = latest_xml(conn, [path.source_file]).get(path.source_file)
-                if stored is None:
-                    return {"status": "skipped", "reason": "No published transcript", "file_path": str(path)}
-                data = {
-                    "doc_attrs": analyze_document(path.source_file, sentiment, xml=stored.encode("utf-8"))
-                }
-                fallback_year = path.folder_year if path.folder_year is not None else year
-            else:
-                data = {"doc_attrs": analyze_document(path, sentiment)}
+        def fetch_xml(source_file: str) -> Optional[str]:
+            with uploader.pool.connection() as conn:
+                return latest_xml(conn, [source_file]).get(source_file)
+
+        def write(path: Union[Path, StoredTranscript], outcome: Dict[str, Any]) -> Dict[str, Any]:
+            if "skipped" in outcome:
+                return outcome["skipped"]
+            data = outcome["data"]
             attrs = data["doc_attrs"]["document_attr"]
             attrs["measures_run_id"] = run_id
-            if sentiment is not None:
+            if scores_sentiment:
                 attrs["sentiment_run_id"] = run_id
             if measures_only:
                 result = uploader.update_measures(data)
             else:
-                result = uploader.upload_document(data, fallback_year)
+                result = uploader.upload_document(data, outcome["fallback_year"])
             result["file_path"] = str(path)
             return result
+
+        def process(path: Union[Path, StoredTranscript]) -> Dict[str, Any]:
+            return write(path, _analyze(path, sentiment, year, fetch_xml))
 
         def record(path: Path, result: Optional[Dict[str, Any]], error: Optional[Exception]) -> None:
             if error is not None:
@@ -330,7 +485,22 @@ def ingest(
         progress = dict(
             total=len(files), desc="Processing & Uploading", unit="file", dynamic_ncols=True, file=sys.stderr
         )
-        if threads > 1:
+        if workers > 1:
+            with (
+                _worker_results(files, workers, sentiment_device, url, year) as results,
+                tqdm(**progress) as bar,
+            ):
+                for path, outcome, message in results:
+                    if message is not None:
+                        record(path, None, RuntimeError(message))
+                    else:
+                        try:
+                            result, error = write(path, outcome), None
+                        except Exception as e:
+                            result, error = None, e
+                        record(path, result, error)
+                    bar.update(1)
+        elif threads > 1:
             with (
                 concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor,
                 tqdm(**progress) as bar,
@@ -399,6 +569,16 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--threads", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     parser.add_argument("--sentiment", action="store_true", help="Also score sentiment (needs --extra ml)")
+    parser.add_argument(
+        "--device", type=int, default=-1, help="GPU index for the sentiment transformer; -1 (default) is CPU"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Read and analyze in this many processes (replaces --threads); with --sentiment "
+        "--device 0, one more process runs the transformer on the GPU. 8 suits a 12-core CPU.",
+    )
     parser.add_argument("--stop-on-error", action="store_true")
     parser.add_argument(
         "--measures-only",
@@ -420,11 +600,13 @@ def main(argv: Optional[List[str]] = None) -> None:
         parser.error("--resume only applies with --from-db")
     if args.years and not args.from_db:
         parser.error("--years only applies with --from-db")
+    if args.device != -1 and not args.sentiment:
+        parser.error("--device only applies with --sentiment")
 
     summary = ingest(
         args.input_dir,
         args.year,
-        sentiment=default_sentiment_setup() if args.sentiment else None,
+        sentiment_device=args.device if args.sentiment else None,
         pattern=args.pattern,
         recursive=args.recursive,
         skip_on_error=not args.stop_on_error,
@@ -433,6 +615,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         from_db=args.from_db,
         years=args.years,
         resume=args.resume,
+        num_workers=args.workers,
     )
     print(
         f"{summary['num_uploaded']} of {summary['num_files_processed']} documents uploaded, "

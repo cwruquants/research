@@ -165,6 +165,42 @@ def test_ingest_uploads_every_file(transcripts, monkeypatch, threads):
     ]
 
 
+def test_ingest_with_worker_processes(transcripts, monkeypatch):
+    # spawned workers analyze, this process uploads (so the fake uploader still sees every row)
+    monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
+    summary = ingest_module.ingest(transcripts, 2016, database_url="postgresql://fake", num_workers=2)
+    assert summary["num_uploaded"] == 3 and summary["num_errors"] == 0
+    assert sorted(name for name, _ in FakeUploader.instances[-1].rows) == [
+        "no_headings_T.xml",
+        "spaced_T.xml",
+        "tight_T.xml",
+    ]
+
+
+def test_workers_take_a_device_not_a_setup(transcripts, monkeypatch):
+    monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
+    with pytest.raises(ValueError):
+        ingest_module.ingest(
+            transcripts, 2016, database_url="postgresql://fake", sentiment=object(), num_workers=2
+        )
+
+
+def test_gpu_and_cpu_runs_record_different_settings():
+    # GPU batches move scores by about 1e-6, so --resume must never mix the two
+    pytest.importorskip("torch")
+    cpu = ingest_module.run_settings(None, True, True, None, None, "*.xml", sentiment_device=-1)
+    gpu = ingest_module.run_settings(None, True, True, None, None, "*.xml", sentiment_device=0)
+    assert cpu["sentiment"]["batch_size"] == "auto" and "gpu_batches" not in cpu["sentiment"]
+    assert gpu["sentiment"]["gpu_batches"] == {"max_tokens": 4096, "pad_multiple": 32}
+    assert "batch_size" not in gpu["sentiment"]
+    assert ingest_module.run_settings(None, True, True, None, None, "*.xml")["sentiment"] is None
+
+
+def test_device_needs_sentiment(transcripts):
+    with pytest.raises(SystemExit):
+        ingest_module.main(["--input-dir", str(transcripts), "--year", "2016", "--device", "0"])
+
+
 def test_ingest_refuses_an_empty_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
     with pytest.raises(FileNotFoundError):

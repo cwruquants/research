@@ -170,3 +170,54 @@ def test_ingest_and_backfill_read_the_latest_revision(test_database_url, transcr
                 "DELETE FROM public.pipeline_runs WHERE settings->'years' = %s::jsonb",
                 [f"[{YEAR}, {YEAR + 1}]"],
             )
+
+
+@pytest.mark.db
+def test_worker_processes_read_the_database_and_write_what_one_process_writes(
+    test_database_url, transcripts, tmp_path
+):
+    # Workers fetch each call's XML over their own connection; this process writes the rows.
+    # The measures they store must equal a one-process run's, under the new run's id.
+    tag = uuid4().hex[:10]
+    names = [f"9{tag}{i}_T.xml" for i in range(3)]
+    archive = tmp_path / f"{tag}.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for name, fixture in zip(names, ["spaced_T.xml", "tight_T.xml", "no_headings_T.xml"]):
+            xml = _revision((transcripts / fixture).read_bytes(), "Monday, January 4, 2032 at 9:00:00am GMT")
+            z.writestr(f"{YEAR}/{name}", xml)
+    load_sources([str(archive)], test_database_url)
+    columns = "num_words, num_sentences, flesch_reading_ease, lm_score, ml_score, event_type"
+    try:
+        made = ingest_module.ingest(None, None, database_url=test_database_url, from_db=True, years=[YEAR])
+        assert made["num_uploaded"] == 3
+
+        def stored():
+            with psycopg.connect(test_database_url) as conn:
+                return conn.execute(
+                    f"SELECT source_file, {columns}, measures_run_id FROM public.documents "
+                    "WHERE source_file = ANY(%s) ORDER BY source_file",
+                    [names],
+                ).fetchall()
+
+        one_process = stored()
+        rerun = ingest_module.ingest(
+            None,
+            None,
+            database_url=test_database_url,
+            from_db=True,
+            measures_only=True,
+            years=[YEAR],
+            num_workers=2,
+        )
+        assert (rerun["num_uploaded"], rerun["num_errors"]) == (3, 0)
+        workers = stored()
+        assert [row[:-1] for row in workers] == [row[:-1] for row in one_process]
+        assert {row[-1] for row in workers} == {rerun["run_id"]} != {made["run_id"]}
+    finally:
+        with psycopg.connect(test_database_url) as conn:
+            conn.execute("DELETE FROM public.documents WHERE source_file = ANY(%s)", [names])
+            conn.execute("DELETE FROM public.transcript_files WHERE archive = %s", [archive.name])
+            conn.execute("SET session_replication_role = replica")  # past the append-only trigger
+            conn.execute(
+                "DELETE FROM public.pipeline_runs WHERE settings->'years' = %s::jsonb", [f"[{YEAR}]"]
+            )

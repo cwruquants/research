@@ -137,6 +137,11 @@ zips stay the record of truth; the table can be rebuilt from them.
   --measures-only` (add `--sentiment` for the model scores). It reads the latest published
   revision and changes only the measure columns and the event type, never company, year,
   title, date or city.
+- With sentiment on a GPU, add `--device 0 --workers 8`: worker processes read, parse and
+  tokenize, and one process runs the transformer on the GPU in large batches (see
+  [setup.md](setup.md) for the GPU environment). More processes each holding the model on
+  one GPU, or `--threads`, do not speed sentiment up. A GPU run records its batching, so
+  `--resume` never continues a CPU run with the GPU or the other way round.
 - A run that was cut short: give the same command again with `--resume`. It continues the
   latest run made with the same code, package versions and options, writes under that
   run's id and skips the calls the run already wrote. If the code or an option changed
