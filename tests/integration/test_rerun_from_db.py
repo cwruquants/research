@@ -93,6 +93,26 @@ def test_ingest_and_backfill_read_the_latest_revision(test_database_url, transcr
             assert sentiment_run is None
             run_ids = [measures_run]
 
+        # A run cut short: one call was never written. --resume continues under the same run
+        # id and reads only that call.
+        with psycopg.connect(test_database_url) as conn:
+            conn.execute(
+                "UPDATE public.documents SET measures_run_id = NULL, num_words = 1 WHERE source_file = %s",
+                [new],
+            )
+            runs_before = conn.execute("SELECT count(*) FROM public.pipeline_runs").fetchone()[0]
+        resume = dict(database_url=test_database_url, from_db=True, measures_only=True, years=[YEAR])
+        resumed = ingest_module.ingest(None, None, resume=True, num_threads=1, **resume)
+        assert resumed["resumed"] and resumed["run_id"] == measures_run
+        assert (resumed["num_files_processed"], resumed["num_uploaded"]) == (1, 1)
+        nothing_left = ingest_module.ingest(None, None, resume=True, **resume)
+        assert nothing_left["run_id"] == measures_run and nothing_left["num_files_processed"] == 0
+        with psycopg.connect(test_database_url) as conn:
+            assert conn.execute(
+                "SELECT measures_run_id, num_words > 1 FROM public.documents WHERE source_file = %s", [new]
+            ).fetchone() == (measures_run, True)
+            assert conn.execute("SELECT count(*) FROM public.pipeline_runs").fetchone()[0] == runs_before
+
         # Backfill: one batch read from the table, on a connection that is not in autocommit
         with psycopg.connect(test_database_url) as conn:
             register_keyword_set(conn, set_name, "words.csv", 2)

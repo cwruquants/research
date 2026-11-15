@@ -89,7 +89,13 @@ LATEST_NAMES_WITH_DOCUMENT_SQL = """
     SELECT l.source_file, l.folder_year
     FROM public.transcript_files_latest l
     JOIN public.documents d ON d.source_file = l.source_file
-    WHERE %(years)s::int[] IS NULL OR d.year = ANY(%(years)s::int[])
+    WHERE (%(years)s::int[] IS NULL OR d.year = ANY(%(years)s::int[]))
+        -- resuming a run: leave out the rows that run already wrote
+        AND (
+            %(unwritten_by)s::bigint IS NULL
+            OR d.measures_run_id IS DISTINCT FROM %(unwritten_by)s::bigint
+            OR (%(with_sentiment)s AND d.sentiment_run_id IS DISTINCT FROM %(unwritten_by)s::bigint)
+        )
     ORDER BY l.source_file
 """
 
@@ -103,12 +109,26 @@ LATEST_NAMES_WITHOUT_DOCUMENT_SQL = """
 
 
 def latest_transcript_names(
-    conn: psycopg.Connection, with_document: bool, years=None
+    conn: psycopg.Connection,
+    with_document: bool,
+    years=None,
+    unwritten_by: Optional[int] = None,
+    with_sentiment: bool = False,
 ) -> List[Tuple[str, Optional[int]]]:
-    """(source_file, folder_year) of the latest published transcript of each call."""
+    """
+    (source_file, folder_year) of the latest published transcript of each call.
+
+    With with_document and unwritten_by (a pipeline_runs id), only the calls whose measures
+    that run has not written yet, or whose sentiment it has not written when with_sentiment.
+    """
     sql = LATEST_NAMES_WITH_DOCUMENT_SQL if with_document else LATEST_NAMES_WITHOUT_DOCUMENT_SQL
+    params = {
+        "years": list(years) if years else None,
+        "unwritten_by": unwritten_by,
+        "with_sentiment": with_sentiment,
+    }
     with conn.cursor() as cur:
-        cur.execute(sql, {"years": list(years) if years else None})
+        cur.execute(sql, params)
         return cur.fetchall()
 
 
