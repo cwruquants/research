@@ -259,26 +259,37 @@ title.
   linked, mostly 2002–2012).
 - It includes about 835 linked guidance, pre-announcement and merger calls.
 
-## Calls end in 2021
+## Calls end in August 2024
 
-Calls in `documents` run from 2002-01-14 to 2021-12-31. The raw files go on to 2024, and
-since 2026-11-11 all of them are in `transcript_files`. 109,908 calls there have no
-`documents` row:
+The vendor files stop at 2024-08-30, so `documents` has no calls after that date and 2024
+is two-thirds of a year. The 107,994 calls from the 2022–2024 folders were ingested on
+2026-11-16 (`pipeline_runs` 3, exposures in run 4); 3,174 of them are dated before 2022,
+older calls the vendor first sent in those folders. The folders also hold later revisions
+of older calls, which is why the 2021 folder has more files (41,975) than 2021 has
+documents (39,130).
 
-- about 108,000 whose files sit only in the 2022–2024 folders. Those folders hold
-  122,815 files, but many are later revisions of older calls, which is also why the
-  2021 folder has more files (41,975) than 2021 has documents (39,130);
-- 1,978 older published transcripts that were never ingested: 709 in the 2018 folder,
-  mostly dated December 2018 and January 2019, 586 in 2011 and 250 in 2020. This is
-  why December 2018 has about half the calls of the Decembers either side.
+1,978 older published transcripts were never ingested: 709 in the 2018 folder, mostly
+dated December 2018 and January 2019, 586 in 2011 and 250 in 2020. This is why December
+2018 has about half the calls of the Decembers either side. They have no text measures,
+exposures, links or returns. January to March 2002 is thin in the vendor files themselves.
 
-None of these calls has text measures, exposures, links or returns. January to March
-2002 is thin in the vendor files themselves.
+The 2022–2024 ingest made 4,299 new `companies` rows. Many carry a retired RIC
+(`AEL.N^E24`) or repeat an older row's name under another RIC, because the vendor files
+each call under the RIC it has now; route A reads the RIC per call, so linking is not
+affected, but counting firms by `company_id` is (see "A company row is not a firm").
 
 ## Links and returns
 
-- Calls whose company row has no U.S. listing (about 138,500) or no CRSP match have no
-  `document_crsp_links` row, so no returns.
+- Calls whose company row has no U.S. listing (about 186,000) or no CRSP match have no
+  `document_crsp_links` row, so no returns. The share of U.S. calls falls over time: 74%
+  of 2015 calls are linked, 61% of 2021 and about 57% of 2022–2024.
+- **Calls added in 2026-11 have no route B.** The 107,994 calls ingested on 2026-11-16 went
+  through route A only (db/fixes/2026-11-16_links_and_returns_2022_2024.sql). Their calls
+  on acquirer or conference-host company rows are linked only when route A's title check
+  accepts them.
+- **CRSP ends on 2024-12-31.** The legacy daily files (`crsp.dsf`, `dsi`) stop there, so
+  the [+2, +121] window is short for calls from about July 2024 on (all 2,347 August 2024
+  calls, median 99 of 120 days). Filter on `n_p2_p121`.
 - **Wrong links.** The 311,296 ticker-and-date links sampled clean. The errors sit in
   small groups: 1,068 title links made on a name prefix (about half wrong), 899 links
   noted `title_unnamed` (about 15% wrong), and 426 ticker or CUSIP links whose title
@@ -290,7 +301,7 @@ None of these calls has text measures, exposures, links or returns. January to M
 - **Several calls on one event.** 3,020 (PERMNO, day 0) pairs have more than one row
   (6,179 rows), and 316 of them hold two or more earnings calls. Keep one row per event
   before an event study.
-- `mcap_pre` is missing for 1,737 of 352,115 linked calls (no CRSP price in the 30 days
+- `mcap_pre` is missing for 1,856 of 413,033 linked calls (no CRSP price in the 30 days
   before day 0).
 - Use `bhar_`, not `car_mm_`. For drift windows, subtracting the market-model alpha
   flips the sign of long-run drift. For short windows, one jump day in the estimation

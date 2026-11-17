@@ -27,10 +27,10 @@ flowchart LR
 | Step | Command | Reads | Writes | How the DB table was last filled |
 |---|---|---|---|---|
 | Store | `research transcripts load`, then `verify` | the vendor zips | `transcript_files` | `research transcripts load` on the six vendor zips (2002–2024), 2026-11-11; `verify` passed |
-| Parse | `research ingest` | transcript XMLs | `companies`, `documents` | Oct 2026 migration from Supabase, plus fixes in `db/fixes/` |
-| Match | `research backfill` | XMLs, `documents`, word lists | `exposure_runs`, `keyword_matches` | `research backfill`, 2026-10-17 (before the Q&A parser fix) |
-| Link | `research link route-b`, then `route-a` | route B: a list of calls on acquirer and broker-host company rows (see below); route A: the `db/queries/link_documents.sql` export, LSEG, CRSP stocknames | `proposed_links_all.csv` | loaded with `db/loads/document_crsp_links.sql` |
-| Returns | `research returns fetch`, `compute` | `db/queries/events.sql` export, WRDS | `event_returns.csv.gz` | loaded with `db/loads/document_event_returns.sql` |
+| Parse | `research ingest` | transcript XMLs | `companies`, `documents` | Oct 2026 migration from Supabase, plus fixes in `db/fixes/`; measures rerun from `transcript_files` 2026-11-15 (`pipeline_runs` 2); 2022–2024 calls added 2026-11-16 (run 3) |
+| Match | `research backfill` | XMLs, `documents`, word lists | `exposure_runs`, `keyword_matches` | `research backfill`, 2026-10-17 (sets `risk`, `activeness`, before the Q&A parser fix); `risk_2026_11` and `activeness_2026_11` 2026-11-15 (run 1) and for the 2022–2024 calls 2026-11-16 (run 4) |
+| Link | `research link route-b`, then `route-a` | route B: a list of calls on acquirer and broker-host company rows (see below); route A: the `db/queries/link_documents.sql` export, LSEG, CRSP stocknames | `proposed_links_all.csv` | loaded with `db/loads/document_crsp_links.sql`; 2022–2024 calls appended with `db/fixes/2026-11-16_links_and_returns_2022_2024.sql` |
+| Returns | `research returns fetch`, `compute` | `db/queries/events.sql` export, WRDS | `event_returns.csv.gz` | loaded with `db/loads/document_event_returns.sql`; 2022–2024 calls appended with the same fix file |
 | Size | `research returns mcap` | `event_returns.csv.gz`, WRDS | `mcap_pre.csv` | the same load script |
 | Surprise | `research returns surprise` | `event_returns.csv.gz`, WRDS | `earnings_surprise.csv` | not in the DB |
 
@@ -44,13 +44,13 @@ treats each document in `--route-b` as already linked and skips it.
 
 | Table | Rows | One row per |
 |---|---|---|
-| `companies` | ~19k | company name and RIC as the vendor files it |
-| `documents` | ~507k | transcript: metadata, word and sentence counts, readability, sentiment |
-| `keyword_sets` | 2 | word list run against the corpus (`risk`, `activeness`) |
-| `exposure_runs` | ~1.0M | (document, keyword set): counts of matches and sentences |
-| `keyword_matches` | ~50.6M | keyword hit, with the matched sentence; about 98% of the DB |
-| `document_crsp_links` | ~352k | call linked to a CRSP security on the call date |
-| `document_event_returns` | ~352k | linked call: day 0, window returns, market-model fit, `mcap_pre` |
+| `companies` | ~23k | company name and RIC as the vendor files it |
+| `documents` | ~615k | transcript: metadata, word and sentence counts, readability, sentiment |
+| `keyword_sets` | 4 | word list run against the corpus (`risk`, `activeness`, `risk_2026_11`, `activeness_2026_11`) |
+| `exposure_runs` | ~2.2M | (document, keyword set): counts of matches and sentences |
+| `keyword_matches` | ~88M | keyword hit, with the matched sentence; about 98% of the DB |
+| `document_crsp_links` | ~413k | call linked to a CRSP security on the call date |
+| `document_event_returns` | ~413k | linked call: day 0, window returns, market-model fit, `mcap_pre` |
 
 | `transcript_files` | ~635k | raw vendor XML file revision, 2002–2024 (see below); 15 GB |
 | `pipeline_runs` | one per run | `ingest` or `backfill` run: code, versions, model and word lists (see below) |
