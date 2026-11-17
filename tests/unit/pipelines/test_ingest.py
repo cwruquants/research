@@ -16,7 +16,7 @@ def test_analyze_document(transcripts):
     assert attrs["num_words"] > 150 and attrs["num_sentences"] > 10
     assert {"flesch_reading_ease", "gunning_fog", "difficult_words"} <= attrs.keys()
     assert not {"linsear_write_formula", "text_standard"} & attrs.keys()  # dropped 2026-11-11
-    assert "sentiment" not in attrs and "HIV4" not in attrs and out["doc_fit"] is None
+    assert "sentiment" not in attrs and "HIV4" not in attrs
     # the dictionary tone counts need no model, so they are always computed
     assert attrs["LM"] is not None and attrs["ML"] is not None
     assert attrs["LM"] == attrs["LM_positive"] - attrs["LM_negative"]
@@ -33,17 +33,14 @@ def test_analyze_document_from_bytes_matches_the_file(transcripts):
 
 
 class ScoresEverything:
-    """Stands in for SentimentSetup: the sentences of the longest paragraph score 1, all
-    others 0, and fit_all's own document score is the mean of the paragraph means."""
+    """Stands in for SentimentSetup: the first `ones` sentences score 1, the rest 0."""
 
-    def fit_all(self, doc):
-        longest = max(doc.paragraphs, key=lambda p: len(p.sentences))
-        for paragraph in doc.paragraphs:
-            for sentence in paragraph.sentences:
-                sentence.sentiment = 1.0 if paragraph is longest else 0.0
-            paragraph.sentiment = 1.0 if paragraph is longest else 0.0
-        doc.sentiment = sum(p.sentiment for p in doc.paragraphs) / len(doc.paragraphs)
-        return doc
+    def __init__(self, ones=1):
+        self.ones, self.calls = ones, []
+
+    def sentence_scores(self, texts):
+        self.calls.append(list(texts))
+        return [1.0 if i < self.ones else 0.0 for i in range(len(texts))]
 
 
 def test_a_transcript_with_no_spoken_text_gets_null_scores_not_zeros(tmp_path):
@@ -60,14 +57,11 @@ def test_a_transcript_with_no_spoken_text_gets_null_scores_not_zeros(tmp_path):
 
 
 def test_sentiment_is_the_mean_over_every_sentence(transcripts):
-    out = analyze_document(transcripts / "spaced_T.xml", sentiment=ScoresEverything())
-    paragraphs = out["doc_fit"].paragraphs
-    longest = max(len(p.sentences) for p in paragraphs)
-    total = sum(len(p.sentences) for p in paragraphs)
-    assert longest > 1
-    assert out["document_attr"]["sentiment"] == pytest.approx(longest / total)
-    # not the mean of the paragraph means, which gives each paragraph the same weight
-    assert out["doc_fit"].sentiment == pytest.approx(1 / len(paragraphs))
+    scorer = ScoresEverything(ones=3)
+    out = analyze_document(transcripts / "spaced_T.xml", sentiment=scorer)
+    [texts] = scorer.calls  # the whole call in one request
+    assert len(texts) == out["document_attr"]["num_sentences"] > 3
+    assert out["document_attr"]["sentiment"] == pytest.approx(3 / len(texts))
 
 
 @pytest.mark.parametrize("name", ["spaced_T.xml", "tight_T.xml", "no_headings_T.xml"])
@@ -190,7 +184,7 @@ def test_gpu_and_cpu_runs_record_different_settings():
     pytest.importorskip("torch")
     cpu = ingest_module.run_settings(None, True, True, None, None, "*.xml", sentiment_device=-1)
     gpu = ingest_module.run_settings(None, True, True, None, None, "*.xml", sentiment_device=0)
-    assert cpu["sentiment"]["batch_size"] == "auto" and "gpu_batches" not in cpu["sentiment"]
+    assert cpu["sentiment"]["batch_size"] == 32 and "gpu_batches" not in cpu["sentiment"]
     assert gpu["sentiment"]["gpu_batches"] == {"max_tokens": 4096, "pad_multiple": 32}
     assert "batch_size" not in gpu["sentiment"]
     assert ingest_module.run_settings(None, True, True, None, None, "*.xml")["sentiment"] is None

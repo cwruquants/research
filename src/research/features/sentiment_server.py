@@ -3,13 +3,13 @@ Score transformer sentiment for several worker processes on one GPU process.
 
 Several processes each holding the model on one GPU slow each other down (on an RX 6950 XT,
 eight were six times slower than one), and the Python work around the model (parsing,
-readability, the LM/HIV4/ML lexicons) holds the GIL, so threads do not help either. So:
+readability, the dictionary tone counts) holds the GIL, so threads do not help either. So:
 
 - A ScoringServer process owns the model on the GPU. It pools the token ids of every
   waiting request into large length-sorted batches (SentimentSetup.score_encoded) and
   sends each worker its results.
-- Each worker process keeps a CPU SentimentSetup for the tokenizer and the lexicons and
-  scores documents through a RemoteSentiment, which has the same fit_all as SentimentSetup.
+- Each worker process keeps a CPU SentimentSetup for the tokenizer and scores sentences
+  through a RemoteSentiment, which has the same sentence_scores as SentimentSetup.
 
 `research ingest --sentiment --device 0 --workers 8` uses this. On the 6950 XT with a
 Ryzen 9 5900X it analyzed 7.7 transcripts a second, against 1.9 for one process.
@@ -26,7 +26,7 @@ class RemoteSentiment:
     """A SentimentSetup stand-in for worker processes: the transformer runs on the server."""
 
     def __init__(self, local_setup, requests, replies, client_id: int):
-        self.local = local_setup  # CPU SentimentSetup: tokenizer, lexicons and word lists
+        self.local = local_setup  # CPU SentimentSetup, for its tokenizer
         self.requests, self.replies, self.client_id = requests, replies, client_id
         self._seq = 0
 
@@ -42,8 +42,11 @@ class RemoteSentiment:
             raise RuntimeError(f"reply {seq} arrived for request {self._seq}")
         return results
 
-    def fit_all(self, attr_obj):
-        return self.local.fit_all(attr_obj, model_results=self.score_texts(self.local.model_texts(attr_obj)))
+    def sentence_scores(self, texts: List[str]) -> List[float]:
+        """The signed score of each text, in input order, as SentimentSetup.sentence_scores gives it."""
+        from research.features.sentiment import signed_score
+
+        return [signed_score(result) for result in self.score_texts(texts)]
 
 
 def serve_requests(
@@ -94,16 +97,14 @@ def serve_requests(
     return stats
 
 
-def _server_main(
-    setup_options, max_tokens, pad_multiple, min_sentences, max_wait, requests, replies, ready, errors
-):
+def _server_main(device, max_tokens, pad_multiple, min_sentences, max_wait, requests, replies, ready, errors):
     try:
         import torch
 
         torch.set_num_threads(1)
-        from research.pipelines.ingest import default_sentiment_setup
+        from research.features.sentiment import SentimentSetup
 
-        setup = default_sentiment_setup(setup_options)
+        setup = SentimentSetup(device=device)
 
         def score(ids, masks):
             return setup.score_encoded(ids, masks, max_tokens=max_tokens, pad_multiple=pad_multiple)
@@ -128,15 +129,11 @@ class ScoringServer:
         pad_multiple: Optional[int] = None,
         min_sentences: int = 2048,
         max_wait: float = 0.02,
-        setup_options: Optional[Dict[str, Any]] = None,
     ):
-        # batch_size only sizes pipeline calls, which the server does not make; a fixed
-        # value skips the GPU memory probe
         from research.features.sentiment import GPU_MAX_TOKENS, GPU_PAD_MULTIPLE
 
         max_tokens = GPU_MAX_TOKENS if max_tokens is None else max_tokens
         pad_multiple = GPU_PAD_MULTIPLE if pad_multiple is None else pad_multiple
-        options = {"batch_size": 32, **(setup_options or {}), "device": device}
         self.requests = ctx.Queue()
         self.replies = [ctx.Queue() for _ in range(num_clients)]
         self.client_ids = ctx.Queue()
@@ -146,7 +143,7 @@ class ScoringServer:
         self._process = ctx.Process(
             target=_server_main,
             args=(
-                options,
+                device,
                 max_tokens,
                 pad_multiple,
                 min_sentences,
