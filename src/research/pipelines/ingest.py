@@ -64,36 +64,19 @@ from research.db.provenance import find_matching_run, model_revision, word_list
 from research.db.transcript_files import latest_transcript_names, latest_xml
 from research.features.lexicon import LexiconScorer
 from research.features.readability import readability_scores
+from research.features.sentiment import (
+    CPU_BATCH_SIZE,
+    GPU_MAX_TOKENS,
+    GPU_PAD_MULTIPLE,
+    HF_MODEL,
+    MAX_LENGTH,
+    SentimentSetup,
+    mean_sentiment,
+    sentence_texts,
+)
 from research.transcripts._nltk import ensure_nltk_data
 from research.transcripts.models import DocumentAttr
 from research.transcripts.parse import get_company_metadata, spoken_text
-
-DEFAULT_SENTIMENT = {
-    "sheet_name_positive": "ML_positive_unigram",
-    "sheet_name_negative": "ML_negative_unigram",
-    "file_path": str(config.WORD_SETS_DIR / "original_xlsx" / "Garcia_MLWords.xlsx"),
-    "hf_model": "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis",
-    "device": -1,
-    "batch_size": "auto",
-    "max_length": 512,
-}
-
-
-def default_sentiment_setup(overrides: Optional[Dict[str, Any]] = None):
-    """A SentimentSetup with the settings the stored scores were made with."""
-    from research.features.sentiment import SentimentSetup  # needs the [ml] extra
-
-    cfg = {**DEFAULT_SENTIMENT, **(overrides or {})}
-    return SentimentSetup(
-        sheet_name_positive=cfg["sheet_name_positive"],
-        sheet_name_negative=cfg["sheet_name_negative"],
-        ml_wordlist_path=cfg["file_path"],
-        hf_model=cfg["hf_model"],
-        device=cfg["device"],
-        batch_size=cfg["batch_size"],
-        max_length=cfg["max_length"],
-    )
-
 
 _lexicon: Optional[LexiconScorer] = None
 
@@ -106,22 +89,12 @@ def _lexicon_scorer() -> LexiconScorer:
     return _lexicon
 
 
-def _mean_sentence_sentiment(doc: DocumentAttr) -> Optional[float]:
-    """
-    The mean transformer score over every sentence of the call. Each sentence counts once,
-    so a long Q&A weighs more than a short Presentation. (fit_all's own document score is
-    the mean of its paragraph means, and real transcripts have no blank lines between
-    turns, so that was the plain average of the Presentation's and the Q&A's scores.)
-    """
-    scores = [s.sentiment for p in doc.paragraphs for s in p.sentences if s.sentiment is not None]
-    return float(sum(scores) / len(scores)) if scores else None
-
-
 def analyze_document(path: Union[str, Path], sentiment=None, xml: Optional[bytes] = None) -> Dict[str, Any]:
     """
     Metadata and text measures for one transcript, shaped for PostgresUploader:
-    {"document": metadata, "document_attr": measures, "doc_fit": fitted DocumentAttr or None}.
-    Pass a SentimentSetup as `sentiment` to add the transformer sentiment score. Pass the
+    {"document": metadata, "document_attr": measures}. Pass a SentimentSetup (or anything
+    with its sentence_scores, such as a RemoteSentiment) as `sentiment` to add the
+    transformer sentiment score: the mean over the call's sentences. Pass the
     file's bytes as `xml` to analyze a transcript that is not on disk (`path` then only
     names it, e.g. its source_file).
 
@@ -143,13 +116,10 @@ def analyze_document(path: Union[str, Path], sentiment=None, xml: Optional[bytes
         measures.update({name: None for name in readability_scores("")})
     measures.update(_lexicon_scorer().scores(text))
 
-    doc_fit = None
     if sentiment is not None:
-        if doc.num_sentences:
-            doc_fit = sentiment.fit_all(doc)
-            measures["sentiment"] = _mean_sentence_sentiment(doc_fit)
-        else:
-            measures["sentiment"] = None
+        measures["sentiment"] = (
+            mean_sentiment(sentiment.sentence_scores(sentence_texts(doc))) if doc.num_sentences else None
+        )
 
     metadata = {
         "file_name": path.name,
@@ -165,7 +135,7 @@ def analyze_document(path: Union[str, Path], sentiment=None, xml: Optional[bytes
         "city": company.get("city"),
         "event_title": company.get("eventTitle"),
     }
-    return {"document": metadata, "document_attr": measures, "doc_fit": doc_fit}
+    return {"document": metadata, "document_attr": measures}
 
 
 def _gather(
@@ -214,27 +184,20 @@ def run_settings(
         "sentiment": None,
     }
     if sentiment is not None or sentiment_device is not None:
-        model = DEFAULT_SENTIMENT["hf_model"]
         settings["sentiment"] = {
-            "hf_model": model,
-            "model_revision": model_revision(model),
-            "max_length": getattr(sentiment, "max_length", DEFAULT_SENTIMENT["max_length"]),
+            "hf_model": HF_MODEL,
+            "model_revision": model_revision(HF_MODEL),
+            "max_length": MAX_LENGTH,
             "document_score": "mean over sentences",
         }
-        on_gpu = (
-            sentiment_device >= 0 if sentiment_device is not None else getattr(sentiment, "on_gpu", False)
-        )
+        on_gpu = sentiment_device >= 0 if sentiment_device is not None else sentiment.on_gpu
         if on_gpu:
-            from research.features.sentiment import GPU_MAX_TOKENS, GPU_PAD_MULTIPLE
-
             settings["sentiment"]["gpu_batches"] = {
                 "max_tokens": GPU_MAX_TOKENS,
                 "pad_multiple": GPU_PAD_MULTIPLE,
             }
         else:
-            settings["sentiment"]["batch_size"] = getattr(
-                sentiment, "batch_size", DEFAULT_SENTIMENT["batch_size"]
-            )
+            settings["sentiment"]["batch_size"] = CPU_BATCH_SIZE
     return settings
 
 
@@ -302,18 +265,10 @@ def _init_worker(
             from research.features.sentiment_server import connect
 
             # CPU copy for the tokenizer; the transformer runs on the server
-            _worker_sentiment = connect(
-                default_sentiment_setup({"device": -1, "batch_size": 32}), server_args
-            )
+            _worker_sentiment = connect(SentimentSetup(-1), server_args)
         else:
-            _worker_sentiment = default_sentiment_setup({"device": -1})
-        warm_up = DocumentAttr(
-            "Load the models once. This is a second sentence.",
-            store_paragraphs=True,
-            store_sentences=True,
-            store_words=False,
-        )
-        _worker_sentiment.fit_all(warm_up)
+            _worker_sentiment = SentimentSetup(-1)
+        _worker_sentiment.sentence_scores(["Load the models once.", "This is a second sentence."])
 
 
 def _worker_fetch_xml(source_file: str) -> Optional[str]:
@@ -325,13 +280,11 @@ def _worker_fetch_xml(source_file: str) -> Optional[str]:
 
 
 def _analyze_in_worker(path: Union[Path, StoredTranscript]):
-    """(path, _analyze's result or None, error message or None); the fitted tree stays here."""
+    """(path, _analyze's result or None, error message or None)."""
     try:
         outcome = _analyze(path, _worker_sentiment, _worker_year, _worker_fetch_xml)
     except Exception as e:
         return path, None, f"{type(e).__name__}: {e}"
-    if "data" in outcome:
-        outcome["data"]["doc_attrs"]["doc_fit"] = None
     return path, outcome, None
 
 
@@ -403,7 +356,7 @@ def ingest(
     if workers > 1 and sentiment is not None:
         raise ValueError("with num_workers > 1, pass sentiment_device instead of a SentimentSetup")
     if workers == 1 and sentiment is None and sentiment_device is not None:
-        sentiment = default_sentiment_setup({"device": sentiment_device})
+        sentiment = SentimentSetup(sentiment_device)
         sentiment_device = None
     scores_sentiment = sentiment is not None or sentiment_device is not None
     settings = run_settings(sentiment, measures_only, from_db, years, input_dir, pattern, sentiment_device)

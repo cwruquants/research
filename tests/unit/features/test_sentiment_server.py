@@ -1,5 +1,5 @@
-"""Scoring sentiment in one process for several workers: fit_all with given results,
-token-capped batching, and the request pooling of the scoring server."""
+"""Scoring sentiment in one process for several workers: token-capped batching and the
+request pooling of the scoring server."""
 
 import queue
 import threading
@@ -7,43 +7,12 @@ import threading
 import pytest
 
 pytest.importorskip("transformers")
-pytest.importorskip("pysentiment2")
 torch = pytest.importorskip("torch")
 
-from test_sentiment_batching import TEXT, FakeTransformer, make_setup  # noqa: E402
+from test_sentiment_batching import FakeTransformer, doc, make_setup  # noqa: E402
 
+from research.features.sentiment import sentence_texts  # noqa: E402
 from research.features.sentiment_server import RemoteSentiment, serve_requests  # noqa: E402
-from research.transcripts.models import DocumentAttr  # noqa: E402
-
-
-def doc(text=TEXT):
-    return DocumentAttr(text, store_paragraphs=True, store_sentences=True, store_words=False)
-
-
-def scores(d):
-    return [s.sentiment for p in d.paragraphs for s in p.sentences], (d.sentiment, d.LM, d.HIV4, d.ML)
-
-
-def test_fit_all_with_given_results_matches_fit_all():
-    setup = make_setup()
-    expected = scores(setup.fit_all(doc()))
-
-    d = doc()
-    results = FakeTransformer()(setup.model_texts(d))
-    assert scores(setup.fit_all(d, model_results=results)) == expected
-
-
-def test_fit_all_rejects_results_of_the_wrong_length():
-    setup = make_setup()
-    d = doc()
-    with pytest.raises(ValueError):
-        setup.fit_all(d, model_results=[{"label": "neutral", "score": 0.5}])
-
-
-def test_model_texts_are_the_sentences_in_order():
-    d = doc()
-    assert make_setup().model_texts(d) == [s.text for p in d.paragraphs for s in p.sentences]
-
 
 # --- score_encoded -------------------------------------------------------------------
 
@@ -147,20 +116,20 @@ def test_server_passes_scoring_errors_to_the_client():
     setup.encode = lambda texts: (list(texts), [None] * len(texts))
     remote = RemoteSentiment(setup, requests, replies[0], 0)
     with pytest.raises(RuntimeError, match="server failed"):
-        remote.fit_all(doc())
+        remote.sentence_scores(sentence_texts(doc()))
     requests.put(None)
     thread.join(timeout=5)
 
 
 def test_remote_sentiment_scores_like_a_local_setup():
     requests, replies, thread, _ = run_server(label_by_text, 3, min_sentences=1000, max_wait=0.05)
-    expected = scores(make_setup().fit_all(doc()))
+    expected = make_setup().sentence_scores(sentence_texts(doc()))
 
     def client(i, out):
         setup = make_setup()
         setup.encode = lambda texts: (list(texts), [None] * len(texts))
         remote = RemoteSentiment(setup, requests, replies[i], i)
-        out[i] = [scores(remote.fit_all(doc())) for _ in range(3)]
+        out[i] = [remote.sentence_scores(sentence_texts(doc())) for _ in range(3)]
 
     out = {}
     clients = [threading.Thread(target=client, args=(i, out)) for i in range(3)]
