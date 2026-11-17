@@ -40,7 +40,6 @@ class _FakePool:
 def _uploader():
     """An uploader wired to a fake pool, so no database is opened."""
     uploader = PostgresUploader.__new__(PostgresUploader)
-    uploader.batch_size = 500
     uploader.pool = _FakePool()
     uploader.company_cache = {}
     uploader._cache_lock = threading.Lock()
@@ -50,7 +49,7 @@ def _uploader():
 def _document(**metadata):
     document = {"file_name": "1020948_T.xml", "start_date": "29-Apr-05 01:00PM GMT"}
     document.update(metadata)
-    return {"doc_attrs": {"document": document, "document_attr": {"sentiment": 0.1}}}
+    return {"document": document, "document_attr": {"sentiment": 0.1}}
 
 
 def _company_params(uploader):

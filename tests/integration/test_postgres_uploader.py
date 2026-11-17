@@ -11,15 +11,13 @@ from research.db.documents import PostgresUploader
 
 def _document(company: str, source_file: str, score: float):
     return {
-        "doc_attrs": {
-            "document": {
-                "company_name": company,
-                "company_ticker": None,
-                "file_name": source_file,
-                "event_title": "Test call",
-            },
-            "document_attr": {"sentiment": score, "num_words": 100},
-        }
+        "document": {
+            "company_name": company,
+            "company_ticker": None,
+            "file_name": source_file,
+            "event_title": "Test call",
+        },
+        "document_attr": {"sentiment": score, "num_words": 100},
     }
 
 

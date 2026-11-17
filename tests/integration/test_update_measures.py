@@ -10,19 +10,17 @@ from research.db.documents import PostgresUploader
 
 def _document(company, source_file, title, measures, event_type=(None, None)):
     return {
-        "doc_attrs": {
-            "document": {
-                "company_name": company,
-                "company_ticker": "NEW.N",
-                "file_name": source_file,
-                "event_title": title,
-                "start_date": "02-Feb-21 1:30PM GMT",
-                "city": "Elsewhere",
-                "event_type_id": event_type[0],
-                "event_type": event_type[1],
-            },
-            "document_attr": measures,
-        }
+        "document": {
+            "company_name": company,
+            "company_ticker": "NEW.N",
+            "file_name": source_file,
+            "event_title": title,
+            "start_date": "02-Feb-21 1:30PM GMT",
+            "city": "Elsewhere",
+            "event_type_id": event_type[0],
+            "event_type": event_type[1],
+        },
+        "document_attr": measures,
     }
 
 

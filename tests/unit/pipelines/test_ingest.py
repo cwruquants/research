@@ -95,13 +95,13 @@ class FakeUploader:
     def initialize_company_cache(self):
         return 0
 
-    def upload_document(self, data, year):
-        self.rows.append((data["doc_attrs"]["document"]["file_name"], year))
-        self.measures.append(data["doc_attrs"]["document_attr"])
+    def upload_document(self, doc, year):
+        self.rows.append((doc["document"]["file_name"], year))
+        self.measures.append(doc["document_attr"])
         return {"status": "success", "year": 2017, "year_fallback": False}
 
-    def update_measures(self, data):
-        self.rows.append((data["doc_attrs"]["document"]["file_name"], "measures only"))
+    def update_measures(self, doc):
+        self.rows.append((doc["document"]["file_name"], "measures only"))
         return {"status": "success", "year": 2017, "year_fallback": False}
 
     def finalize(self):
@@ -171,19 +171,11 @@ def test_ingest_with_worker_processes(transcripts, monkeypatch):
     ]
 
 
-def test_workers_take_a_device_not_a_setup(transcripts, monkeypatch):
-    monkeypatch.setattr(ingest_module, "PostgresUploader", FakeUploader)
-    with pytest.raises(ValueError):
-        ingest_module.ingest(
-            transcripts, 2016, database_url="postgresql://fake", sentiment=object(), num_workers=2
-        )
-
-
 def test_gpu_and_cpu_runs_record_different_settings():
     # GPU batches move scores by about 1e-6, so --resume must never mix the two
     pytest.importorskip("torch")
-    cpu = ingest_module.run_settings(None, True, True, None, None, "*.xml", sentiment_device=-1)
-    gpu = ingest_module.run_settings(None, True, True, None, None, "*.xml", sentiment_device=0)
+    cpu = ingest_module.run_settings(-1, True, True, None, None, "*.xml")
+    gpu = ingest_module.run_settings(0, True, True, None, None, "*.xml")
     assert cpu["sentiment"]["batch_size"] == 32 and "gpu_batches" not in cpu["sentiment"]
     assert gpu["sentiment"]["gpu_batches"] == {"max_tokens": 4096, "pad_multiple": 32}
     assert "batch_size" not in gpu["sentiment"]
@@ -218,3 +210,29 @@ def test_stop_on_error_drops_queued_files(tmp_path, monkeypatch):
             tmp_path, 2016, database_url="postgresql://fake", num_threads=2, skip_on_error=False
         )
     assert len(FakeUploader.instances[-1].rows) < 5  # only the files already running
+
+
+class FailsOnWrite(FakeUploader):
+    """A FakeUploader whose write of tight_T.xml fails, as a constraint violation would."""
+
+    def upload_document(self, doc, year):
+        if doc["document"]["file_name"] == "tight_T.xml":
+            raise ValueError("write failed")
+        return super().upload_document(doc, year)
+
+
+@pytest.mark.parametrize("mode", [dict(num_threads=1), dict(num_threads=3), dict(num_workers=2)])
+def test_analysis_and_write_errors_are_recorded_in_every_mode(transcripts, tmp_path, monkeypatch, mode):
+    for name in ("spaced_T.xml", "tight_T.xml"):
+        (tmp_path / name).write_bytes((transcripts / name).read_bytes())
+    (tmp_path / "bad_T.xml").write_text("<Event><Body>unclosed", encoding="utf-8")
+    monkeypatch.setattr(ingest_module, "PostgresUploader", FailsOnWrite)
+
+    summary = ingest_module.ingest(tmp_path, 2016, database_url="postgresql://fake", **mode)
+    assert summary["num_files_processed"] == 3 and summary["num_uploaded"] == 1
+    reasons = {e["file"].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]: e["reason"] for e in summary["errors"]}
+    assert set(reasons) == {"bad_T.xml", "tight_T.xml"}
+    assert reasons["tight_T.xml"] == "write failed"
+
+    with pytest.raises(Exception):  # --stop-on-error stops on either kind
+        ingest_module.ingest(tmp_path, 2016, database_url="postgresql://fake", skip_on_error=False, **mode)
