@@ -53,7 +53,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import psycopg
 from tqdm.auto import tqdm
@@ -158,19 +158,13 @@ def _gather(
 
 
 def run_settings(
-    sentiment,
-    measures_only: bool,
-    from_db: bool,
-    years,
-    input_dir,
-    pattern: str,
-    sentiment_device: Optional[int] = None,
+    sentiment_device: Optional[int], measures_only: bool, from_db: bool, years, input_dir, pattern: str
 ) -> Dict[str, Any]:
     """What a pipeline_runs row records about an ingest run.
 
-    Sentiment is scored when `sentiment` (a SentimentSetup) or `sentiment_device` (worker
-    processes) is given. A GPU run batches differently from a CPU one, which moves scores
-    by up to about 1e-6, so the two record different settings and never resume each other.
+    Sentiment is scored when sentiment_device is given (-1 for the CPU, else a GPU index).
+    A GPU run batches differently from a CPU one, which moves scores by up to about 1e-6,
+    so the two record different settings and never resume each other.
     """
     settings: Dict[str, Any] = {
         "source": "transcript_files_latest" if from_db else {"input_dir": str(input_dir), "pattern": pattern},
@@ -183,15 +177,14 @@ def run_settings(
         },
         "sentiment": None,
     }
-    if sentiment is not None or sentiment_device is not None:
+    if sentiment_device is not None:
         settings["sentiment"] = {
             "hf_model": HF_MODEL,
             "model_revision": model_revision(HF_MODEL),
             "max_length": MAX_LENGTH,
             "document_score": "mean over sentences",
         }
-        on_gpu = sentiment_device >= 0 if sentiment_device is not None else sentiment.on_gpu
-        if on_gpu:
+        if sentiment_device >= 0:
             settings["sentiment"]["gpu_batches"] = {
                 "max_tokens": GPU_MAX_TOKENS,
                 "pad_multiple": GPU_PAD_MULTIPLE,
@@ -212,30 +205,54 @@ class StoredTranscript:
         return self.source_file
 
 
-def _analyze(
-    path: Union[Path, StoredTranscript],
-    sentiment,
-    year: Optional[int],
-    fetch_xml: Callable[[str], Optional[str]],
-) -> Dict[str, Any]:
-    """Read and analyze one transcript, writing nothing.
+@dataclass(frozen=True)
+class Analysis:
+    """One transcript's analyze_document() output, and the year to store if it has no parseable date."""
 
-    Returns {"data": PostgresUploader payload, "fallback_year": year to store if the call
-    has no parseable date}, or {"skipped": result} when the database has no published
-    revision. fetch_xml(source_file) reads a stored transcript.
-    """
+    doc: Dict[str, Any]
+    fallback_year: Optional[int]
+
+
+Transcript = Union[Path, StoredTranscript]
+# What analyzing one transcript gave: an Analysis, None when the database has no
+# published revision of it, or the exception that stopped it.
+Outcome = Union[Analysis, None, Exception]
+
+
+def _analyze(
+    path: Transcript, sentiment, year: Optional[int], fetch_xml: Callable[[str], Optional[str]]
+) -> Optional[Analysis]:
+    """Read and analyze one transcript, writing nothing. fetch_xml(source_file) reads a stored transcript."""
     if isinstance(path, StoredTranscript):
         stored = fetch_xml(path.source_file)
         if stored is None:
-            return {
-                "skipped": {"status": "skipped", "reason": "No published transcript", "file_path": str(path)}
-            }
-        doc_attrs = analyze_document(path.source_file, sentiment, xml=stored.encode("utf-8"))
-        fallback_year = path.folder_year if path.folder_year is not None else year
-    else:
-        doc_attrs = analyze_document(path, sentiment)
-        fallback_year = year
-    return {"data": {"doc_attrs": doc_attrs}, "fallback_year": fallback_year}
+            return None
+        doc = analyze_document(path.source_file, sentiment, xml=stored.encode("utf-8"))
+        return Analysis(doc, path.folder_year if path.folder_year is not None else year)
+    return Analysis(analyze_document(path, sentiment), year)
+
+
+def _outcome(path: Transcript, sentiment, year: Optional[int], fetch_xml) -> Tuple[Transcript, Outcome]:
+    try:
+        return path, _analyze(path, sentiment, year, fetch_xml)
+    except Exception as e:
+        return path, e
+
+
+@contextlib.contextmanager
+def _analyzed_here(files, threads: int, analyze: Callable[[Transcript], Tuple[Transcript, Outcome]]):
+    """Analyze files in this process, on `threads` threads; yields an iterator of (path, outcome)."""
+    if threads == 1:
+        yield map(analyze, files)
+        return
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        futures = [executor.submit(analyze, p) for p in files]
+        try:
+            yield (f.result() for f in concurrent.futures.as_completed(futures))
+        except BaseException:
+            # --stop-on-error: drop the queued files; ones already running still finish
+            executor.shutdown(cancel_futures=True)
+            raise
 
 
 # Per worker process, set by _init_worker
@@ -279,18 +296,19 @@ def _worker_fetch_xml(source_file: str) -> Optional[str]:
     return latest_xml(_worker_conn, [source_file]).get(source_file)
 
 
-def _analyze_in_worker(path: Union[Path, StoredTranscript]):
-    """(path, _analyze's result or None, error message or None)."""
-    try:
-        outcome = _analyze(path, _worker_sentiment, _worker_year, _worker_fetch_xml)
-    except Exception as e:
-        return path, None, f"{type(e).__name__}: {e}"
-    return path, outcome, None
+def _analyze_in_worker(path: Transcript) -> Tuple[Transcript, Outcome]:
+    """_outcome in a worker process; an error comes back as a RuntimeError naming its type."""
+    path, outcome = _outcome(path, _worker_sentiment, _worker_year, _worker_fetch_xml)
+    if isinstance(outcome, Exception):
+        outcome = RuntimeError(f"{type(outcome).__name__}: {outcome}")
+    return path, outcome
 
 
 @contextlib.contextmanager
-def _worker_results(files, workers: int, sentiment_device: Optional[int], db_url: str, year: Optional[int]):
-    """Analyze files in `workers` spawned processes; yields an iterator of _analyze_in_worker results.
+def _analyzed_in_workers(
+    files, workers: int, sentiment_device: Optional[int], db_url: str, year: Optional[int]
+):
+    """Analyze files in `workers` spawned processes; yields an iterator of (path, outcome).
 
     With a GPU sentiment_device the transformer runs in one ScoringServer process on that
     GPU, which the workers send token ids to; with -1 every worker holds a CPU copy.
@@ -317,7 +335,6 @@ def ingest(
     input_dir: Optional[Union[str, Path]],
     year: Optional[int],
     database_url: Optional[str] = None,
-    sentiment=None,
     pattern: str = "*.xml",
     recursive: bool = False,
     skip_on_error: bool = True,
@@ -343,23 +360,20 @@ def ingest(
     versions and settings: rows are written under that run's id, and with measures_only the
     calls it already wrote are skipped. With no such run, a new one starts as usual.
 
-    num_workers > 1 reads and analyzes transcripts in that many processes and writes from
-    this one (num_threads is then unused). To score sentiment that way, pass
-    sentiment_device instead of a SentimentSetup: a GPU index runs the transformer in one
-    scoring process on that GPU; -1 gives every worker its own CPU copy, which is no faster
-    than one process. With one process, sentiment_device alone builds the SentimentSetup.
+    sentiment_device adds the transformer sentiment score: -1 on the CPU, or a GPU index.
+    Transcripts are analyzed on num_threads threads, or with num_workers > 1 in that many
+    processes (num_threads is then unused); with a GPU the transformer then runs in one
+    more process, in large batches. Rows are always written from this process, in the
+    order the analyses finish.
     """
     url = database_url or config.database_url()
     if resume and not from_db:
         raise ValueError("resume needs from_db: only a run that reads transcript_files can be continued")
     workers = max(1, num_workers or 1)
-    if workers > 1 and sentiment is not None:
-        raise ValueError("with num_workers > 1, pass sentiment_device instead of a SentimentSetup")
-    if workers == 1 and sentiment is None and sentiment_device is not None:
-        sentiment = SentimentSetup(sentiment_device)
-        sentiment_device = None
-    scores_sentiment = sentiment is not None or sentiment_device is not None
-    settings = run_settings(sentiment, measures_only, from_db, years, input_dir, pattern, sentiment_device)
+    scores_sentiment = sentiment_device is not None
+    # In worker processes each worker builds its own (see _init_worker)
+    sentiment = SentimentSetup(sentiment_device) if scores_sentiment and workers == 1 else None
+    settings = run_settings(sentiment_device, measures_only, from_db, years, input_dir, pattern)
     resumed_run: Optional[int] = None
     if from_db:
         with psycopg.connect(url) as conn:
@@ -372,7 +386,7 @@ def ingest(
                 unwritten_by=resumed_run,
                 with_sentiment=scores_sentiment,
             )
-        files: List[Union[Path, StoredTranscript]] = [StoredTranscript(*row) for row in names]
+        files: List[Transcript] = [StoredTranscript(*row) for row in names]
         if not files and resumed_run is not None:
             print(f"pipeline_runs id {resumed_run} already wrote every call; nothing left to do")
             return _summary(year, resumed_run, True, [], [], [])
@@ -389,6 +403,7 @@ def ingest(
     ensure_nltk_data()
     readability_scores("Load the syllable dictionary.")
 
+    # Threads read stored transcripts through the pool too
     uploader = PostgresUploader(url, max_connections=threads)
     upload_results, errors = [], []
     try:
@@ -407,74 +422,42 @@ def ingest(
             with uploader.pool.connection() as conn:
                 return latest_xml(conn, [source_file]).get(source_file)
 
-        def write(path: Union[Path, StoredTranscript], outcome: Dict[str, Any]) -> Dict[str, Any]:
-            if "skipped" in outcome:
-                return outcome["skipped"]
-            data = outcome["data"]
-            attrs = data["doc_attrs"]["document_attr"]
-            attrs["measures_run_id"] = run_id
+        def write(path: Transcript, analysis: Optional[Analysis]) -> Dict[str, Any]:
+            if analysis is None:
+                return {"status": "skipped", "reason": "No published transcript", "file_path": str(path)}
+            measures = analysis.doc["document_attr"]
+            measures["measures_run_id"] = run_id
             if scores_sentiment:
-                attrs["sentiment_run_id"] = run_id
+                measures["sentiment_run_id"] = run_id
             if measures_only:
-                result = uploader.update_measures(data)
+                result = uploader.update_measures(analysis.doc)
             else:
-                result = uploader.upload_document(data, outcome["fallback_year"])
+                result = uploader.upload_document(analysis.doc, analysis.fallback_year)
             result["file_path"] = str(path)
             return result
 
-        def process(path: Union[Path, StoredTranscript]) -> Dict[str, Any]:
-            return write(path, _analyze(path, sentiment, year, fetch_xml))
-
-        def record(path: Path, result: Optional[Dict[str, Any]], error: Optional[Exception]) -> None:
-            if error is not None:
-                if not skip_on_error:
-                    raise error
-                errors.append({"file": str(path), "reason": str(error)})
-                return
-            upload_results.append(result)
-            if result["status"] != "success":
-                errors.append({"file": str(path), "reason": result.get("reason", "Unknown")})
-
-        progress = dict(
+        if workers > 1:
+            analyses = _analyzed_in_workers(files, workers, sentiment_device, url, year)
+        else:
+            analyses = _analyzed_here(files, threads, lambda p: _outcome(p, sentiment, year, fetch_xml))
+        progress = tqdm(
             total=len(files), desc="Processing & Uploading", unit="file", dynamic_ncols=True, file=sys.stderr
         )
-        if workers > 1:
-            with (
-                _worker_results(files, workers, sentiment_device, url, year) as results,
-                tqdm(**progress) as bar,
-            ):
-                for path, outcome, message in results:
-                    if message is not None:
-                        record(path, None, RuntimeError(message))
-                    else:
-                        try:
-                            result, error = write(path, outcome), None
-                        except Exception as e:
-                            result, error = None, e
-                        record(path, result, error)
-                    bar.update(1)
-        elif threads > 1:
-            with (
-                concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor,
-                tqdm(**progress) as bar,
-            ):
-                futures = {executor.submit(process, p): p for p in files}
+        with analyses as outcomes, progress:
+            for path, outcome in outcomes:
                 try:
-                    for future in concurrent.futures.as_completed(futures):
-                        error = future.exception()
-                        record(futures[future], None if error else future.result(), error)
-                        bar.update(1)
-                except BaseException:
-                    # --stop-on-error: drop the queued files; ones already running still finish
-                    executor.shutdown(cancel_futures=True)
-                    raise
-        else:
-            for path in tqdm(files, **progress):
-                try:
-                    result, error = process(path), None
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    result = write(path, outcome)
                 except Exception as e:
-                    result, error = None, e
-                record(path, result, error)
+                    if not skip_on_error:
+                        raise
+                    errors.append({"file": str(path), "reason": str(e)})
+                else:
+                    upload_results.append(result)
+                    if result["status"] != "success":
+                        errors.append({"file": str(path), "reason": result.get("reason", "Unknown")})
+                progress.update(1)
     finally:
         uploader.finalize()
 

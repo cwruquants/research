@@ -20,8 +20,7 @@ def _as_str(value: Any) -> Optional[str]:
 class PostgresUploader:
     """Upsert companies and documents rows from analyze_document() output, or update only their measures."""
 
-    def __init__(self, database_url: str, batch_size: int = 500, max_connections: int = 4):
-        self.batch_size = batch_size
+    def __init__(self, database_url: str, max_connections: int = 4):
         self.pool = ConnectionPool(conninfo=database_url, min_size=1, max_size=max_connections, open=True)
         self.company_cache = {}
         self._cache_lock = threading.Lock()
@@ -133,15 +132,14 @@ class PostgresUploader:
             "event_type": clean_text(_as_str(doc_metadata.get("event_type"))),
         }
 
-    def _update_measures_once(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        doc_attrs = data["doc_attrs"]
-        source_file = str(doc_attrs["document"].get("file_name", ""))
+    def _update_measures_once(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+        source_file = str(doc["document"].get("file_name", ""))
         if not source_file:
             return {"status": "skipped", "reason": "No source file"}
-        row = self._measure_columns(doc_attrs["document_attr"], only_present=True)
+        row = self._measure_columns(doc["document_attr"], only_present=True)
         if not row:
             return {"status": "skipped", "reason": "No measures to write", "source_file": source_file}
-        row.update(self._event_type_columns(doc_attrs["document"]))
+        row.update(self._event_type_columns(doc["document"]))
         # Column names come only from _MEASURES and _event_type_columns; values are parameters.
         assignments = ", ".join(f"{column} = %s" for column in row)
         statement = f"UPDATE public.documents SET {assignments} WHERE source_file = %s RETURNING id, year"
@@ -157,10 +155,9 @@ class PostgresUploader:
             "year_fallback": False,
         }
 
-    def _upload_once(self, data: Dict[str, Any], year: int) -> Dict[str, Any]:
-        doc_attrs = data["doc_attrs"]
-        doc_metadata = doc_attrs["document"]
-        doc_attr = doc_attrs["document_attr"]
+    def _upload_once(self, doc: Dict[str, Any], year: int) -> Dict[str, Any]:
+        doc_metadata = doc["document"]
+        doc_attr = doc["document_attr"]
 
         # Cleaned here because metadata may come from TOML files written before
         # the parser stripped empty tags, and str(None) would store "None".
@@ -212,9 +209,9 @@ class PostgresUploader:
             "year_fallback": year_fallback,
         }
 
-    def upload_document(self, data: Dict[str, Any], year: int) -> Dict[str, Any]:
+    def upload_document(self, doc: Dict[str, Any], year: int) -> Dict[str, Any]:
         """Upload one document, retrying a transient connection failure."""
-        return self._with_retries(lambda: self._upload_once(data, year))
+        return self._with_retries(lambda: self._upload_once(doc, year))
 
     def start_run(self, step: str, settings: Dict[str, Any]) -> int:
         """Record a pipeline_runs row for this run (see research.db.provenance)."""
@@ -223,14 +220,14 @@ class PostgresUploader:
         with self.pool.connection() as conn:
             return start_run(conn, step, settings)
 
-    def update_measures(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update_measures(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         """
         Overwrite only the text measures of an existing documents row, matched on
         source_file, and fill its event type from the file. Company, year, title, date and
         city are never touched, and no row or company is ever created: a file with no row
         is skipped.
         """
-        return self._with_retries(lambda: self._update_measures_once(data))
+        return self._with_retries(lambda: self._update_measures_once(doc))
 
     @staticmethod
     def _with_retries(attempt_once) -> Dict[str, Any]:

@@ -11,16 +11,14 @@ from research.db.documents import PostgresUploader
 
 def _document(start_date, source_file="1020948_T.xml"):
     return {
-        "doc_attrs": {
-            "document": {
-                "company_name": "Alexander & Baldwin Inc",
-                "company_ticker": "ALEX",
-                "file_name": source_file,
-                "event_title": "Q1 2005 Alexander & Baldwin Earnings Conference Call",
-                "start_date": start_date,
-            },
-            "document_attr": {"sentiment": 0.1, "num_words": 100},
-        }
+        "document": {
+            "company_name": "Alexander & Baldwin Inc",
+            "company_ticker": "ALEX",
+            "file_name": source_file,
+            "event_title": "Q1 2005 Alexander & Baldwin Earnings Conference Call",
+            "start_date": start_date,
+        },
+        "document_attr": {"sentiment": 0.1, "num_words": 100},
     }
 
 
