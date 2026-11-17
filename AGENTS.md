@@ -24,7 +24,8 @@ Read `README.md` first, then `docs/pipeline.md` (which code writes which table) 
   `db/migrations/` (schema) or `db/fixes/` (one-off data changes), so the repo can
   rebuild the database.
 - Refactors must not change stored numbers. Compare old and new outputs on real data
-  before merging anything that touches parsing, matching, linking or returns.
+  before merging anything that touches parsing, matching, linking or returns. For
+  linking, `uv run python scripts/check_linking_golden.py` does this (about 4 minutes).
 - No AI attribution lines (Co-Authored-By, "Generated with ...") in commits or PRs.
 
 ## Gotchas
