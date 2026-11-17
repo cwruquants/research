@@ -101,11 +101,12 @@ def test_doubly_escaped_ampersands_are_unescaped(tmp_path):
     assert text == 'R&D rose, M&A slowed and 5 < 6. Our P&L and AT&T stay as they are.\nWe said "no" once.'
 
 
-def test_unreadable_file_gives_empty_document(tmp_path):
+def test_unreadable_file_raises(tmp_path):
     bad = tmp_path / "bad_T.xml"
     bad.write_text("<Event><Body>unclosed", encoding="utf-8")
-    assert load_document(bad).text == ""
-    with pytest.raises(ParseError):  # spoken_text leaves the error to its caller
+    with pytest.raises(ParseError):  # left to the caller, which records why the file failed
+        load_document(bad)
+    with pytest.raises(ParseError):
         spoken_text(bad)
 
 

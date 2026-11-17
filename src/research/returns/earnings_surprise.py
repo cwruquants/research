@@ -23,7 +23,7 @@ where it comes before day 0. Both are empty when I/B/E/S has no announcement tim
 
 Pulls everything in one WRDS connection (credentials from ~/.pgpass, as in
 wrds.py) and caches the raw tables as Parquet in --cache-dir, so a rerun
-does not reconnect. Writes one row per matched call to --out and the match rate
+does not reconnect unless its calls need stocks or dates the cache lacks. Writes one row per matched call to --out and the match rate
 by call year to --coverage. Nothing is written to the DB.
 
 Usage
@@ -33,6 +33,7 @@ Usage
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -50,15 +51,41 @@ UNKNOWN_TIME = "00:00:00"
 TABLES = ["link", "actu", "consensus", "detail", "prices"]
 
 
+def pull_scope(calls: pd.DataFrame) -> dict:
+    """The permnos and date range a pull for these calls must cover."""
+    return {
+        "permnos": sorted(int(p) for p in calls.permno.unique()),
+        "start": str((calls.call_day.min() - pd.Timedelta(days=200)).date()),
+        "end": str((calls.call_day.max() + pd.Timedelta(days=10)).date()),
+    }
+
+
+def covers(cached: dict, needed: dict) -> bool:
+    """Whether a cached pull's scope includes every permno and date the calls need."""
+    return (
+        set(needed["permnos"]) <= set(cached["permnos"])
+        and cached["start"] <= needed["start"]
+        and needed["end"] <= cached["end"]
+    )
+
+
 def pull(calls: pd.DataFrame, cache: Path) -> dict[str, pd.DataFrame]:
+    """
+    The raw WRDS tables for these calls, from the cache when its saved scope covers
+    them. A cache with no scope.json, or one pulled for fewer stocks or dates (for
+    example before newer calls were linked), is pulled again.
+    """
     paths = {name: cache / f"{name}.parquet" for name in TABLES}
-    if all(p.exists() for p in paths.values()):
-        return {name: pd.read_parquet(p) for name, p in paths.items()}
+    scope_path = cache / "scope.json"
+    needed = pull_scope(calls)
+    if scope_path.exists() and all(p.exists() for p in paths.values()):
+        if covers(json.loads(scope_path.read_text()), needed):
+            return {name: pd.read_parquet(p) for name, p in paths.items()}
+        print(f"The cache in {cache} does not cover these calls; pulling again")
 
     cache.mkdir(parents=True, exist_ok=True)
-    permnos = ",".join(map(str, sorted(calls.permno.unique())))
-    start = (calls.call_day.min() - pd.Timedelta(days=200)).date()
-    end = (calls.call_day.max() + pd.Timedelta(days=10)).date()
+    permnos = ",".join(map(str, needed["permnos"]))
+    start, end = needed["start"], needed["end"]
     with psycopg.connect(
         host=WRDS_HOST,
         port=WRDS_PORT,
@@ -94,6 +121,7 @@ def pull(calls: pd.DataFrame, cache: Path) -> dict[str, pd.DataFrame]:
             print(f"{name}: {len(tables[name]):,} rows")
     for name, df in tables.items():
         df.to_parquet(paths[name], index=False)
+    scope_path.write_text(json.dumps(needed))  # last, so an interrupted pull is not trusted
     return tables
 
 

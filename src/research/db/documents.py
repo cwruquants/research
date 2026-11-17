@@ -65,23 +65,22 @@ class PostgresUploader:
             self.company_cache = {(name, ticker): company_id for company_id, name, ticker in rows}
             return len(self.company_cache)
 
-    def _get_or_create_company(self, name: str, ticker: Optional[str]) -> int:
-        key = (name, ticker)
+    def _get_or_create_company(self, conn, name: str, ticker: Optional[str]) -> int:
+        """
+        The company's id, inserting the row on conn if it is new. The caller commits it
+        with the document and then caches it (see _upload_once), so a failed document
+        write leaves neither an orphan company nor a cached id for an uncommitted row.
+        """
         with self._cache_lock:
-            company_id = self.company_cache.get(key)
+            company_id = self.company_cache.get((name, ticker))
         if company_id is not None:
             return company_id
-
-        with self.pool.connection() as conn:
-            company_id = conn.execute(
-                """INSERT INTO public.companies (name, ticker) VALUES (%s, %s)
-                   ON CONFLICT (name, ticker) DO UPDATE SET name = EXCLUDED.name
-                   RETURNING id""",
-                (name, ticker),
-            ).fetchone()[0]
-        with self._cache_lock:
-            self.company_cache[key] = company_id
-        return company_id
+        return conn.execute(
+            """INSERT INTO public.companies (name, ticker) VALUES (%s, %s)
+               ON CONFLICT (name, ticker) DO UPDATE SET name = EXCLUDED.name
+               RETURNING id""",
+            (name, ticker),
+        ).fetchone()[0]
 
     # documents column -> (key in analyze_document's measures, converter)
     _MEASURES = {
@@ -174,13 +173,11 @@ class PostgresUploader:
         if not source_file:
             return {"status": "skipped", "reason": "No source file"}
 
-        company_id = self._get_or_create_company(company_name, company_ticker)
         date_str = str(doc_metadata.get("start_date", "")) if doc_metadata.get("start_date") else ""
         event_date = self._parse_date(date_str) if date_str else None
         doc_year, year_fallback = resolve_document_year(event_date, year)
 
         doc_row = {
-            "company_id": company_id,
             "year": doc_year,
             "source_file": source_file,
             "event_title": clean_text(_as_str(doc_metadata.get("event_title"))),
@@ -191,15 +188,21 @@ class PostgresUploader:
         }
 
         # Column names come only from the fixed keys above; values are parameters.
-        columns = ", ".join(doc_row)
-        placeholders = ", ".join(["%s"] * len(doc_row))
-        updates = ", ".join(f"{column} = EXCLUDED.{column}" for column in doc_row if column != "source_file")
+        columns = ", ".join(["company_id", *doc_row])
+        placeholders = ", ".join(["%s"] * (len(doc_row) + 1))
+        updates = ", ".join(
+            f"{column} = EXCLUDED.{column}" for column in ["company_id", *doc_row] if column != "source_file"
+        )
         statement = (
             f"INSERT INTO public.documents ({columns}) VALUES ({placeholders}) "
             f"ON CONFLICT (source_file) DO UPDATE SET {updates} RETURNING id"
         )
+        # One transaction for the company and the document (the pool commits on exit)
         with self.pool.connection() as conn:
-            document_id = conn.execute(statement, tuple(doc_row.values())).fetchone()[0]
+            company_id = self._get_or_create_company(conn, company_name, company_ticker)
+            document_id = conn.execute(statement, (company_id, *doc_row.values())).fetchone()[0]
+        with self._cache_lock:
+            self.company_cache[(company_name, company_ticker)] = company_id
         return {
             "status": "success",
             "document_id": document_id,
@@ -211,7 +214,7 @@ class PostgresUploader:
 
     def upload_document(self, data: Dict[str, Any], year: int) -> Dict[str, Any]:
         """Upload one document, retrying a transient connection failure."""
-        return self._with_retries(lambda: self._upload_once(data, year), data)
+        return self._with_retries(lambda: self._upload_once(data, year))
 
     def start_run(self, step: str, settings: Dict[str, Any]) -> int:
         """Record a pipeline_runs row for this run (see research.db.provenance)."""
@@ -227,21 +230,20 @@ class PostgresUploader:
         city are never touched, and no row or company is ever created: a file with no row
         is skipped.
         """
-        return self._with_retries(lambda: self._update_measures_once(data), data)
+        return self._with_retries(lambda: self._update_measures_once(data))
 
-    def _with_retries(self, attempt_once, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Run one write, retrying a transient connection failure."""
-        source_file = str(data.get("doc_attrs", {}).get("document", {}).get("file_name", ""))
-        for attempt in range(4):
+    @staticmethod
+    def _with_retries(attempt_once) -> Dict[str, Any]:
+        """
+        Run one write, retrying a transient connection failure. Any other error, or a
+        connection that keeps failing, is raised for the caller (ingest's --stop-on-error).
+        """
+        for delay in (1, 3, 10):
             try:
                 return attempt_once()
-            except psycopg.OperationalError as exc:
-                if attempt == 3:
-                    return {"status": "error", "reason": str(exc), "source_file": source_file}
-                time.sleep((1, 3, 10)[attempt])
-            except Exception as exc:
-                return {"status": "error", "reason": str(exc), "source_file": source_file}
-        raise AssertionError("unreachable")
+            except psycopg.OperationalError:
+                time.sleep(delay)
+        return attempt_once()
 
     def finalize(self):
         """Close the connection pool after all uploads finish."""
