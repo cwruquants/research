@@ -23,10 +23,7 @@ Matching
 """
 
 import re
-from collections import defaultdict
 from datetime import timedelta
-
-import pandas as pd
 
 # Reporting-period words Thomson puts before the company name, stripped repeatedly
 # from the start ("Q4/Year-End 2005", "2005 Q4", "Preliminary 2004", "Full Year 2008").
@@ -223,20 +220,6 @@ def title_core(title):
         t = s
 
 
-def load_crsp(path):
-    sn = pd.read_csv(path, dtype=str, keep_default_na=False)
-    for col in ("namedt", "nameenddt", "st_date", "end_date"):
-        sn[col] = pd.to_datetime(sn[col]).dt.date
-    sn["toks"] = sn["comnam"].map(lambda s: tuple(tokens(s)))
-    sn = sn[sn["toks"].map(len) > 0]
-    by_first = defaultdict(list)
-    by_permno = defaultdict(list)
-    for r in sn.itertuples(index=False):
-        by_first[r.toks[0]].append(r)
-        by_permno[r.permno].append(r)
-    return by_first, by_permno
-
-
 def prefix_len(toks, r):
     """Length of the CRSP name if it is the start of the title, else 0."""
     n = len(r.toks)
@@ -281,8 +264,12 @@ def match_tokens(toks, d, by_first, by_permno):
     return None, 0, []
 
 
-def match_one(title, d, by_first, by_permno):
-    """Return (status, chosen stocknames row or None, candidate rows)."""
+def match_one(title, d, stocknames):
+    """
+    Return (status, chosen stocknames row or None, candidate rows). stocknames is a
+    research.linking.stocknames.StockNames.
+    """
+    by_first, by_permno = stocknames.by_first_token, stocknames.named_by_permno
     core = title_core(title)
     variants = [tokens(core), tokens(core, possessive=True)]
     variants = [v for v in variants if v]

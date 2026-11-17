@@ -33,7 +33,8 @@ import argparse
 
 import pandas as pd
 
-from research.linking.crsp_names import load_crsp, match_one, title_core, tokens
+from research.linking.crsp_names import match_one, title_core, tokens
+from research.linking.stocknames import StockNames
 
 
 def main():
@@ -43,13 +44,13 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
-    by_first, by_permno = load_crsp(args.stocknames)
+    stocknames = StockNames(args.stocknames)
     calls = pd.read_csv(args.calls, dtype=str, keep_default_na=False)
 
     out = []
     for c in calls.itertuples(index=False):
         d = pd.to_datetime(c.call_date).date()
-        status, r, rows = match_one(c.event_title, d, by_first, by_permno)
+        status, r, rows = match_one(c.event_title, d, stocknames)
         out.append(
             {
                 "document_id": c.document_id,

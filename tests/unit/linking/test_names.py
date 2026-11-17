@@ -8,12 +8,12 @@ from datetime import date
 
 import pytest
 
-from research.linking.route_a import (
+from research.linking.lseg import parse_ric
+from research.linking.names import (
     coverage,
     name_score,
     names_a_company,
     norm,
-    parse_ric,
     same_name,
     same_word,
     spelled_in,
