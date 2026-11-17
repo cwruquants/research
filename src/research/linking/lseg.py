@@ -78,3 +78,31 @@ def parse_ric(raw):
             cls = cls or low.upper()
     foreign = bool(suffix) and suffix not in US_SUFFIXES
     return root.upper(), cls, suffix, delist, foreign
+
+
+class LsegBridge:
+    """RIC -> CUSIP8s through the LSEG files: QuoteFile (U.S. ordinary equity lines only)
+    gives the RIC's InstrumentPIs, CUSIPFile their CUSIPs."""
+
+    def __init__(self, quote_path, cusip_path):
+        quote = read_lseg(quote_path, QUOTE_COLS)
+        quote = quote[
+            (quote.AssetCategory == "ORD")
+            & (quote.AssetType == "EQUITY")
+            & (quote.ExchangeCountry == "United States")
+        ]
+        quote = quote.assign(ric=quote.RIC.str.upper(), ric_root=[parse_ric(r)[0] for r in quote.RIC])
+        self.pis_by_ric = quote.groupby("ric").InstrumentPI.agg(lambda s: sorted(set(s))).to_dict()
+        self.pis_by_root = quote.groupby("ric_root").InstrumentPI.agg(lambda s: sorted(set(s))).to_dict()
+        cus = read_lseg(cusip_path, CUSIP_COLS)
+        cus = cus[cus.CUSIP != ""]
+        self.c8_by_pi = cus.groupby("InstrumentPI").CUSIP.agg(lambda s: sorted({c[:8] for c in s})).to_dict()
+
+    def cusip8s(self, raw, root):
+        """The CUSIP8s of the exact RIC's instruments, else of the RIC root's."""
+        ric = (raw or "").strip().upper().lstrip("*")
+        for pis in (self.pis_by_ric.get(ric, []), self.pis_by_root.get(root, [])):
+            c8 = sorted({c for pi in pis for c in self.c8_by_pi.get(pi, [])})
+            if c8:
+                return c8
+        return []
