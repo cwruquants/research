@@ -26,6 +26,9 @@ US_SUFFIXES = {"", "OQ", "O", "N", "A", "P", "PK", "OB", "K", "Z"}
 # Refinitiv marks retired RICs as ROOT^<month letter A-L><2-digit year>, e.g. OCR^H15.
 DELIST_RE = re.compile(r"\^([A-L])(\d{2})$")
 MONTHS = "ABCDEFGHIJKL"
+# Single-letter "suffixes" that are share classes after a U.S. root (BRK.A is
+# Berkshire class A, not AMEX; BF.B is Brown-Forman class B).
+CLASS_SUFFIXES = {"A", "B"}
 
 
 def read_lseg(path, cols):
@@ -45,3 +48,33 @@ def read_lseg(path, cols):
         df = pd.read_csv(path, engine="python", **kwargs)
     df = df.rename(columns={v: k for k, v in cols.items()})
     return df.apply(lambda s: s.str.strip())
+
+
+def parse_ric(raw):
+    """Split a RIC into (root, share class, exchange suffix, delist yyyy-mm, foreign)."""
+    t = (raw or "").strip().lstrip("*")
+    delist = ""
+    m = DELIST_RE.search(t.upper())
+    if m:
+        delist = f"20{m.group(2)}-{MONTHS.index(m.group(1)) + 1:02d}"
+        t = t[: m.start()]
+    parts = t.split(".")
+    root, rest = parts[0], [p.upper() for p in parts[1:]]
+    suffix = ""
+    if rest and (rest[-1] not in CLASS_SUFFIXES or len(rest) > 1):
+        suffix = rest.pop()
+    cls = rest[0] if len(rest) == 1 and len(rest[0]) == 1 else ""
+    # Some RICs spell the class with a space: "ERIC B.ST", "FMER PR A".
+    root, *words = root.split() or [""]
+    if words:
+        cls = cls or ("PREF" if words[0].upper() == "PR" else words[0].upper())
+    # Refinitiv writes share classes and preferreds in lower case: LGFa, BRKb, AMLp, INN_u.
+    m = re.fullmatch(r"([A-Z0-9]+)_?([a-z]+)", root)
+    if m:
+        root, low = m.group(1), m.group(2)
+        if low[0] in "pu":
+            cls = cls or "PREF"  # preferred share or unit
+        elif len(low) == 1:
+            cls = cls or low.upper()
+    foreign = bool(suffix) and suffix not in US_SUFFIXES
+    return root.upper(), cls, suffix, delist, foreign
