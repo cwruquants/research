@@ -26,10 +26,11 @@ import psycopg
 
 from research.returns.wrds import WRDS_HOST, WRDS_PORT, copy_frame, wrds_user
 
-# Events run 2002-2021. The start leaves room for the 250-day estimation window,
-# the end for the +121-day drift window after the last call.
+# Events run 2001-2024. The start leaves room for the 250-day estimation window. The
+# end is the last day of CRSP's legacy daily files (crsp.dsf, dsi), so the +121-day
+# drift window of calls after about July 2024 is cut short; n_<w> shows by how much.
 START = "2000-06-01"
-END = "2022-12-31"
+END = "2024-12-31"
 
 
 def main():
