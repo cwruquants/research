@@ -147,3 +147,53 @@ def test_city_and_title_are_stripped():
     row = _document_row(uploader)
     assert row["city"] == "Honolulu"
     assert row["event_title"] == "Q1 2005 Earnings Call"
+
+
+class _FailingDocumentConnection(_FakeConnection):
+    """Inserts companies, then fails the documents insert with error."""
+
+    def __init__(self, calls, error):
+        super().__init__(calls)
+        self.error = error
+
+    def execute(self, statement, params=None):
+        if "public.documents" in statement:
+            raise self.error
+        return super().execute(statement, params)
+
+
+def test_failed_document_write_raises_and_caches_no_company(monkeypatch):
+    uploader = _uploader()
+
+    @contextmanager
+    def failing_connection():
+        yield _FailingDocumentConnection(uploader.pool.calls, ValueError("constraint"))
+
+    monkeypatch.setattr(uploader.pool, "connection", failing_connection)
+    with pytest.raises(ValueError, match="constraint"):
+        uploader.upload_document(_document(company_name="Lexent Inc."), 2005)
+    # the company insert ran in the document's transaction, which the pool rolls back
+    assert _company_params(uploader) == [("Lexent Inc.", None)]
+    assert uploader.company_cache == {}
+
+
+def test_connection_failures_are_retried(monkeypatch):
+    import psycopg
+
+    monkeypatch.setattr("research.db.documents.time.sleep", lambda _: None)
+    attempts = []
+
+    def flaky():
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise psycopg.OperationalError("server closed the connection")
+        return {"status": "success"}
+
+    assert PostgresUploader._with_retries(flaky) == {"status": "success"}
+    assert len(attempts) == 3
+
+    def down():
+        raise psycopg.OperationalError("down")
+
+    with pytest.raises(psycopg.OperationalError):
+        PostgresUploader._with_retries(down)

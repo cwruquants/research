@@ -194,10 +194,6 @@ def load_document(file_path) -> DocumentAttr:
     """
     Load an XML earnings call transcript as a DocumentAttr of its spoken text (see
     spoken_text). file_path may be a path or a binary file object (e.g. a zip member).
-    An unreadable file gives an empty document.
+    A file that cannot be parsed raises, as spoken_text does.
     """
-    try:
-        return DocumentAttr(document=spoken_text(file_path))
-    except Exception as e:
-        print(f"Error loading document: {e}")
-        return DocumentAttr(document="")
+    return DocumentAttr(document=spoken_text(file_path))

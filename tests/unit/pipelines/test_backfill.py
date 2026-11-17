@@ -91,3 +91,21 @@ def test_process_batch_reports_empty_transcripts(tmp_path):
     ]
     result = process_batch(batch, "ts", agents={}, conn=FakeConn())
     assert result["runs_written"] == 0 and len(result["failures"]) == 1
+
+
+def test_process_batch_reports_parse_failures(tmp_path):
+    bad = tmp_path / "bad_T.xml"
+    bad.write_text("<Event><Body>unclosed", encoding="utf-8")
+    batch = [
+        {
+            "document_id": 2,
+            "source_file": "bad_T.xml",
+            "keyword_sets": [(1, "x")],
+            "location": ("dir", str(bad), None),
+        }
+    ]
+    result = process_batch(batch, "ts", agents={}, conn=FakeConn())
+    assert result["runs_written"] == 0
+    [(document_id, source_file, reason)] = result["failures"]
+    assert (document_id, source_file) == (2, "bad_T.xml")
+    assert reason.startswith("parse failed: ParseError")

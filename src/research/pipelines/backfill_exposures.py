@@ -87,15 +87,21 @@ def process_batch(
         stored = latest_xml(conn, stored_names)
 
     for doc in batch:
-        if doc["location"][0] == "db":
-            xml = stored.get(doc["source_file"])
-            if xml is None:
-                failures.append((doc["document_id"], doc["source_file"], "no published transcript"))
-                continue
-            document = load_document(io.BytesIO(xml.encode("utf-8")))
-        else:
-            with open_transcript(doc["location"]) as fh:
-                document = load_document(fh)
+        try:
+            if doc["location"][0] == "db":
+                xml = stored.get(doc["source_file"])
+                if xml is None:
+                    failures.append((doc["document_id"], doc["source_file"], "no published transcript"))
+                    continue
+                document = load_document(io.BytesIO(xml.encode("utf-8")))
+            else:
+                with open_transcript(doc["location"]) as fh:
+                    document = load_document(fh)
+        except Exception as e:  # an unreadable file fails alone, not its whole batch
+            failures.append(
+                (doc["document_id"], doc["source_file"], f"parse failed: {type(e).__name__}: {e}")
+            )
+            continue
         if not document.text:
             failures.append(
                 (doc["document_id"], doc["source_file"], "transcript has no presentation or Q&A text")
@@ -236,10 +242,14 @@ def main() -> None:
 
     database_url = config.database_url()
     with psycopg.connect(database_url) as conn:
-        missing = _load_missing(conn, args.years, args.sets)
-        stored = (
-            {name for name, _ in latest_transcript_names(conn, with_document=True)} if args.from_db else None
-        )
+        # A dry run rolls back, so a new --sets name is counted but not registered
+        with conn.transaction(force_rollback=args.dry_run):
+            missing = _load_missing(conn, args.years, args.sets)
+            stored = (
+                {name for name, _ in latest_transcript_names(conn, with_document=True)}
+                if args.from_db
+                else None
+            )
 
     todo, not_found = [], []
     if args.from_db:
